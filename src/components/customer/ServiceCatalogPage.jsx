@@ -13,15 +13,16 @@ import {
   SlidersHorizontal,
   RotateCcw
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 
 export default function ServiceCatalogPage() {
+  const navigate = useNavigate();
   const { 
     services, 
     categories, 
     selectedCategoryFilter, 
     setSelectedCategoryFilter,
-    navigateToCustomerPage,
     setBookingModalService,
     setIsBookingModalOpen
   } = useStore();
@@ -93,7 +94,7 @@ export default function ServiceCatalogPage() {
         >
           <button 
             type="button"
-            onClick={() => navigateToCustomerPage('home')}
+            onClick={() => navigate('/')}
             style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, background: 'none' }}
           >
             <Home size={14} />

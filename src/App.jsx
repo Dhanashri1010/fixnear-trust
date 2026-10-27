@@ -12,7 +12,6 @@ import { ToastProvider } from './context/ToastContext';
 // Common Components
 import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
-import RoleSwitcher from './components/common/RoleSwitcher';
 import UserActionModal from './components/common/UserActionModal';
 import BookingDrawerModal from './components/customer/BookingDrawerModal';
 import ProtectedRoute from './components/common/ProtectedRoute';
@@ -38,6 +37,7 @@ import ProviderDashboardPage from './pages/provider/ProviderDashboardPage';
 import ProviderRegisterPage from './pages/provider/ProviderRegisterPage';
 import ProviderSkillTestPage from './pages/provider/ProviderSkillTestPage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
+import AdminLoginPage from './pages/admin/AdminLoginPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function AppLayout() {
@@ -50,14 +50,15 @@ function AppLayout() {
     setActiveUserAction 
   } = useStore();
 
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
+  const isAdminLogin = location.pathname === '/admin/login';
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup' || isAdminLogin;
   const isDashboard = location.pathname.startsWith('/admin') || location.pathname.startsWith('/provider');
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-warm)' }}>
       
-      {/* Universal Top Navigation */}
-      <Navbar />
+      {/* Universal Top Navigation - hidden on admin login */}
+      {!isAdminLogin && <Navbar />}
 
       {/* Main View Router */}
       <main style={{ flex: 1, paddingBottom: '80px' }}>
@@ -104,6 +105,7 @@ function AppLayout() {
           />
 
           {/* Admin Portal Routes (Guarded for Admin) */}
+          <Route path="/admin/login" element={<AdminLoginPage />} />
           <Route 
             path="/admin/*" 
             element={
@@ -133,9 +135,6 @@ function AppLayout() {
         activeAction={activeUserAction}
         onClose={() => setActiveUserAction(null)}
       />
-
-      {/* Persistent Academic Dev Switcher Toolbar (Behind Dev Flag) */}
-      <RoleSwitcher />
 
     </div>
   );

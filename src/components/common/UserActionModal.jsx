@@ -13,12 +13,14 @@ import {
   Download,
   AlertCircle 
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 
 export default function UserActionModal({ activeAction, onClose }) {
   if (!activeAction) return null;
 
-  const { bookings, handleQuotationDecision, currentUser, navigateToCustomerPage } = useStore();
+  const navigate = useNavigate();
+  const { bookings, handleQuotationDecision, currentUser } = useStore();
 
   return (
     <div style={{
@@ -248,7 +250,7 @@ export default function UserActionModal({ activeAction, onClose }) {
                       className="btn btn-primary btn-sm"
                       onClick={() => {
                         onClose();
-                        navigateToCustomerPage('booking-tracking', { bookingId: booking.id });
+                        navigate(`/track/${booking.id}`);
                       }}
                       style={{ flex: 1 }}
                     >
@@ -260,7 +262,7 @@ export default function UserActionModal({ activeAction, onClose }) {
                         className="btn btn-outline btn-sm"
                         onClick={() => {
                           onClose();
-                          navigateToCustomerPage('quotation-review', { bookingId: booking.id });
+                          navigate(`/quote/${booking.id}`);
                         }}
                         style={{ flex: 1 }}
                       >
@@ -272,7 +274,7 @@ export default function UserActionModal({ activeAction, onClose }) {
                       className="btn btn-outline btn-sm"
                       onClick={() => {
                         onClose();
-                        navigateToCustomerPage('invoice-comparison', { bookingId: booking.id });
+                        navigate(`/invoice/${booking.id}`);
                       }}
                       style={{ flex: 1 }}
                     >

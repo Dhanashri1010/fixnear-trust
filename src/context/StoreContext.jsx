@@ -23,7 +23,38 @@ import {
   seedFirestoreDatabase 
 } from '../services/firebase/seedData';
 import { QUESTION_BANK_SEED } from '../services/firebase/questionBankSeed.js';
-import { CUSTOMER_TESTIMONIALS, DEMO_USER } from '../data/sampleData';
+const INITIAL_REVIEWS = [
+  {
+    id: "rev-1",
+    author: "Pooja Hegde",
+    locality: "Khar West, Mumbai",
+    service: "Split AC Deep Clean",
+    rating: 5,
+    date: "3 days ago",
+    content: "The technician arrived right on time with high-pressure cleaning gear. The pricing breakdown was shown on the app before work began. Truly refreshing level of professionalism.",
+    verified: true
+  },
+  {
+    id: "rev-2",
+    author: "Devendra Verma",
+    locality: "Indiranagar, Bangalore",
+    service: "Distribution Box MCB Tripping Fix",
+    rating: 5,
+    date: "1 week ago",
+    content: "Our main MCB kept tripping every evening. The electrician diagnosed an overloaded neutral wire in 20 minutes with zero hidden callout fees.",
+    verified: true
+  },
+  {
+    id: "rev-3",
+    author: "Ananya Sen",
+    locality: "Salt Lake, Kolkata",
+    service: "Concealed Bathroom Leak Repair",
+    rating: 5,
+    date: "2 weeks ago",
+    content: "Clean, quiet work, and no random extra charges asked at the doorstep. The 30-day workmanship warranty gave great peace of mind.",
+    verified: true
+  }
+];
 import { getSecureCategoryQuestions, evaluateSecureExamAttempt } from '../services/skillTestService';
 import { useToast } from './ToastContext';
 
@@ -41,11 +72,11 @@ export function StoreProvider({ children }) {
   const [categories, setCategories] = useState(SEED_CATEGORIES);
   const [technicians, setTechnicians] = useState(SEED_PROVIDERS);
   const [bookings, setBookings] = useState(SEED_BOOKINGS);
-  const [reviews, setReviews] = useState(CUSTOMER_TESTIMONIALS);
+  const [reviews, setReviews] = useState(INITIAL_REVIEWS);
   const [disputes, setDisputes] = useState(SEED_DISPUTES);
   const [questionBank, setQuestionBank] = useState(QUESTION_BANK_SEED);
   const [passMark, setPassMark] = useState(70);
-  const [activeBookingId, setActiveBookingId] = useState("FX-98214");
+  const [activeBookingId, setActiveBookingId] = useState(null);
   
   // Customer View State
   const [searchQuery, setSearchQuery] = useState('');
@@ -153,16 +184,16 @@ export function StoreProvider({ children }) {
       id: bookingId,
       serviceTitle: newBookingData.serviceTitle || "Home Service Request",
       serviceId: newBookingData.serviceId || "srv-ac-service",
-      customerId: newBookingData.customerId || "customer-demo-1",
-      customerName: newBookingData.customerName || DEMO_USER.name,
-      customerPhone: newBookingData.customerPhone || DEMO_USER.phone,
-      address: newBookingData.address || DEMO_USER.currentAddress,
-      pincode: newBookingData.pincode || DEMO_USER.pincode,
-      providerId: newBookingData.providerId || newBookingData.technicianId || "provider-demo-1",
-      providerName: newBookingData.providerName || newBookingData.technicianName || "Ramesh Sharma",
-      providerPhone: newBookingData.providerPhone || "+91 98200 11223",
-      technicianId: newBookingData.providerId || newBookingData.technicianId || "provider-demo-1",
-      technicianName: newBookingData.providerName || newBookingData.technicianName || "Ramesh Sharma",
+      customerId: newBookingData.customerId || "",
+      customerName: newBookingData.customerName || "Customer",
+      customerPhone: newBookingData.customerPhone || "",
+      address: newBookingData.address || "",
+      pincode: newBookingData.pincode || "",
+      providerId: newBookingData.providerId || newBookingData.technicianId || "",
+      providerName: newBookingData.providerName || newBookingData.technicianName || "Assigned Technician",
+      providerPhone: newBookingData.providerPhone || "+91 98200 00000",
+      technicianId: newBookingData.providerId || newBookingData.technicianId || "",
+      technicianName: newBookingData.providerName || newBookingData.technicianName || "Assigned Technician",
       technicianPhone: "+91 98200 11223",
       technicianEta: "35 mins away",
       status: "REQUESTED", // Pipeline: "REQUESTED" -> "ACCEPTED" -> "ON_THE_WAY" -> "WORKING" -> "COMPLETED"
@@ -477,8 +508,8 @@ export function StoreProvider({ children }) {
     const newReview = {
       id: reviewId,
       bookingId,
-      providerId: providerId || "provider-demo-1",
-      author: authorName || DEMO_USER.name,
+      providerId: providerId || "",
+      author: authorName || "Customer",
       locality: "Mumbai",
       service: serviceTitle || "Home Service",
       rating: Number(rating) || 5,
@@ -990,42 +1021,12 @@ export function StoreProvider({ children }) {
     showToast(`Review is now ${newHiddenState ? 'Hidden (Excluded from ratings)' : 'Visible (Included in ratings)'}.`, 'info');
   };
 
-  // Trigger Database Seed
-  const triggerDatabaseSeed = async () => {
-    if (isLiveFirebaseConfigured && db) {
-      return await seedFirestoreDatabase(db, { doc, setDoc });
-    } else {
-      setServices(SEED_SERVICES);
-      setCategories(SEED_CATEGORIES);
-      setTechnicians(SEED_PROVIDERS);
-      setBookings(SEED_BOOKINGS);
-      setDisputes(SEED_DISPUTES);
-      setQuestionBank(QUESTION_BANK_SEED);
-      return { 
-        local: true, 
-        services: SEED_SERVICES.length, 
-        categories: SEED_CATEGORIES.length,
-        questions: QUESTION_BANK_SEED.length
-      };
-    }
-  };
 
-  const navigateToCustomerPage = useCallback((pageName, params = {}) => {
-    setCustomerPage(pageName);
-    if (params.category) setSelectedCategoryFilter(params.category);
-    if (params.search) setSearchQuery(params.search);
-    if (params.technicianId) setSelectedTechnicianId(params.technicianId);
-    if (params.bookingId) setActiveBookingId(params.bookingId);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
 
   return (
     <StoreContext.Provider value={{
       currentRole,
       setCurrentRole,
-      customerPage,
-      setCustomerPage,
-      navigateToCustomerPage,
       services,
       categories,
       technicians,
@@ -1047,7 +1048,6 @@ export function StoreProvider({ children }) {
       releaseInvoiceEscrow,
       submitInvoiceDispute,
       submitReview,
-      triggerDatabaseSeed,
       registerProviderProfile,
       toggleProviderOnlineStatus,
       getCategoryQuestions,
@@ -1081,8 +1081,7 @@ export function StoreProvider({ children }) {
       isBookingModalOpen,
       setIsBookingModalOpen,
       activeUserAction,
-      setActiveUserAction,
-      currentUser: DEMO_USER
+      setActiveUserAction
     }}>
       {children}
     </StoreContext.Provider>

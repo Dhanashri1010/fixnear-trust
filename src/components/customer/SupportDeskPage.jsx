@@ -10,10 +10,11 @@ import {
   Send, 
   CheckCircle2 
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 
 export default function SupportDeskPage() {
-  const { navigateToCustomerPage } = useStore();
+  const navigate = useNavigate();
   const [ticketSubject, setTicketSubject] = useState('Warranty Claim on Service #FX-98214');
   const [ticketMessage, setTicketMessage] = useState('');
   const [ticketSubmitted, setTicketSubmitted] = useState(false);
@@ -21,8 +22,8 @@ export default function SupportDeskPage() {
 
   const faqs = [
     {
-      q: "How does the FixNear Escrow Protection protect my money?",
-      a: "When you book a service, your payment or authorization remains in escrow. The technician is not credited until you verify the work in person and provide your 4-digit completion OTP."
+      q: "How does FixNear Payment Protection protect my money?",
+      a: "When you book a service, your payment is held safely. The technician is not paid until you inspect the completed work and give your 4-digit finish code."
     },
     {
       q: "What if the technician requests additional money for spare parts at the doorstep?",
@@ -61,7 +62,7 @@ export default function SupportDeskPage() {
         >
           <button 
             type="button"
-            onClick={() => navigateToCustomerPage('home')}
+            onClick={() => navigate('/')}
             style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, background: 'none' }}
           >
             <Home size={14} />

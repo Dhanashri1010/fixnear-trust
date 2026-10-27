@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext';
 import { ShieldAlert, ArrowLeft, LogIn } from 'lucide-react';
 
 export default function ProtectedRoute({ allowedRoles, children }) {
-  const { currentUser, role, loading, quickDemoLogin } = useAuth();
+  const { currentUser, role, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -68,33 +68,12 @@ export default function ProtectedRoute({ allowedRoles, children }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <Link to="/" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
               <ArrowLeft size={16} />
-              <span>Return to Customer Home</span>
+              <span>Return to Home</span>
             </Link>
-
-            {/* Quick Demo Switcher helper for evaluators */}
-            <div style={{
-              marginTop: '16px',
-              padding: '12px',
-              backgroundColor: 'var(--bg-warm)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '13px'
-            }}>
-              <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Academic Demo Helper: </span>
-              <button
-                type="button"
-                onClick={() => quickDemoLogin(allowedRoles[0])}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--forest-700)',
-                  fontWeight: 700,
-                  textDecoration: 'underline',
-                  cursor: 'pointer'
-                }}
-              >
-                Switch to {allowedRoles[0]} demo account
-              </button>
-            </div>
+            <Link to="/login" className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }}>
+              <LogIn size={16} />
+              <span>Sign in with Authorized Account</span>
+            </Link>
           </div>
         </div>
       </div>

@@ -7,7 +7,28 @@ import {
   CheckCircle2,
   Lock
 } from 'lucide-react';
-import { TRUST_PILLARS } from '../../data/sampleData';
+const TRUST_PILLARS = [
+  {
+    icon: "ShieldCheck",
+    title: "Vetted & Certified Technicians",
+    description: "Every partner passes identity checks, rigorous practical skill assessments, and customer satisfaction audits."
+  },
+  {
+    icon: "ReceiptText",
+    title: "Payment Protection & Clear Quotes",
+    description: "No verbal estimates. Review itemized labor and spare parts on your screen before authorizing any repair."
+  },
+  {
+    icon: "ClockAlert",
+    title: "Guaranteed Punctuality",
+    description: "Your time matters. Strict arrival windows with dedicated technician communication."
+  },
+  {
+    icon: "BadgeCheck",
+    title: "30-Day Workmanship Warranty",
+    description: "Free re-inspection and resolution if the repaired problem resurfaces within 30 days."
+  }
+];
 
 const ICON_MAP = {
   ShieldCheck: ShieldCheck,

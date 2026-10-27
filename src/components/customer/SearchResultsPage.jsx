@@ -12,15 +12,16 @@ import {
   Sparkles,
   AlertCircle
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 
 export default function SearchResultsPage() {
+  const navigate = useNavigate();
   const { 
     services, 
     technicians, 
     searchQuery, 
     setSearchQuery, 
-    navigateToCustomerPage,
     setBookingModalService,
     setIsBookingModalOpen
   } = useStore();
@@ -81,7 +82,7 @@ export default function SearchResultsPage() {
         >
           <button 
             type="button"
-            onClick={() => navigateToCustomerPage('home')}
+            onClick={() => navigate('/')}
             style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, background: 'none' }}
           >
             <Home size={14} />
@@ -183,7 +184,7 @@ export default function SearchResultsPage() {
             </h2>
             <button 
               type="button"
-              onClick={() => navigateToCustomerPage('catalog')}
+              onClick={() => navigate('/services')}
               style={{ fontSize: '13px', fontWeight: 600, color: 'var(--forest-700)', background: 'none' }}
             >
               View Full Rate Catalog →
@@ -352,7 +353,7 @@ export default function SearchResultsPage() {
                     </span>
                     <button 
                       className="btn btn-outline btn-sm"
-                      onClick={() => navigateToCustomerPage('technician-profile', { technicianId: tech.id })}
+                      onClick={() => navigate(`/technician/${tech.id}`)}
                     >
                       <span>View Full Profile</span>
                       <ArrowRight size={13} />

@@ -7,12 +7,14 @@ import {
   ArrowRight,
   Info
 } from 'lucide-react';
-import { FEATURED_SERVICES } from '../../data/sampleData';
+import { useStore } from '../../context/StoreContext';
 
 export default function FeaturedServices({ selectedCategoryId, onOpenBookingModal }) {
+  const { services } = useStore();
+  const serviceList = services && services.length > 0 ? services : [];
   const filtered = selectedCategoryId
-    ? FEATURED_SERVICES.filter(s => s.categoryId === selectedCategoryId)
-    : FEATURED_SERVICES;
+    ? serviceList.filter(s => s.categoryId === selectedCategoryId)
+    : serviceList;
 
   return (
     <section className="section-spacing" style={{ backgroundColor: '#FFFFFF', borderTop: '1px solid var(--border-light)' }}>
@@ -30,7 +32,7 @@ export default function FeaturedServices({ selectedCategoryId, onOpenBookingModa
               Standardized Rate Services
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>
-              Explore itemized details and test booking without creating an account.
+              Explore itemized details with transparent pricing and verified technicians.
             </p>
           </div>
 

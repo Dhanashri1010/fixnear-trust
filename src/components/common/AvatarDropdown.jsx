@@ -103,28 +103,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         </div>
       </div>
 
-      {/* Role Portal Shortcuts */}
-      {role === 'admin' && (
-        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border-light)' }}>
-          <button
-            type="button"
-            onClick={() => handleNavigate('/admin')}
-            style={{
-              ...menuItemStyle,
-              backgroundColor: 'var(--forest-50)',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 700,
-              color: 'var(--forest-900)'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Shield size={16} color="var(--forest-700)" />
-              <span>Admin Console</span>
-            </div>
-            <ChevronRight size={14} />
-          </button>
-        </div>
-      )}
+
 
       {role === 'provider' && (
         <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border-light)' }}>

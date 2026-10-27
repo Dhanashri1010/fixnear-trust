@@ -1,3 +1,16 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+!server/.env.example
+
+# Dependencies
+node_modules/
+server/node_modules/
+dist/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

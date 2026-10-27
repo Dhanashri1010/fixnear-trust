@@ -65,7 +65,7 @@ export default function TechnicianProfilePage() {
         >
           <button 
             type="button"
-            onClick={() => navigateToCustomerPage('home')}
+            onClick={() => navigate('/')}
             style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, background: 'none' }}
           >
             <Home size={14} />
@@ -74,7 +74,7 @@ export default function TechnicianProfilePage() {
           <ChevronRight size={13} />
           <button 
             type="button"
-            onClick={() => navigateToCustomerPage('catalog')}
+            onClick={() => navigate('/services')}
             style={{ color: 'var(--text-secondary)', background: 'none' }}
           >
             Verified Experts

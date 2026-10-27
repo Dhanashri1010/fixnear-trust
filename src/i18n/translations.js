@@ -88,10 +88,8 @@ export const i18n = {
       customerChoice: "I need home repair services (Customer)",
       providerChoice: "I am a skilled technician (Service Provider)",
       googleBtn: "Continue with Google",
-      orDivider: "or continue with email",
       alreadyAccount: "Already have an account? Log In",
-      noAccount: "Don't have an account? Sign Up",
-      quickDemoLogin: "One-Click Demo Accounts (For Evaluators):"
+      noAccount: "Don't have an account? Sign Up"
     },
     bookingStatus: {
       REQUESTED: "Requested",
@@ -118,19 +116,20 @@ export const i18n = {
       acceptJob: "Accept Job",
       declineJob: "Decline",
       onTheWayBtn: "I'm on the way",
-      startWorkBtn: "Start work",
-      extraQuoteBtn: "Send extra quotation",
-      completeJobBtn: "Complete (Enter OTP)",
-      statusReview: "Skill Test Passed - Profile Under Admin Review"
+      extraQuoteBtn: "Send extra parts quote",
+      completeJobBtn: "Finish with customer code",
+      statusReview: "Waiting for approval",
+      newJobRequests: "new job requests",
+      bookingDetails: "booking details"
     },
     admin: {
-      deskTitle: "Admin Oversight Console",
-      liveCounts: "Live System Metrics",
-      approvalDesk: "Provider Approval Desk",
-      manageProviders: "Technicians & Verification",
+      deskTitle: "Admin Console",
+      liveCounts: "Live System Numbers",
+      approvalDesk: "Provider Verification Desk",
+      manageProviders: "Technicians & Status",
       manageServices: "Services & Rate Cards",
-      questionBank: "Skill Test Question Bank",
-      disputes: "Disputes & Escrow Holds",
+      questionBank: "Skill Test Questions",
+      disputes: "Complaints & Payment Holds",
       reviews: "Reviews Moderation"
     }
   },
@@ -201,10 +200,8 @@ export const i18n = {
       customerChoice: "मुझे गृह मरम्मत सेवा चाहिए (ग्राहक)",
       providerChoice: "मैं एक कुशल तकनीशियन हूँ (सेवा प्रदाता)",
       googleBtn: "Google के साथ जारी रखें",
-      orDivider: "या ईमेल से जारी रखें",
       alreadyAccount: "पहले से खाता है? लॉग इन करें",
-      noAccount: "खाता नहीं है? साइन अप करें",
-      quickDemoLogin: "एक-क्लिक डेमो खाते (मूल्यांकन हेतु):"
+      noAccount: "खाता नहीं है? साइन अप करें"
     },
     bookingStatus: {
       REQUESTED: "अनुरोधित",
@@ -231,19 +228,20 @@ export const i18n = {
       acceptJob: "कार्य स्वीकारें",
       declineJob: "अस्वीकार करें",
       onTheWayBtn: "मैं रास्ते में हूँ",
-      startWorkBtn: "कार्य शुरू करें",
-      extraQuoteBtn: "अतिरिक्त कोटेशन भेजें",
-      completeJobBtn: "पूर्ण करें (OTP दर्ज करें)",
-      statusReview: "परीक्षा उत्तीर्ण - व्यवस्थापक समीक्षाधीन"
+      extraQuoteBtn: "अतिरिक्त सामान का कोटेशन भेजें",
+      completeJobBtn: "ग्राहक कोड से पूर्ण करें",
+      statusReview: "स्वीकृति की प्रतीक्षा",
+      newJobRequests: "नए कार्य अनुरोध",
+      bookingDetails: "बुकिंग विवरण"
     },
     admin: {
-      deskTitle: "प्रशासक निरीक्षण कंसोल",
-      liveCounts: "लाइव मेट्रिक्स",
-      approvalDesk: "प्रदाता स्वीकृति डेस्क",
+      deskTitle: "प्रशासक कंसोल",
+      liveCounts: "लाइव संख्याएं",
+      approvalDesk: "प्रदाता सत्यापन डेस्क",
       manageProviders: "तकनीशियन प्रबंधन",
       manageServices: "सेवाएं एवं दरें",
       questionBank: "कौशल प्रश्न बैंक",
-      disputes: "विवाद एवं एस्क्रो",
+      disputes: "शिकायतें एवं भुगतान सुरक्षा",
       reviews: "समीक्षा मॉडरेशन"
     }
   },
@@ -314,10 +312,8 @@ export const i18n = {
       customerChoice: "मला घर दुरुस्ती सेवा हवी आहे (ग्राहक)",
       providerChoice: "मी एक कुशल तंत्रज्ञ आहे (सेवा प्रदाता)",
       googleBtn: "Google सह सुरू ठेवा",
-      orDivider: "किंवा ईमेलने सुरू ठेवा",
       alreadyAccount: "आधीच खाते आहे? लॉग इन करा",
-      noAccount: "खाते नाही? साइन अप करा",
-      quickDemoLogin: "एक-क्लिक डेमो खाती (मूल्यांकनासाठी):"
+      noAccount: "खाते नाही? साइन अप करा"
     },
     bookingStatus: {
       REQUESTED: "विनंती केली",
@@ -344,19 +340,20 @@ export const i18n = {
       acceptJob: "काम स्वीकारा",
       declineJob: "नकार द्या",
       onTheWayBtn: "मी वाटेवर आहे",
-      startWorkBtn: "काम सुरू करा",
-      extraQuoteBtn: "अतिरिक्त कोटेशन पाठवा",
-      completeJobBtn: "पूर्ण करा (OTP प्रविष्ट करा)",
-      statusReview: "परीक्षा उत्तीर्ण - प्रशासक पुनरावलोकनाधीन"
+      extraQuoteBtn: "अतिरिक्त सुट्या भागांचे कोटेशन पाठवा",
+      completeJobBtn: "ग्राहक कोडसह पूर्ण करा",
+      statusReview: "मंजुरीची प्रतीक्षा",
+      newJobRequests: "नवीन कामाच्या विनंत्या",
+      bookingDetails: "बुकिंग तपशील"
     },
     admin: {
-      deskTitle: "प्रशासक देखरेख कन्सोल",
-      liveCounts: "लाइव्ह मेट्रिक्स",
-      approvalDesk: "प्रदाता मान्यता डेस्क",
+      deskTitle: "प्रशासक कन्सोल",
+      liveCounts: "लाइव्ह आकडेवारी",
+      approvalDesk: "प्रदाता पडताळणी डेस्क",
       manageProviders: "तंत्रज्ञ व्यवस्थापन",
       manageServices: "सेवा आणि दर",
       questionBank: "कौशल्य प्रश्न बँक",
-      disputes: "तक्रारी आणि एस्क्रो",
+      disputes: "तक्रारी व पेमेंट संरक्षण",
       reviews: "पुनरावलोकन नियंत्रण"
     }
   }

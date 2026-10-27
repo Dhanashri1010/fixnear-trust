@@ -26,11 +26,9 @@ import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminOverviewTab() {
-  const { bookings, technicians, disputes, triggerDatabaseSeed, visibleReviews } = useStore();
+  const { bookings, technicians, disputes, visibleReviews } = useStore();
   const { showToast } = useToast();
   const { role } = useAuth();
-  const [seeding, setSeeding] = useState(false);
-  const [seedResult, setSeedResult] = useState(null);
 
   // Metrics
   const totalBookings = bookings.length;
@@ -51,24 +49,6 @@ export default function AdminOverviewTab() {
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Today'];
   const dailyBookingCounts = [12, 18, 15, 24, 28, 35, totalBookings > 0 ? totalBookings * 4 : 22];
   const maxDayCount = Math.max(...dailyBookingCounts, 40);
-
-  const handleSeedDatabase = async () => {
-    if (role !== 'admin') {
-      showToast('Database seeding requires Administrator privileges.', 'error');
-      return;
-    }
-    setSeeding(true);
-    try {
-      const stats = await triggerDatabaseSeed();
-      setSeedResult(stats);
-      showToast('Database successfully seeded with categories, services & question bank!', 'success');
-    } catch (err) {
-      console.error(err);
-      showToast(`Database seeding error: ${err.message}`, 'error');
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -408,54 +388,7 @@ export default function AdminOverviewTab() {
 
       </div>
 
-      {/* Database Seeder Desk (Visible only in Demo / Evaluator Mode) */}
-      {(import.meta.env.VITE_DEMO_MODE === 'true' || import.meta.env.VITE_ENABLE_DEV_DEMO_SWITCHER === 'true') && (
-        <div style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: 'var(--radius-lg)',
-          padding: '24px',
-          border: '1.5px solid var(--border-light)',
-          boxShadow: 'var(--shadow-sm)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Database size={20} color="var(--forest-700)" />
-                <h2 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--forest-900)' }}>
-                  Firestore Database Seeder & Sync Desk (Demo Only)
-                </h2>
-              </div>
-              <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Resets and synchronizes 6 Categories, 10 Catalog Services, 90 Questions, and Sample Bookings into Firestore.
-              </p>
-            </div>
 
-            <button
-              type="button"
-              onClick={handleSeedDatabase}
-              disabled={seeding}
-              className="btn btn-primary"
-            >
-              <Sparkles size={16} />
-              <span>{seeding ? 'Seeding Database...' : 'Seed Firestore Database'}</span>
-            </button>
-          </div>
-
-          {seedResult && (
-            <div style={{
-              marginTop: '16px',
-              padding: '12px 16px',
-              backgroundColor: '#F0FDF4',
-              border: '1px solid #86EFAC',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '13px',
-              color: '#166534'
-            }}>
-              ✓ Successfully synced: {seedResult.categories || 6} categories, {seedResult.services || 10} services, and {seedResult.questions || 90} question bank entries!
-            </div>
-          )}
-        </div>
-      )}
 
     </div>
   );

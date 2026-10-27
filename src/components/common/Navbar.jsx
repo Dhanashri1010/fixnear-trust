@@ -38,7 +38,7 @@ export default function Navbar() {
     setCurrentLang(lang);
   };
 
-  const isDemo = import.meta.env.VITE_DEMO_MODE === 'true' || import.meta.env.VITE_ENABLE_DEV_DEMO_SWITCHER === 'true';
+
 
   const handleNavSearch = (e) => {
     if (e.key === 'Enter' && navSearch.trim()) {
@@ -51,27 +51,6 @@ export default function Navbar() {
 
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 900 }} className="glass-nav">
-      {/* Top Demo Notification Ribbon (Gated for Evaluator / Demo Mode) */}
-      {isDemo && (
-        <div style={{
-          backgroundColor: 'var(--yellow-100)',
-          borderBottom: '1px solid var(--yellow-200)',
-          padding: '5px 16px',
-          fontSize: '12px',
-          color: 'var(--yellow-800)',
-          textAlign: 'center',
-          fontWeight: 600,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px'
-        }}>
-          <Sparkles size={14} color="var(--yellow-800)" />
-          <span>
-            <strong>FixNear Trust:</strong> Verified Multi-Portal Home Services Platform (Customer • Technician • Admin)
-          </span>
-        </div>
-      )}
 
       <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '72px', gap: '16px' }}>
         
@@ -197,7 +176,7 @@ export default function Navbar() {
           </Link>
 
           <Link 
-            to={`/track/${activeBookingId || 'FX-98214'}`}
+            to={activeBookingId ? `/track/${activeBookingId}` : '/bookings'}
             style={{
               fontSize: '13.5px',
               fontWeight: location.pathname.startsWith('/track') ? 700 : 600,
@@ -209,19 +188,31 @@ export default function Navbar() {
             }}
           >
             <Navigation size={13} color="var(--forest-700)" />
-            <span>Track Job</span>
+            <span>Track</span>
           </Link>
 
           <Link 
-            to="/technician/tech-1"
+            to="/bookings"
             style={{
               fontSize: '13.5px',
-              fontWeight: location.pathname.startsWith('/technician') ? 700 : 600,
-              color: location.pathname.startsWith('/technician') ? 'var(--forest-800)' : 'var(--text-secondary)',
+              fontWeight: location.pathname === '/bookings' ? 700 : 600,
+              color: location.pathname === '/bookings' ? 'var(--forest-800)' : 'var(--text-secondary)',
               textDecoration: 'none'
             }}
           >
-            Experts
+            My Bookings
+          </Link>
+
+          <Link 
+            to="/provider/register"
+            style={{
+              fontSize: '13.5px',
+              fontWeight: location.pathname.startsWith('/provider') ? 700 : 600,
+              color: 'var(--forest-700)',
+              textDecoration: 'none'
+            }}
+          >
+            Join as Partner
           </Link>
 
           <Link 
@@ -356,16 +347,13 @@ export default function Navbar() {
       {/* Mobile Scrollable Quick Navigation (<= 768px) */}
       <div className="nav-mobile-scroll" style={{ display: 'none' }}>
         <Link to="/services" style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--forest-100)', color: 'var(--forest-900)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-          Catalog
-        </Link>
-        <Link to={`/track/${activeBookingId || 'FX-98214'}`} style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--forest-100)', color: 'var(--forest-900)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-          Track Job
-        </Link>
-        <Link to="/technician/tech-1" style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--forest-100)', color: 'var(--forest-900)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-          Experts
+          Services
         </Link>
         <Link to="/bookings" style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--forest-100)', color: 'var(--forest-900)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
           My Bookings
+        </Link>
+        <Link to="/provider/register" style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--forest-100)', color: 'var(--forest-900)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+          Join as Partner
         </Link>
         <Link to="/support" style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--forest-100)', color: 'var(--forest-900)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
           Help

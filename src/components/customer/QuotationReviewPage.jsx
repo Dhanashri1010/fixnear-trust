@@ -24,8 +24,7 @@ export default function QuotationReviewPage() {
     bookings, 
     activeBookingId, 
     activeBooking, 
-    updateQuotationStatus, 
-    navigateToCustomerPage 
+    updateQuotationStatus
   } = useStore();
   const { showToast } = useToast();
 
@@ -41,7 +40,7 @@ export default function QuotationReviewPage() {
       <div className="section-spacing" style={{ backgroundColor: 'var(--bg-warm)', textAlign: 'center' }}>
         <div className="container">
           <h2>No pending quotation found for this booking</h2>
-          <button className="btn btn-primary" onClick={() => navigateToCustomerPage('booking-tracking', { bookingId: booking?.id })}>
+          <button className="btn btn-primary" onClick={() => navigate(booking?.id ? `/track/${booking.id}` : '/bookings')}>
             Return to Appointment Tracker
           </button>
         </div>
@@ -109,7 +108,7 @@ export default function QuotationReviewPage() {
         >
           <button 
             type="button"
-            onClick={() => navigateToCustomerPage('home')}
+            onClick={() => navigate('/')}
             style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, background: 'none' }}
           >
             <Home size={14} />
@@ -118,7 +117,7 @@ export default function QuotationReviewPage() {
           <ChevronRight size={13} />
           <button 
             type="button"
-            onClick={() => navigateToCustomerPage('booking-tracking', { bookingId: booking.id })}
+            onClick={() => navigate(`/track/${booking.id}`)}
             style={{ color: 'var(--text-secondary)', background: 'none' }}
           >
             Booking #{booking.id}

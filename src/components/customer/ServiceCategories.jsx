@@ -8,7 +8,7 @@ import {
   Sparkles, 
   ArrowUpRight 
 } from 'lucide-react';
-import { SERVICE_CATEGORIES } from '../../data/sampleData';
+import { useStore } from '../../context/StoreContext';
 
 const ICON_MAP = {
   Wind: Wind,
@@ -20,6 +20,8 @@ const ICON_MAP = {
 };
 
 export default function ServiceCategories({ selectedCategoryId, onSelectCategory }) {
+  const { categories } = useStore();
+  const displayCategories = categories && categories.length > 0 ? categories : [];
   return (
     <section id="services" className="section-spacing" style={{ backgroundColor: 'var(--bg-warm)' }}>
       <div className="container">
@@ -45,7 +47,7 @@ export default function ServiceCategories({ selectedCategoryId, onSelectCategory
           gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
           gap: '24px'
         }}>
-          {SERVICE_CATEGORIES.map((cat) => {
+          {displayCategories.map((cat) => {
             const IconComponent = ICON_MAP[cat.icon] || Sparkles;
             const isSelected = selectedCategoryId === cat.id;
 

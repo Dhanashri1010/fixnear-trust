@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   X, 
   ShieldCheck, 
@@ -6,59 +7,112 @@ import {
   MapPin, 
   Calendar, 
   CheckCircle2, 
-  Sparkles,
   ArrowRight,
   AlertCircle
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
-
-import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 export default function BookingDrawerModal({ isOpen, service, onClose }) {
-  if (!isOpen) return null;
-
+  // CRITICAL FIX: All hooks MUST be called unconditionally at the top of the component
   const navigate = useNavigate();
   const { createBooking, services } = useStore();
-
-  // Fallback to first service if opened generally
-  const currentService = service || services[0];
+  const { currentUser, userProfile } = useAuth();
+  const { showToast } = useToast();
 
   const [step, setStep] = useState(1);
-  const [selectedDate, setSelectedDate] = useState('Tomorrow, 10:00 AM');
-  const [selectedSlot, setSelectedSlot] = useState('Morning (10:00 AM - 1:00 PM)');
-  const [notes, setNotes] = useState('Split AC is leaking water inside the bedroom and cooling has reduced.');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedSlot, setSelectedSlot] = useState('');
+  const [address, setAddress] = useState(userProfile?.currentAddress || '');
+  const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
-  const [confirmedId, setConfirmedId] = useState('FX-98214');
+  const [confirmedId, setConfirmedId] = useState('');
 
-  const dates = [
-    { label: "Today", sub: "Earliest 4:00 PM", val: "Today, 4:00 PM" },
-    { label: "Tomorrow", sub: "Any slot", val: "Tomorrow, 10:00 AM" },
-    { label: "Day After", sub: "Weekend", val: "Day After, 11:30 AM" }
-  ];
+  // Fallback to first service if opened generally
+  const currentService = service || services[0] || {
+    id: 'srv-general',
+    name: 'Home Service',
+    title: 'Home Service',
+    startingPrice: 499,
+    duration: '60 mins'
+  };
 
+  const serviceTitle = currentService.name || currentService.title || 'Home Service';
+  const servicePrice = currentService.basePrice || currentService.startingPrice || 499;
+
+  // Standard time slots
   const slots = [
     "Morning (09:00 AM - 12:00 PM)",
     "Afternoon (12:00 PM - 03:00 PM)",
     "Evening (03:00 PM - 06:00 PM)"
   ];
 
-  const handleConfirm = async () => {
-    const newId = await createBooking({
-      serviceTitle: currentService.title,
-      serviceId: currentService.id,
-      basePrice: currentService.startingPrice,
-      scheduledDate: selectedDate,
-      timeSlot: selectedSlot
-    });
-    setConfirmedId(newId);
-    setIsSuccess(true);
+  // Calculate today's date for minimum date picker
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const handleConfirm = async (e) => {
+    if (e) e.preventDefault();
+    setSubmitError('');
+
+    if (!selectedDate) {
+      setSubmitError('Please select a preferred service date.');
+      showToast('Please select a preferred service date.', 'error');
+      return;
+    }
+
+    if (!selectedSlot) {
+      setSubmitError('Please choose an arrival time window.');
+      showToast('Please choose an arrival time window.', 'error');
+      return;
+    }
+
+    if (!address.trim()) {
+      setSubmitError('Please enter your service address.');
+      showToast('Please enter your service address.', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const newId = await createBooking({
+        serviceTitle,
+        serviceId: currentService.id,
+        basePrice: servicePrice,
+        scheduledDate: selectedDate,
+        timeSlot: selectedSlot,
+        address: address.trim(),
+        notes: notes.trim()
+      });
+
+      if (!newId) {
+        throw new Error('Server did not return a valid booking ID');
+      }
+
+      setConfirmedId(newId);
+      setIsSuccess(true);
+      showToast('Booking request submitted successfully!', 'success');
+    } catch (err) {
+      console.error('Booking creation error:', err);
+      const msg = 'We could not place your booking. Please try again.';
+      setSubmitError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const resetAndClose = () => {
     setIsSuccess(false);
+    setSubmitError('');
     setStep(1);
     onClose();
   };
+
+  // Safe early return AFTER all hooks
+  if (!isOpen) return null;
 
   return (
     <div style={{
@@ -73,13 +127,13 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 1000,
-      padding: '20px'
+      padding: '16px'
     }}>
       <div 
         className="card"
         style={{
           width: '100%',
-          maxWidth: '580px',
+          maxWidth: '560px',
           maxHeight: '90vh',
           overflowY: 'auto',
           backgroundColor: '#FFFFFF',
@@ -100,19 +154,18 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="badge badge-forest" style={{ fontSize: '11.5px' }}>
-                FixNear Transparent Booking
-              </span>
-              <span className="badge badge-demo" style={{ fontSize: '11px' }}>
-                Sample Preview
+                FixNear Verified Service
               </span>
             </div>
-            <h3 style={{ fontSize: '19px', fontWeight: 800, marginTop: '4px' }}>
-              {isSuccess ? 'Booking Request Confirmed' : currentService.title}
+            <h3 style={{ fontSize: '19px', fontWeight: 800, marginTop: '4px', color: 'var(--forest-900)' }}>
+              {isSuccess ? 'Booking Placed' : serviceTitle}
             </h3>
           </div>
 
           <button 
+            type="button"
             onClick={resetAndClose}
+            aria-label="Close booking modal"
             style={{
               width: '36px',
               height: '36px',
@@ -132,7 +185,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
         <div style={{ padding: '24px' }}>
           
           {isSuccess ? (
-            /* Success State Preview */
+            /* Success State */
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
               <div style={{
                 width: '64px',
@@ -148,13 +201,13 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                 <CheckCircle2 size={36} />
               </div>
 
-              <h4 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '8px' }}>
-                Demo Booking Created!
+              <h4 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '8px', color: 'var(--forest-900)' }}>
+                Booking Placed Successfully!
               </h4>
               <p style={{ color: 'var(--text-secondary)', fontSize: '14.5px', marginBottom: '24px', maxWidth: '420px', margin: '0 auto 24px auto' }}>
                 Booking Reference: <strong style={{ color: 'var(--forest-800)' }}>{confirmedId}</strong>
                 <br />
-                Your selected time: <strong>{selectedDate}</strong>
+                Scheduled for: <strong>{selectedDate} • {selectedSlot}</strong>
               </p>
 
               {/* Confirmation Notice */}
@@ -170,13 +223,14 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
               }}>
                 <div style={{ fontWeight: 700, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <ShieldCheck size={16} color="var(--forest-700)" />
-                  <span>Real-Time Appointment Dispatched:</span>
+                  <span>Payment Protection Activated:</span>
                 </div>
-                Your service partner has been notified. You can track their arrival window and view your secure 4-digit completion OTP.
+                Your verified technician will be dispatched for your scheduled slot. You only share your 4-digit finish code once you are fully satisfied with the service.
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <button 
+                  type="button"
                   className="btn btn-primary"
                   onClick={() => {
                     resetAndClose();
@@ -189,6 +243,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                 </button>
 
                 <button 
+                  type="button"
                   className="btn btn-outline"
                   onClick={resetAndClose}
                   style={{ width: '100%', padding: '10px', justifyContent: 'center' }}
@@ -198,8 +253,8 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
               </div>
             </div>
           ) : (
-            /* Booking Configuration Steps */
-            <div>
+            /* Booking Form */
+            <form onSubmit={handleConfirm}>
               {/* Service Price Card */}
               <div style={{
                 display: 'flex',
@@ -212,50 +267,65 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                 marginBottom: '20px'
               }}>
                 <div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Estimated Standard Base Fee</div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Standard Visit & Inspection Fee</div>
                   <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--forest-800)' }}>
-                    ₹{currentService.startingPrice}
+                    ₹{servicePrice}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <span className="badge badge-sage">30-Day Free Rework</span>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Est. {currentService.duration}
+                    Est. {currentService.duration || '60 mins'}
                   </div>
                 </div>
               </div>
 
+              {submitError && (
+                <div style={{
+                  padding: '10px 14px',
+                  backgroundColor: '#FEF2F2',
+                  border: '1px solid #FCA5A5',
+                  borderRadius: 'var(--radius-sm)',
+                  color: '#991B1B',
+                  fontSize: '13px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '16px'
+                }}>
+                  <AlertCircle size={16} />
+                  <span>{submitError}</span>
+                </div>
+              )}
+
               {/* 1. Date Selection */}
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, marginBottom: '8px' }}>
-                  1. Select Date & Arrival Window
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, marginBottom: '6px', color: 'var(--forest-900)' }}>
+                  1. Choose Date
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                  {dates.map((d, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setSelectedDate(d.val)}
-                      style={{
-                        padding: '10px 8px',
-                        borderRadius: 'var(--radius-sm)',
-                        border: selectedDate === d.val ? '2px solid var(--forest-700)' : '1px solid var(--border-light)',
-                        backgroundColor: selectedDate === d.val ? 'var(--forest-100)' : '#FFFFFF',
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        transition: 'all 150ms ease'
-                      }}
-                    >
-                      <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-primary)' }}>{d.label}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{d.sub}</div>
-                    </button>
-                  ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', backgroundColor: '#FFFFFF' }}>
+                  <Calendar size={16} color="var(--forest-700)" />
+                  <input 
+                    type="date"
+                    min={todayStr}
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    required
+                    style={{
+                      border: 'none',
+                      outline: 'none',
+                      width: '100%',
+                      fontSize: '14px',
+                      color: 'var(--text-primary)',
+                      background: 'transparent'
+                    }}
+                  />
                 </div>
               </div>
 
               {/* 2. Slot Selection */}
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, marginBottom: '8px' }}>
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, marginBottom: '6px', color: 'var(--forest-900)' }}>
                   2. Preferred Time Slot
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -271,16 +341,17 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                         border: selectedSlot === s ? '1.5px solid var(--forest-700)' : '1px solid var(--border-light)',
                         backgroundColor: selectedSlot === s ? 'var(--forest-50)' : '#FFFFFF',
                         cursor: 'pointer',
-                        fontSize: '13px',
+                        fontSize: '13.5px',
                         fontWeight: 500
                       }}
                     >
                       <input 
                         type="radio" 
-                        name="timeSlot" 
+                        name="drawerTimeSlot" 
                         checked={selectedSlot === s}
                         onChange={() => setSelectedSlot(s)}
-                        style={{ accentColor: 'var(--forest-700)' }}
+                        required
+                        style={{ accentColor: 'var(--forest-700)', width: '16px', height: '16px' }}
                       />
                       <span>{s}</span>
                     </label>
@@ -288,35 +359,41 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                 </div>
               </div>
 
-              {/* 3. Address & Symptom Notes */}
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, marginBottom: '8px' }}>
-                  3. Service Address & Problem Notes
+              {/* 3. Address */}
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, marginBottom: '6px', color: 'var(--forest-900)' }}>
+                  3. Service Address
                 </label>
-                
-                {/* Address Pill */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 12px',
-                  backgroundColor: 'var(--bg-warm)',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--border-light)',
-                  marginBottom: '10px',
-                  fontSize: '12.5px'
-                }}>
-                  <MapPin size={15} color="var(--forest-700)" />
-                  <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
-                    {DEMO_USER.currentAddress}
-                  </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', backgroundColor: '#FFFFFF' }}>
+                  <MapPin size={16} color="var(--forest-700)" style={{ flexShrink: 0 }} />
+                  <input 
+                    type="text"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="House/flat no., street, landmark, city & pincode"
+                    required
+                    style={{
+                      border: 'none',
+                      outline: 'none',
+                      width: '100%',
+                      fontSize: '13.5px',
+                      color: 'var(--text-primary)',
+                      background: 'transparent'
+                    }}
+                  />
                 </div>
+              </div>
 
+              {/* 4. Problem Notes */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, marginBottom: '6px', color: 'var(--forest-900)' }}>
+                  4. Describe the Problem (Optional)
+                </label>
                 <textarea
                   rows={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Describe what's wrong (symptoms, brand, errors)..."
+                  placeholder="Describe what is wrong (e.g. water leakage, unusual sound, tripping breaker)..."
                   style={{
                     width: '100%',
                     padding: '10px 12px',
@@ -337,16 +414,17 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                 padding: '12px 14px',
                 fontSize: '12px',
                 color: 'var(--text-secondary)',
-                marginBottom: '24px',
+                marginBottom: '20px',
                 lineHeight: 1.5
               }}>
                 <strong style={{ color: 'var(--forest-800)' }}>Zero Doorstep Price Shock:</strong>
                 {' '}Any extra spare parts will require your digital approval on your screen before installation.
               </div>
 
-              {/* Action */}
+              {/* Action Buttons */}
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button 
+                  type="button"
                   className="btn btn-outline"
                   onClick={resetAndClose}
                   style={{ flex: 1 }}
@@ -354,16 +432,17 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                   Cancel
                 </button>
                 <button 
+                  type="submit"
+                  disabled={isSubmitting}
                   className="btn btn-primary"
-                  onClick={handleConfirm}
                   style={{ flex: 2, padding: '12px' }}
                 >
-                  <span>Request Booking (Demo)</span>
+                  <span>{isSubmitting ? 'Placing Booking...' : 'Confirm Booking'}</span>
                   <ArrowRight size={16} />
                 </button>
               </div>
 
-            </div>
+            </form>
           )}
 
         </div>
