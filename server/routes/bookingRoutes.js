@@ -11,6 +11,7 @@ import {
   submitReview,
   submitComplaint,
   updateBookingStatus,
+  declineBooking,
 } from '../controllers/bookingController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -84,6 +85,7 @@ router.post('/bookings/:id/complaint', authorize('customer'), validate(complaint
 
 // Status transition route (assigned provider or admin)
 router.patch('/bookings/:id/status', authorize('provider', 'admin'), validate(statusBookingSchema), updateBookingStatus);
+router.patch('/bookings/:id/decline', authorize('provider'), declineBooking);
 
 export default router;
 

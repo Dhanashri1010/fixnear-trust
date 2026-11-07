@@ -21,6 +21,7 @@ import { apiRateLimiter } from './middleware/rateLimiter.js';
 import { User } from './models/User.js';
 import { Provider } from './models/Provider.js';
 import { Booking } from './models/Booking.js';
+import { checkExpiredOffers } from './controllers/bookingController.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -232,4 +233,7 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`[Server] FixNear Trust Backend running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
     console.log(`[Server] Allowed CORS client: ${clientUrl}`);
   });
+
+  // Background ticker: run every 10 seconds to check and handle expired offers (survives server restarts)
+  setInterval(checkExpiredOffers, 10000);
 }

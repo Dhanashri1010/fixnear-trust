@@ -166,20 +166,28 @@ export const createBooking = async (req, res, next) => {
     // Notify & emit socket updates
     if (io) {
       io.to(`user_${req.user._id}`).emit('booking_created', newBooking);
+      // Emit ONLY to the specific provider's user room with masked privacy details
       io.to(`user_${targetProvider.userId}`).emit('new_job_offered', {
         bookingId: newBooking.bookingId,
         serviceTitle: newBooking.serviceTitle,
         city: newBooking.city,
+        area: newBooking.address ? newBooking.address.split(',')[0].trim() : newBooking.city,
         scheduledDate: newBooking.scheduledDate,
         timeSlot: newBooking.timeSlot,
+        price: newBooking.basePrice,
         expiresInSeconds: 60,
       });
-      io.to(`providers_${bookingCity.toLowerCase()}`).emit('new_job_broadcast', {
-        bookingId: newBooking.bookingId,
-        serviceTitle: newBooking.serviceTitle,
-        city: newBooking.city,
-      });
     }
+
+    // Create notification for offered provider
+    await notifyUser({
+      userId: targetProvider.userId,
+      role: 'provider',
+      title: 'New Service Request Offered',
+      message: `A new job for ${service.title} in ${bookingCity} is offered to you (₹${service.startingPrice}). You have 60 seconds to accept.`,
+      type: 'booking',
+      link: '/provider/dashboard',
+    });
 
     // Never put the finish code inside notification message
     await notifyUser({
@@ -334,6 +342,16 @@ export const cancelBooking = async (req, res, next) => {
     booking.status = 'CANCELLED';
     booking.cancellationReason = reason || 'Cancelled by customer';
     booking.cancelledBy = req.user.role;
+    booking.currentOfferExpiresAt = null;
+
+    // Close any open offer
+    if (Array.isArray(booking.offeredTo)) {
+      booking.offeredTo.forEach((off) => {
+        if (off.status === 'PENDING') {
+          off.status = 'CANCELLED';
+        }
+      });
+    }
     await booking.save();
 
     if (io) {
@@ -781,10 +799,15 @@ export const updateBookingStatus = async (req, res, next) => {
     if (req.user.role === 'provider') {
       providerDoc = await Provider.findOne({ userId: req.user._id });
       if (providerDoc) {
+        if (providerDoc.status === 'suspended') {
+          return res.status(403).json({
+            success: false,
+            message: 'Your provider account is suspended. You cannot perform job actions.',
+          });
+        }
         if (booking.providerId && String(booking.providerId) === String(providerDoc._id)) {
           isProvider = true;
-        } else if (booking.status === 'REQUESTED' && nextStatus === 'ACCEPTED' && providerDoc.status === 'approved') {
-          // Provider accepting an unassigned offered booking
+        } else if (booking.status === 'REQUESTED' && nextStatus === 'ACCEPTED') {
           isProvider = true;
         }
       }
@@ -812,11 +835,127 @@ export const updateBookingStatus = async (req, res, next) => {
       });
     }
 
-    // When provider accepts, bind provider details
-    if (nextStatus === 'ACCEPTED' && providerDoc) {
-      booking.providerId = providerDoc._id;
-      booking.providerName = providerDoc.name;
-      booking.providerPhone = providerDoc.phone;
+    // When provider accepts, perform strict verification and ATOMIC update
+    if (nextStatus === 'ACCEPTED') {
+      if (!providerDoc) {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden: Only a registered provider can accept jobs.',
+        });
+      }
+
+      // Check status: must be approved (not suspended, rejected, or in test)
+      if (providerDoc.status !== 'approved') {
+        return res.status(403).json({
+          success: false,
+          message: `Your provider account is currently ${providerDoc.status.replace(/_/g, ' ')}. Only verified providers can accept jobs.`,
+        });
+      }
+
+      // Check online
+      if (!providerDoc.isOnline) {
+        return res.status(400).json({
+          success: false,
+          message: 'You must be online to accept incoming jobs.',
+        });
+      }
+
+      // Check city
+      if (providerDoc.city.trim().toLowerCase() !== booking.city.trim().toLowerCase()) {
+        return res.status(400).json({
+          success: false,
+          message: 'This job is outside your registered city.',
+        });
+      }
+
+      // Check skill
+      const service = await Service.findOne({ serviceId: booking.serviceId });
+      const hasSkill =
+        providerDoc.skills?.some(
+          (s) =>
+            s.passed &&
+            (s.categoryId === service?.categoryId ||
+              s.categoryName?.toLowerCase() === service?.category?.toLowerCase())
+        ) ||
+        (service && new RegExp(service.category || service.categoryId, 'i').test(providerDoc.specialty));
+
+      if (!hasSkill) {
+        return res.status(400).json({
+          success: false,
+          message: 'You do not have the verified skill required for this service.',
+        });
+      }
+
+      // ATOMIC ACCEPTANCE:
+      // Only an offered provider with PENDING status and unexpired offer can accept!
+      const acceptedBooking = await Booking.findOneAndUpdate(
+        {
+          _id: booking._id,
+          status: 'REQUESTED',
+          currentOfferExpiresAt: { $gt: new Date() },
+          offeredTo: {
+            $elemMatch: {
+              providerId: providerDoc._id,
+              status: 'PENDING',
+            },
+          },
+        },
+        {
+          $set: {
+            status: 'ACCEPTED',
+            providerId: providerDoc._id,
+            providerName: providerDoc.name,
+            providerPhone: providerDoc.phone,
+            'offeredTo.$.status': 'ACCEPTED',
+          },
+        },
+        { new: true }
+      );
+
+      if (!acceptedBooking) {
+        return res.status(409).json({
+          success: false,
+          message: 'This job was already taken or the offer has expired.',
+        });
+      }
+
+      // Update timeline step
+      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      acceptedBooking.timeline = acceptedBooking.timeline.map((item) => {
+        if (item.step === 'Technician Assigned') {
+          return { ...item, done: true, current: true, time: nowStr };
+        }
+        return { ...item, current: false };
+      });
+      await acceptedBooking.save();
+
+      if (io) {
+        io.to(`booking_${acceptedBooking._id}`).emit('booking_status_updated', {
+          bookingId: acceptedBooking._id,
+          status: 'ACCEPTED',
+          timeline: acceptedBooking.timeline,
+        });
+        io.to(`user_${acceptedBooking.customerId}`).emit('booking_updated', acceptedBooking);
+        io.to(`user_${providerDoc.userId}`).emit('booking_updated', acceptedBooking);
+      }
+
+      await notifyUser({
+        userId: acceptedBooking.customerId,
+        role: 'customer',
+        title: 'Technician Assigned',
+        message: `${providerDoc.name} has accepted your booking #${acceptedBooking.bookingId} and will be assisting you.`,
+        type: 'booking',
+        link: `/track/${acceptedBooking._id}`,
+      });
+
+      const resp = acceptedBooking.toObject();
+      if (!isAdmin) delete resp.completionOtp;
+
+      return res.status(200).json({
+        success: true,
+        message: 'Job accepted successfully!',
+        booking: resp,
+      });
     }
 
     // If moving to COMPLETED, verify finish code!
@@ -951,6 +1090,210 @@ export const updateBookingStatus = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+// PATCH /api/bookings/:id/decline (provider only)
+export const declineBooking = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const isObjectId = mongoose.isValidObjectId(id);
+
+    const providerDoc = await Provider.findOne({ userId: req.user._id });
+    if (!providerDoc) {
+      return res.status(404).json({ success: false, message: 'Provider profile not found.' });
+    }
+
+    const booking = await Booking.findOne({
+      $or: [
+        ...(isObjectId ? [{ _id: id }] : []),
+        { bookingId: String(id).toUpperCase() },
+      ],
+    });
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found.' });
+    }
+
+    // Atomic update: only decline if offered and PENDING
+    const declinedBooking = await Booking.findOneAndUpdate(
+      {
+        _id: booking._id,
+        status: 'REQUESTED',
+        offeredTo: {
+          $elemMatch: {
+            providerId: providerDoc._id,
+            status: 'PENDING',
+          },
+        },
+      },
+      {
+        $set: {
+          'offeredTo.$.status': 'DECLINED',
+        },
+      },
+      { new: true }
+    );
+
+    if (!declinedBooking) {
+      return res.status(400).json({
+        success: false,
+        message: 'No active job offer found to decline for this booking.',
+      });
+    }
+
+    // Immediately dispatch to next provider!
+    await offerBookingToNextProvider(declinedBooking._id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Job offer declined.',
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Dispatch helper: offers booking to the next matching verified online provider in the city
+export const offerBookingToNextProvider = async (bookingId) => {
+  const booking = await Booking.findById(bookingId);
+  if (!booking || booking.status !== 'REQUESTED') return null;
+
+  const service = await Service.findOne({ serviceId: booking.serviceId });
+  if (!service) return null;
+
+  const alreadyOfferedIds = (booking.offeredTo || []).map((o) => o.providerId);
+
+  const query = {
+    _id: { $nin: alreadyOfferedIds },
+    status: 'approved',
+    isOnline: true,
+    city: new RegExp(`^${booking.city.trim()}$`, 'i'),
+    $or: [
+      { 'skills.categoryId': service.categoryId },
+      { 'skills.categoryName': new RegExp(service.category, 'i') },
+      { specialty: new RegExp(service.category || service.categoryId, 'i') },
+    ],
+  };
+
+  const nextProviders = await Provider.find(query).sort({ ratingAvg: -1, jobsDone: -1 });
+
+  if (nextProviders.length > 0) {
+    const nextProvider = nextProviders[0];
+    const updated = await Booking.findOneAndUpdate(
+      {
+        _id: booking._id,
+        status: 'REQUESTED',
+      },
+      {
+        $push: {
+          offeredTo: {
+            providerId: nextProvider._id,
+            offeredAt: new Date(),
+            status: 'PENDING',
+          },
+        },
+        $set: {
+          currentOfferExpiresAt: new Date(Date.now() + 60 * 1000),
+        },
+      },
+      { new: true }
+    );
+
+    if (updated) {
+      if (io) {
+        // Send to provider's user room only with masked privacy details
+        io.to(`user_${nextProvider.userId}`).emit('new_job_offered', {
+          bookingId: updated.bookingId,
+          serviceTitle: updated.serviceTitle,
+          city: updated.city,
+          area: updated.address ? updated.address.split(',')[0].trim() : updated.city,
+          scheduledDate: updated.scheduledDate,
+          timeSlot: updated.timeSlot,
+          price: updated.basePrice,
+          expiresInSeconds: 60,
+        });
+      }
+
+      await notifyUser({
+        userId: nextProvider.userId,
+        role: 'provider',
+        title: 'New Service Request Offered',
+        message: `A new job for ${updated.serviceTitle} in ${updated.city} is offered to you (₹${updated.basePrice}). You have 60 seconds to accept.`,
+        type: 'booking',
+        link: '/provider/dashboard',
+      });
+    }
+    return updated;
+  } else {
+    // No more eligible providers exist
+    const updated = await Booking.findOneAndUpdate(
+      {
+        _id: booking._id,
+        status: 'REQUESTED',
+      },
+      {
+        $set: {
+          status: 'NO_PROVIDER_FOUND',
+          currentOfferExpiresAt: null,
+        },
+      },
+      { new: true }
+    );
+
+    if (updated) {
+      if (io) {
+        io.to(`user_${updated.customerId}`).emit('booking_updated', updated);
+        io.to(`booking_${updated._id}`).emit('booking_status_updated', {
+          bookingId: updated._id,
+          status: 'NO_PROVIDER_FOUND',
+        });
+      }
+
+      await notifyUser({
+        userId: updated.customerId,
+        role: 'customer',
+        title: 'No Technician Available',
+        message: `We could not find an available technician for your booking #${updated.bookingId} right now. Please choose another date or time slot.`,
+        type: 'booking',
+        link: `/track/${updated._id}`,
+      });
+    }
+    return updated;
+  }
+};
+
+// Periodic background ticker (every 10s): expires unanswered offers and offers to next provider
+export const checkExpiredOffers = async () => {
+  try {
+    const expiredBookings = await Booking.find({
+      status: 'REQUESTED',
+      currentOfferExpiresAt: { $lte: new Date() },
+    });
+
+    for (const b of expiredBookings) {
+      // Atomically mark any PENDING offer as EXPIRED
+      const updated = await Booking.findOneAndUpdate(
+        {
+          _id: b._id,
+          status: 'REQUESTED',
+          currentOfferExpiresAt: { $lte: new Date() },
+          'offeredTo.status': 'PENDING',
+        },
+        {
+          $set: {
+            'offeredTo.$.status': 'EXPIRED',
+          },
+        },
+        { new: true }
+      );
+
+      if (updated) {
+        await offerBookingToNextProvider(updated._id);
+      }
+    }
+  } catch (err) {
+    console.error('[Offer Expiry Ticker Error]:', err.message);
   }
 };
 

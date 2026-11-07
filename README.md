@@ -225,6 +225,18 @@ Follow this step-by-step walkthrough to test the complete lifecycle across all t
 
 ---
 
+### 7. Run Automated Tests
+FixNear Trust includes an integration test suite powered by Vitest, Supertest, and `mongodb-memory-server`.
+```bash
+# Run server integration tests
+npm test
+# Or from the server directory:
+cd server && npm test
+```
+> **Multi-OS Note**: Tests run automatically across Windows, macOS, and Linux. If you already have a local `mongod` binary installed (e.g. at `/usr/bin/mongod` or `C:\Program Files\MongoDB\Server\8.2\bin\mongod.exe`), you can optionally export the `MONGOMS_SYSTEM_BINARY` environment variable pointing to it; otherwise, `mongodb-memory-server` will automatically download and cache the appropriate binary.
+
+---
+
 ## 🔒 Security Rules & Production Safety
 
 - **Firebase Firestore Rules (`firestore.rules`)**:

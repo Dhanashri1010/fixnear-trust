@@ -76,7 +76,7 @@ const bookingSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['REQUESTED', 'ACCEPTED', 'ON_THE_WAY', 'WORKING', 'COMPLETED', 'CANCELLED', 'DISPUTED'],
+      enum: ['REQUESTED', 'ACCEPTED', 'ON_THE_WAY', 'WORKING', 'COMPLETED', 'CANCELLED', 'DISPUTED', 'NO_PROVIDER_FOUND'],
       default: 'REQUESTED',
     },
     completionOtp: {
@@ -108,7 +108,7 @@ const bookingSchema = new mongoose.Schema(
         },
         status: {
           type: String,
-          enum: ['PENDING', 'ACCEPTED', 'DECLINED', 'EXPIRED'],
+          enum: ['PENDING', 'ACCEPTED', 'DECLINED', 'EXPIRED', 'CANCELLED'],
           default: 'PENDING',
         },
       },

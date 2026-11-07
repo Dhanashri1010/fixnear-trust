@@ -1,9 +1,3 @@
-import crypto from 'crypto';
-
-process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = crypto.randomBytes(32).toString('hex');
-process.env.MONGOMS_SYSTEM_BINARY = 'C:\\Program Files\\MongoDB\\Server\\8.2\\bin\\mongod.exe';
-
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
@@ -15,6 +9,7 @@ import { Provider } from '../models/Provider.js';
 import { Booking } from '../models/Booking.js';
 import { Review } from '../models/Review.js';
 import { Dispute } from '../models/Dispute.js';
+import { checkExpiredOffers } from '../controllers/bookingController.js';
 
 let mongod;
 
@@ -852,6 +847,266 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     expect(reviewRes.status).toBe(201);
     expect(reviewRes.body.success).toBe(true);
     expect(reviewRes.body.review.rating).toBe(4);
+  });
+
+  // 10. Item A2: Atomic job acceptance & collision rejection (409)
+  it('enforces atomic job acceptance, rejecting unauthorized, suspended, or unoffered providers with 409/403', async () => {
+    // 1. Create 3 providers
+    // Provider A: Verified, online, offered
+    const userA = await User.create({
+      name: 'Provider Alpha',
+      email: 'alpha@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543111',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const provA = await Provider.create({
+      userId: userA._id,
+      name: userA.name,
+      email: userA.email,
+      phone: userA.phone,
+      city: 'Mumbai',
+      specialty: 'Plumbing',
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 92 }],
+      status: 'approved',
+      isOnline: true,
+      ratingAvg: 4.9,
+    });
+    const loginA = await request(app).post('/api/auth/login').send({ email: 'alpha@fixnear.com', password: 'SecurePass123' });
+    const cookieA = loginA.headers['set-cookie'];
+
+    // Provider B: Verified, online, NOT offered
+    const userB = await User.create({
+      name: 'Provider Beta',
+      email: 'beta@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543112',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    await Provider.create({
+      userId: userB._id,
+      name: userB.name,
+      email: userB.email,
+      phone: userB.phone,
+      city: 'Mumbai',
+      specialty: 'Plumbing',
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 88 }],
+      status: 'approved',
+      isOnline: true,
+      ratingAvg: 4.5,
+    });
+    const loginB = await request(app).post('/api/auth/login').send({ email: 'beta@fixnear.com', password: 'SecurePass123' });
+    const cookieB = loginB.headers['set-cookie'];
+
+    // Provider C: Suspended
+    const userC = await User.create({
+      name: 'Provider Gamma',
+      email: 'gamma@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543113',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    await Provider.create({
+      userId: userC._id,
+      name: userC.name,
+      email: userC.email,
+      phone: userC.phone,
+      city: 'Mumbai',
+      specialty: 'Plumbing',
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 85 }],
+      status: 'suspended',
+      isOnline: true,
+    });
+    const loginC = await request(app).post('/api/auth/login').send({ email: 'gamma@fixnear.com', password: 'SecurePass123' });
+    const cookieC = loginC.headers['set-cookie'];
+
+    // 2. Setup Customer & Service
+    const custRes = await request(app).post('/api/auth/register').send({
+      name: 'Sunil Rao',
+      email: 'sunil@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543114',
+      city: 'Mumbai',
+      role: 'customer',
+    });
+    const custCookie = custRes.headers['set-cookie'];
+
+    const service = await Service.create({
+      serviceId: 'plumbing-general-check',
+      categoryId: 'plumbing',
+      category: 'Plumbing',
+      title: 'Plumbing General Checkup',
+      startingPrice: 299,
+      isActive: true,
+    });
+
+    // 3. Customer places booking -> offered to Provider Alpha
+    const bookRes = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: service.serviceId,
+        address: 'Bandra Reclamation, Mumbai',
+        city: 'Mumbai',
+        scheduledDate: '2026-12-25',
+        timeSlot: 'Morning (10:00 AM - 01:00 PM)',
+        problemNote: 'Water pressure low',
+      });
+    const bookingId = bookRes.body.booking._id;
+
+    // 4. Suspended Provider C attempts to accept -> 403 Forbidden
+    const suspendedRes = await request(app)
+      .patch(`/api/bookings/${bookingId}/status`)
+      .set('Cookie', cookieC)
+      .send({ status: 'ACCEPTED' });
+    expect(suspendedRes.status).toBe(403);
+    expect(suspendedRes.body.message).toContain('suspended');
+
+    // 5. Unoffered Provider B attempts to accept -> 409 Conflict
+    const unofferedRes = await request(app)
+      .patch(`/api/bookings/${bookingId}/status`)
+      .set('Cookie', cookieB)
+      .send({ status: 'ACCEPTED' });
+    expect(unofferedRes.status).toBe(409);
+    expect(unofferedRes.body.message).toContain('already taken or the offer has expired');
+
+    // 6. Offered Provider A accepts -> 200 OK
+    const acceptResA = await request(app)
+      .patch(`/api/bookings/${bookingId}/status`)
+      .set('Cookie', cookieA)
+      .send({ status: 'ACCEPTED' });
+    expect(acceptResA.status).toBe(200);
+    expect(acceptResA.body.booking.status).toBe('ACCEPTED');
+    expect(acceptResA.body.booking.providerId).toBe(String(provA._id));
+
+    // 7. Duplicate acceptance attempt by Provider A or Provider B -> 400+
+    const dupRes = await request(app)
+      .patch(`/api/bookings/${bookingId}/status`)
+      .set('Cookie', cookieA)
+      .send({ status: 'ACCEPTED' });
+    expect(dupRes.status).toBeGreaterThanOrEqual(400);
+  });
+
+  // 11. Item A2 & A3: Provider decline, atomic re-dispatch to next provider, and expiry transition to NO_PROVIDER_FOUND
+  it('handles provider decline, atomically offers to next eligible provider, and marks NO_PROVIDER_FOUND when offers expire', async () => {
+    // 1. Create Provider 1 (Rating 5.0) & Provider 2 (Rating 4.7)
+    const user1 = await User.create({
+      name: 'First Tech',
+      email: 'first@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543121',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const prov1 = await Provider.create({
+      userId: user1._id,
+      name: user1.name,
+      email: user1.email,
+      phone: user1.phone,
+      city: 'Mumbai',
+      specialty: 'Plumbing',
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 95 }],
+      status: 'approved',
+      isOnline: true,
+      ratingAvg: 5.0,
+      jobsDone: 10,
+    });
+    const login1 = await request(app).post('/api/auth/login').send({ email: 'first@fixnear.com', password: 'SecurePass123' });
+    const cookie1 = login1.headers['set-cookie'];
+
+    const user2 = await User.create({
+      name: 'Second Tech',
+      email: 'second@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543122',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const prov2 = await Provider.create({
+      userId: user2._id,
+      name: user2.name,
+      email: user2.email,
+      phone: user2.phone,
+      city: 'Mumbai',
+      specialty: 'Plumbing',
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 90 }],
+      status: 'approved',
+      isOnline: true,
+      ratingAvg: 4.7,
+      jobsDone: 5,
+    });
+
+    // 2. Setup Customer & Service
+    const custRes = await request(app).post('/api/auth/register').send({
+      name: 'Varun Shah',
+      email: 'varun@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543123',
+      city: 'Mumbai',
+      role: 'customer',
+    });
+    const custCookie = custRes.headers['set-cookie'];
+
+    const service = await Service.create({
+      serviceId: 'plumbing-flush-repair',
+      categoryId: 'plumbing',
+      category: 'Plumbing',
+      title: 'Toilet Flush Repair',
+      startingPrice: 349,
+      isActive: true,
+    });
+
+    // 3. Customer books -> offered first to highest rated provider (prov1)
+    const bookRes = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: service.serviceId,
+        address: 'Chembur East, Mumbai',
+        city: 'Mumbai',
+        scheduledDate: '2026-12-28',
+        timeSlot: 'Morning (10:00 AM - 01:00 PM)',
+        problemNote: 'Flush tank running continuously',
+      });
+    const bookingId = bookRes.body.booking._id;
+
+    const initialBooking = await Booking.findById(bookingId);
+    expect(initialBooking.offeredTo.length).toBe(1);
+    expect(String(initialBooking.offeredTo[0].providerId)).toBe(String(prov1._id));
+    expect(initialBooking.offeredTo[0].status).toBe('PENDING');
+
+    // 4. Provider 1 declines the offer
+    const declineRes = await request(app)
+      .patch(`/api/bookings/${bookingId}/decline`)
+      .set('Cookie', cookie1);
+    expect(declineRes.status).toBe(200);
+    expect(declineRes.body.message).toBe('Job offer declined.');
+
+    // 5. Verify offer was declined and atomically re-offered to Provider 2!
+    const reofferedBooking = await Booking.findById(bookingId);
+    expect(reofferedBooking.status).toBe('REQUESTED');
+    expect(reofferedBooking.offeredTo.length).toBe(2);
+    expect(reofferedBooking.offeredTo[0].status).toBe('DECLINED');
+    expect(String(reofferedBooking.offeredTo[1].providerId)).toBe(String(prov2._id));
+    expect(reofferedBooking.offeredTo[1].status).toBe('PENDING');
+
+    // 6. Provider 2's offer expires (simulate expiration time reached)
+    await Booking.findByIdAndUpdate(bookingId, {
+      currentOfferExpiresAt: new Date(Date.now() - 1000), // Expired
+    });
+
+    // Run the background ticker function
+    await checkExpiredOffers();
+
+    // 7. Verify: Provider 2's offer is marked EXPIRED, and since no more providers exist,
+    // status transitions to NO_PROVIDER_FOUND
+    const finalBooking = await Booking.findById(bookingId);
+    expect(finalBooking.offeredTo[1].status).toBe('EXPIRED');
+    expect(finalBooking.status).toBe('NO_PROVIDER_FOUND');
+    expect(finalBooking.currentOfferExpiresAt).toBeNull();
   });
 
 });
