@@ -44,14 +44,14 @@ export default function ProviderRegisterPage() {
     category: 'ac-cooling',
     experienceYears: 4,
     bio: 'Dedicated technician with extensive hands-on experience in domestic diagnostics, safety adherence, and fast repairs.',
-    idProofUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=400&q=80',
+    idProofUrl: '',
     certificateUrl: '',
     agreeTerms: true
   });
 
-  const [idFileName, setIdFileName] = useState('aadhaar_card_front.jpg');
+  const [idFileName, setIdFileName] = useState('');
   const [certFileName, setCertFileName] = useState('');
-  const [idPreviewUrl, setIdPreviewUrl] = useState('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=400&q=80');
+  const [idPreviewUrl, setIdPreviewUrl] = useState('');
   const [certPreviewUrl, setCertPreviewUrl] = useState('');
   const [uploadingField, setUploadingField] = useState(null);
 

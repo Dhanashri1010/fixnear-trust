@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { User } from '../models/User.js';
 import { Booking } from '../models/Booking.js';
 import { Service } from '../models/Service.js';
 import { Provider } from '../models/Provider.js';
@@ -45,11 +46,18 @@ export const createBooking = async (req, res, next) => {
   try {
     const { serviceId, address, city, scheduledDate, timeSlot, notes, photos } = req.body;
 
-    // Validate scheduled date is not in the past
-    const bookingDate = new Date(scheduledDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (isNaN(bookingDate.getTime()) || bookingDate < today) {
+    // Validate scheduled date is not in the past using booking city's local day (Asia/Kolkata)
+    const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const todayStr = `${nowIST.getFullYear()}-${String(nowIST.getMonth() + 1).padStart(2, '0')}-${String(nowIST.getDate()).padStart(2, '0')}`;
+
+    let inputDateStr = scheduledDate;
+    if (scheduledDate instanceof Date) {
+      inputDateStr = scheduledDate.toISOString().split('T')[0];
+    } else if (typeof scheduledDate === 'string') {
+      inputDateStr = scheduledDate.split('T')[0];
+    }
+
+    if (!inputDateStr || inputDateStr < todayStr) {
       return res.status(400).json({
         success: false,
         message: 'Scheduled date cannot be in the past. Please select today or a future date.',
@@ -72,30 +80,20 @@ export const createBooking = async (req, res, next) => {
 
     const bookingCity = (city || req.user.city || 'Mumbai').trim();
 
-    // 2. Check for an approved, online provider in this service & city
+    // 2. Check for an approved, online provider whose skill matches the service in this city
+    // (Strict: removed fallback that picks any provider in the city)
     const providerQuery = {
       status: 'approved',
       isOnline: true,
       city: new RegExp(`^${bookingCity}$`, 'i'),
+      $or: [
+        { 'skills.categoryId': service.categoryId },
+        { 'skills.categoryName': new RegExp(service.category, 'i') },
+        { specialty: new RegExp(service.category || service.categoryId, 'i') },
+      ],
     };
 
-    if (service.categoryId) {
-      providerQuery.$or = [
-        { 'skills.categoryId': service.categoryId },
-        { specialty: new RegExp(service.category || service.categoryId, 'i') },
-      ];
-    }
-
-    let matchingProviders = await Provider.find(providerQuery).sort({ ratingAvg: -1, jobsDone: -1 });
-
-    // Fallback if category skill is generic
-    if (!matchingProviders || matchingProviders.length === 0) {
-      matchingProviders = await Provider.find({
-        status: 'approved',
-        isOnline: true,
-        city: new RegExp(`^${bookingCity}$`, 'i'),
-      }).sort({ ratingAvg: -1 });
-    }
+    const matchingProviders = await Provider.find(providerQuery).sort({ ratingAvg: -1, jobsDone: -1 });
 
     if (!matchingProviders || matchingProviders.length === 0) {
       return res.status(400).json({
@@ -104,7 +102,7 @@ export const createBooking = async (req, res, next) => {
       });
     }
 
-    const assignedProvider = matchingProviders[0];
+    const targetProvider = matchingProviders[0];
 
     // 3. Generate booking ID and 4-digit completion finish code
     const bookingNumber = await generateBookingId();
@@ -118,25 +116,34 @@ export const createBooking = async (req, res, next) => {
       { step: 'Completed', time: 'Pending', done: false, current: false },
     ];
 
+    // New booking is created as REQUESTED with providerId empty and offered to targetProvider
     const newBooking = await Booking.create({
       bookingId: bookingNumber,
       customerId: req.user._id,
       customerName: req.user.name,
       customerPhone: req.user.phone || '',
-      providerId: assignedProvider._id,
-      providerName: assignedProvider.name,
-      providerPhone: assignedProvider.phone,
+      providerId: null,
+      providerName: '',
+      providerPhone: '',
       serviceId: service.serviceId,
       serviceTitle: service.title,
       basePrice: service.startingPrice, // Server-enforced price
       address,
       city: bookingCity,
-      scheduledDate,
+      scheduledDate: inputDateStr,
       timeSlot,
       notes: notes || '',
       photos: Array.isArray(photos) ? photos.slice(0, 3) : [],
       status: 'REQUESTED',
       completionOtp,
+      offeredTo: [
+        {
+          providerId: targetProvider._id,
+          offeredAt: new Date(),
+          status: 'PENDING',
+        },
+      ],
+      currentOfferExpiresAt: new Date(Date.now() + 60 * 1000), // 60-second offer window
       timeline: initialTimeline,
       quotation: {
         items: [],
@@ -151,17 +158,21 @@ export const createBooking = async (req, res, next) => {
         totalAmount: service.startingPrice,
         issuedAt: new Date(),
       },
+      // TODO: Phase E: Integrate Razorpay payment gateway
+      paymentMethod: 'PAY_ON_SERVICE',
+      paymentStatus: 'PENDING',
     });
 
     // Notify & emit socket updates
     if (io) {
       io.to(`user_${req.user._id}`).emit('booking_created', newBooking);
-      io.to(`user_${assignedProvider.userId}`).emit('new_job_assigned', {
+      io.to(`user_${targetProvider.userId}`).emit('new_job_offered', {
         bookingId: newBooking.bookingId,
         serviceTitle: newBooking.serviceTitle,
         city: newBooking.city,
         scheduledDate: newBooking.scheduledDate,
         timeSlot: newBooking.timeSlot,
+        expiresInSeconds: 60,
       });
       io.to(`providers_${bookingCity.toLowerCase()}`).emit('new_job_broadcast', {
         bookingId: newBooking.bookingId,
@@ -170,20 +181,13 @@ export const createBooking = async (req, res, next) => {
       });
     }
 
+    // Never put the finish code inside notification message
     await notifyUser({
       userId: req.user._id,
       role: 'customer',
-      title: 'Booking Confirmed',
-      message: `Your booking #${newBooking.bookingId} for ${service.title} has been placed. Finish Code: ${completionOtp}`,
+      title: 'Booking Placed',
+      message: `Your booking #${newBooking.bookingId} for ${service.title} has been placed. Your 4-digit finish code is available in your booking details.`,
       link: `/track/${newBooking._id}`,
-    });
-
-    await notifyUser({
-      userId: assignedProvider.userId,
-      role: 'provider',
-      title: 'New Service Job Assigned',
-      message: `You have been assigned booking #${newBooking.bookingId} in ${bookingCity} for ${service.title}.`,
-      link: `/provider/dashboard`,
     });
 
     res.status(201).json({
@@ -202,7 +206,16 @@ export const getMyBookings = async (req, res, next) => {
     let bookings = [];
 
     if (req.user.role === 'customer') {
-      bookings = await Booking.find({ customerId: req.user._id }).sort({ createdAt: -1 });
+      const customerBookings = await Booking.find({ customerId: req.user._id }).sort({ createdAt: -1 });
+      bookings = customerBookings.map((b) => {
+        const obj = b.toObject();
+        // Do not return provider name or phone to customer until accepted
+        if (obj.status === 'REQUESTED') {
+          obj.providerName = '';
+          obj.providerPhone = '';
+        }
+        return obj;
+      });
     } else if (req.user.role === 'provider') {
       const provider = await Provider.findOne({ userId: req.user._id });
       if (!provider) {
@@ -274,6 +287,12 @@ export const getBookingById = async (req, res, next) => {
       delete bookingObj.completionOtp;
     }
 
+    // Do not return provider name or phone to customer until accepted
+    if (isCustomer && !isAdmin && bookingObj.status === 'REQUESTED') {
+      bookingObj.providerName = '';
+      bookingObj.providerPhone = '';
+    }
+
     res.status(200).json({
       success: true,
       booking: bookingObj,
@@ -340,6 +359,20 @@ export const cancelBooking = async (req, res, next) => {
       link: `/bookings`,
     });
 
+    // Notify provider on cancel if assigned
+    if (booking.providerId) {
+      const provider = await Provider.findById(booking.providerId);
+      if (provider) {
+        await notifyUser({
+          userId: provider.userId,
+          role: 'provider',
+          title: 'Job Cancelled by Customer',
+          message: `Booking #${booking.bookingId} in ${booking.city} was cancelled by the customer.`,
+          link: `/provider/dashboard`,
+        });
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: 'Booking has been cancelled.',
@@ -379,32 +412,60 @@ export const rescheduleBooking = async (req, res, next) => {
       });
     }
 
-    const newDate = new Date(scheduledDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (isNaN(newDate.getTime()) || newDate < today) {
+    // Safe date comparison using city's local day (Asia/Kolkata)
+    const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const todayStr = `${nowIST.getFullYear()}-${String(nowIST.getMonth() + 1).padStart(2, '0')}-${String(nowIST.getDate()).padStart(2, '0')}`;
+
+    let inputDateStr = scheduledDate;
+    if (scheduledDate instanceof Date) {
+      inputDateStr = scheduledDate.toISOString().split('T')[0];
+    } else if (typeof scheduledDate === 'string') {
+      inputDateStr = scheduledDate.split('T')[0];
+    }
+
+    if (!inputDateStr || inputDateStr < todayStr) {
       return res.status(400).json({
         success: false,
         message: 'Rescheduled date cannot be in the past.',
       });
     }
 
-    booking.scheduledDate = scheduledDate;
+    booking.scheduledDate = inputDateStr;
     if (timeSlot) booking.timeSlot = timeSlot;
     await booking.save();
 
     if (io) {
       io.to(`booking_${booking._id}`).emit('booking_updated', booking);
       io.to(`user_${booking.customerId}`).emit('booking_updated', booking);
+      if (booking.providerId) {
+        const provider = await Provider.findById(booking.providerId);
+        if (provider) {
+          io.to(`user_${provider.userId}`).emit('booking_updated', booking);
+        }
+      }
     }
 
     await notifyUser({
       userId: booking.customerId,
       role: 'customer',
       title: 'Booking Rescheduled',
-      message: `Booking #${booking.bookingId} rescheduled to ${scheduledDate} (${booking.timeSlot}).`,
+      message: `Booking #${booking.bookingId} rescheduled to ${inputDateStr} (${booking.timeSlot}).`,
       link: `/track/${booking._id}`,
     });
+
+    // Notify provider on reschedule if assigned
+    if (booking.providerId) {
+      const provider = await Provider.findById(booking.providerId);
+      if (provider) {
+        await notifyUser({
+          userId: provider.userId,
+          role: 'provider',
+          title: 'Job Rescheduled by Customer',
+          message: `Booking #${booking.bookingId} in ${booking.city} was rescheduled to ${inputDateStr} (${booking.timeSlot}).`,
+          link: `/provider/dashboard`,
+        });
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -596,6 +657,27 @@ export const submitComplaint = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Forbidden: Only the booking customer can file a complaint.' });
     }
 
+    // Allow only when booking is ACCEPTED or later
+    const allowedStatuses = ['ACCEPTED', 'ON_THE_WAY', 'WORKING', 'COMPLETED'];
+    if (!allowedStatuses.includes(booking.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Complaints can only be filed once a booking has been accepted by a technician. Current status is '${booking.status}'.`,
+      });
+    }
+
+    // Allow only one OPEN complaint per booking
+    const existingOpenDispute = await Dispute.findOne({
+      bookingId: booking._id,
+      status: 'OPEN',
+    });
+    if (existingOpenDispute) {
+      return res.status(400).json({
+        success: false,
+        message: 'There is already an open complaint for this booking under investigation.',
+      });
+    }
+
     const disputeNumber = `DSP-${Math.floor(10000 + Math.random() * 90000)}`;
 
     const dispute = await Dispute.create({
@@ -604,22 +686,30 @@ export const submitComplaint = async (req, res, next) => {
       bookingNumber: booking.bookingId,
       customerId: req.user._id,
       customerName: req.user.name,
-      providerId: booking.providerId,
-      providerName: booking.providerName,
+      providerId: booking.providerId || null,
+      providerName: booking.providerName || '',
       reason,
       claimAmount: Number(claimAmount) || booking.basePrice,
-      notes: notes.trim(),
+      notes: (notes || '').trim(),
       status: 'OPEN',
     });
 
-    booking.status = 'DISPUTED';
+    // Keep job status unchanged; record disputeStatus separately
+    booking.disputeStatus = 'OPEN';
     await booking.save();
 
     if (io) {
       io.to(`booking_${booking._id}`).emit('booking_disputed', dispute);
       io.to(`user_${booking.customerId}`).emit('booking_updated', booking);
+      if (booking.providerId) {
+        const provider = await Provider.findById(booking.providerId);
+        if (provider) {
+          io.to(`user_${provider.userId}`).emit('booking_updated', booking);
+        }
+      }
     }
 
+    // Notify customer
     await notifyUser({
       userId: req.user._id,
       role: 'customer',
@@ -629,10 +719,39 @@ export const submitComplaint = async (req, res, next) => {
       link: `/bookings`,
     });
 
+    // Notify provider if assigned
+    if (booking.providerId) {
+      const provider = await Provider.findById(booking.providerId);
+      if (provider) {
+        await notifyUser({
+          userId: provider.userId,
+          role: 'provider',
+          title: 'Customer Complaint Logged',
+          message: `A dispute was raised for booking #${booking.bookingId}: "${reason}".`,
+          type: 'dispute',
+          link: `/provider/dashboard`,
+        });
+      }
+    }
+
+    // Notify admin
+    const adminUsers = await User.find({ role: 'admin' });
+    for (const admin of adminUsers) {
+      await notifyUser({
+        userId: admin._id,
+        role: 'admin',
+        title: 'New Dispute Submitted',
+        message: `Customer ${req.user.name} filed dispute #${dispute.disputeId} on booking #${booking.bookingId}.`,
+        type: 'dispute',
+        link: `/admin/disputes`,
+      });
+    }
+
     res.status(201).json({
       success: true,
       message: 'Your complaint has been submitted. Our trust & resolution team will review within 24 hours.',
       dispute,
+      booking,
     });
   } catch (err) {
     next(err);
@@ -661,8 +780,13 @@ export const updateBookingStatus = async (req, res, next) => {
     let providerDoc = null;
     if (req.user.role === 'provider') {
       providerDoc = await Provider.findOne({ userId: req.user._id });
-      if (providerDoc && booking.providerId && String(booking.providerId) === String(providerDoc._id)) {
-        isProvider = true;
+      if (providerDoc) {
+        if (booking.providerId && String(booking.providerId) === String(providerDoc._id)) {
+          isProvider = true;
+        } else if (booking.status === 'REQUESTED' && nextStatus === 'ACCEPTED' && providerDoc.status === 'approved') {
+          // Provider accepting an unassigned offered booking
+          isProvider = true;
+        }
       }
     }
     const isAdmin = req.user.role === 'admin';
@@ -688,15 +812,81 @@ export const updateBookingStatus = async (req, res, next) => {
       });
     }
 
+    // When provider accepts, bind provider details
+    if (nextStatus === 'ACCEPTED' && providerDoc) {
+      booking.providerId = providerDoc._id;
+      booking.providerName = providerDoc.name;
+      booking.providerPhone = providerDoc.phone;
+    }
+
     // If moving to COMPLETED, verify finish code!
     if (nextStatus === 'COMPLETED') {
-      if (!finishCode || String(finishCode).trim() !== String(booking.completionOtp).trim()) {
-        return res.status(400).json({
+      // 1. Check if completion is blocked due to 5 wrong attempts
+      if (booking.finishCodeBlockedUntil && new Date(booking.finishCodeBlockedUntil) > new Date()) {
+        const minutesLeft = Math.ceil((new Date(booking.finishCodeBlockedUntil) - new Date()) / (60 * 1000));
+        return res.status(403).json({
           success: false,
-          message: 'Invalid 4-digit finish code. Please ask the customer to provide the code from their booking screen.',
+          message: `Completion is blocked due to repeated incorrect finish code attempts. Please try again after ${minutesLeft} minutes or contact support.`,
         });
       }
-      booking.paymentStatus = 'PAID';
+
+      // 2. Validate finish code
+      const isCodeCorrect = finishCode && String(finishCode).trim() === String(booking.completionOtp).trim();
+
+      if (!isCodeCorrect) {
+        booking.failedFinishCodeAttempts = (booking.failedFinishCodeAttempts || 0) + 1;
+        let isBlockedNow = false;
+
+        if (booking.failedFinishCodeAttempts >= 5) {
+          booking.finishCodeBlockedUntil = new Date(Date.now() + 30 * 60 * 1000); // Lock for 30 minutes
+          isBlockedNow = true;
+
+          // Notify customer and admin
+          await notifyUser({
+            userId: booking.customerId,
+            role: 'customer',
+            title: 'Security Alert: Completion Code Blocked',
+            message: `Booking #${booking.bookingId} completion has been locked for 30 minutes after 5 incorrect finish code attempts.`,
+            type: 'system',
+            link: `/track/${booking._id}`,
+          });
+
+          const adminUsers = await User.find({ role: 'admin' });
+          for (const admin of adminUsers) {
+            await notifyUser({
+              userId: admin._id,
+              role: 'admin',
+              title: 'Finish Code Security Lockout',
+              message: `Booking #${booking.bookingId} completion was locked after 5 failed finish code attempts.`,
+              type: 'system',
+              link: `/admin/bookings`,
+            });
+          }
+        }
+
+        await booking.save();
+
+        if (isBlockedNow) {
+          return res.status(403).json({
+            success: false,
+            message: 'Completion is now blocked for 30 minutes after 5 failed finish code attempts. Customer and administrator have been alerted.',
+          });
+        }
+
+        return res.status(400).json({
+          success: false,
+          message: `Invalid 4-digit finish code. Attempt ${booking.failedFinishCodeAttempts} of 5. Please ask the customer to provide the code from their booking screen.`,
+        });
+      }
+
+      // Code is correct: reset counters
+      booking.failedFinishCodeAttempts = 0;
+      booking.finishCodeBlockedUntil = null;
+
+      // Payments: stop marking PAID automatically; provider sets to CASH_RECEIVED on completion
+      // TODO: Phase E: Integrate Razorpay payment gateway
+      booking.paymentMethod = 'PAY_ON_SERVICE';
+      booking.paymentStatus = 'CASH_RECEIVED';
       booking.invoice.status = 'PAID';
       booking.invoice.paidAt = new Date();
 

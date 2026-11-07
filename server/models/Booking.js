@@ -83,6 +83,40 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    failedFinishCodeAttempts: {
+      type: Number,
+      default: 0,
+    },
+    finishCodeBlockedUntil: {
+      type: Date,
+      default: null,
+    },
+    disputeStatus: {
+      type: String,
+      enum: ['NONE', 'OPEN', 'RESOLVED', 'REJECTED'],
+      default: 'NONE',
+    },
+    offeredTo: [
+      {
+        providerId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Provider',
+        },
+        offeredAt: {
+          type: Date,
+          default: Date.now,
+        },
+        status: {
+          type: String,
+          enum: ['PENDING', 'ACCEPTED', 'DECLINED', 'EXPIRED'],
+          default: 'PENDING',
+        },
+      },
+    ],
+    currentOfferExpiresAt: {
+      type: Date,
+      default: null,
+    },
     timeline: [
       {
         step: { type: String, required: true },
@@ -117,15 +151,16 @@ const bookingSchema = new mongoose.Schema(
       issuedAt: Date,
       paidAt: Date,
     },
+    // TODO: Phase E: Integrate Razorpay payment gateway
     paymentMethod: {
       type: String,
-      enum: ['pay_after_service', 'razorpay'],
-      default: 'pay_after_service',
+      enum: ['PAY_ON_SERVICE', 'RAZORPAY'],
+      default: 'PAY_ON_SERVICE',
     },
     paymentStatus: {
       type: String,
-      enum: ['UNPAID', 'PAID', 'REFUNDED'],
-      default: 'UNPAID',
+      enum: ['PENDING', 'CASH_RECEIVED', 'PAID', 'REFUNDED'],
+      default: 'PENDING',
     },
     razorpayOrderId: String,
     razorpayPaymentId: String,

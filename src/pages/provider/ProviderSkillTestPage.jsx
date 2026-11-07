@@ -40,7 +40,7 @@ export default function ProviderSkillTestPage() {
     icon: "Wrench"
   };
 
-  const providerId = providerProfile?.userId || currentUser?.uid || "provider-demo-1";
+  const providerId = providerProfile?.userId || currentUser?.uid || "";
   const currentTech = technicians.find(t => t.id === providerId || t.userId === providerId);
 
   // Check 24-hour cooldown

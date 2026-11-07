@@ -210,7 +210,7 @@ export default function SignUpPage() {
               <User size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '14px' }} />
               <input
                 type="text"
-                placeholder="e.g. Ramesh Sharma"
+                placeholder="e.g. Alex Morgan"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required

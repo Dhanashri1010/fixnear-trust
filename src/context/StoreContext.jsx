@@ -83,7 +83,7 @@ export function StoreProvider({ children }) {
   // Customer View State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
-  const [selectedTechnicianId, setSelectedTechnicianId] = useState('provider-demo-1');
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState(null);
   const [bookingModalService, setBookingModalService] = useState(null);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [activeUserAction, setActiveUserAction] = useState(null);
@@ -265,7 +265,7 @@ export function StoreProvider({ children }) {
         if (targetStatus === 'ACCEPTED') {
           newTimeline = [
             { step: "Booking Created & Requested", time: b.createdAt ? new Date(b.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Earlier", done: true },
-            { step: "Provider Accepted (Ramesh Sharma)", time: timeNow, done: true },
+            { step: "Provider Accepted", time: timeNow, done: true },
             { step: "Provider On The Way", time: "Upcoming", current: true, done: false },
             { step: "Working & Diagnostics", time: "Pending", done: false },
             { step: "Completion with OTP", time: "Pending", done: false }
@@ -273,8 +273,8 @@ export function StoreProvider({ children }) {
         } else if (targetStatus === 'ON_THE_WAY') {
           newTimeline = [
             { step: "Booking Created & Requested", time: "Earlier", done: true },
-            { step: "Provider Accepted (Ramesh Sharma)", time: "Earlier", done: true },
-            { step: "Provider On The Way (Live GPS)", time: timeNow, done: true },
+            { step: "Provider Accepted", time: "Earlier", done: true },
+            { step: "Provider On The Way", time: timeNow, done: true },
             { step: "Working & Diagnostics", time: "Upcoming", current: true, done: false },
             { step: "Completion with OTP", time: "Pending", done: false }
           ];
@@ -572,7 +572,7 @@ export function StoreProvider({ children }) {
       skills: providerData.skills || [providerData.category || "ac-cooling"],
       experienceYears: Number(providerData.experienceYears) || 3,
       bio: providerData.bio || "Certified home service professional.",
-      idProofUrl: providerData.idProofUrl || "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=400&q=80",
+      idProofUrl: providerData.idProofUrl || "",
       certificateUrl: providerData.certificateUrl || null,
       status: providerData.status || "pending_test", // 'pending_test' | 'under_review' | 'approved'
       verifiedSkills: providerData.verifiedSkills || [],

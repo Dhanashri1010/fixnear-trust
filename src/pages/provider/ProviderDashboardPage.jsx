@@ -51,10 +51,10 @@ export default function ProviderDashboardPage() {
   } = useStore();
   const { showToast } = useToast();
 
-  const providerId = providerProfile?.userId || currentUser?.uid || "provider-demo-1";
+  const providerId = providerProfile?.userId || currentUser?.uid || "";
   const technician = technicians.find(t => t.id === providerId || t.userId === providerId) || {
     id: providerId,
-    name: providerProfile?.name || userProfile?.name || "Ramesh Sharma",
+    name: providerProfile?.name || userProfile?.name || "Technician Partner",
     status: providerProfile?.status || "approved",
     isOnline: true,
     ratingAvg: 4.94,
