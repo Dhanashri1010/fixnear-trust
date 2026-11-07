@@ -29,6 +29,7 @@ import { Provider } from './models/Provider.js';
 import { Booking } from './models/Booking.js';
 import { checkExpiredOffers } from './controllers/bookingController.js';
 import { handleRazorpayWebhook } from './controllers/paymentController.js';
+import { requestIdMiddleware, errorMonitoringMiddleware } from './middleware/errorMonitoring.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -228,6 +229,9 @@ app.use(
   })
 );
 
+// Request ID tracing middleware - mounts first to track all requests
+app.use(requestIdMiddleware);
+
 // Strict CORS whitelist from CLIENT_URL
 const allowedOrigins = process.env.CLIENT_URL
   ? process.env.CLIENT_URL.split(',').map((u) => u.trim())
@@ -299,20 +303,8 @@ app.use((req, res) => {
   });
 });
 
-// Central Error Handler - Never leaks stack traces in production
-app.use((err, req, res, next) => {
-  console.error('[API Error]:', err);
-  const status = err.status || err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
-  const response = {
-    success: false,
-    message,
-  };
-  if (process.env.NODE_ENV !== 'production' && err.stack) {
-    response.stack = err.stack;
-  }
-  res.status(status).json(response);
-});
+// Central Error Handler & Monitoring - Safe structured JSON logs & optional SENTRY_DSN
+app.use(errorMonitoringMiddleware);
 
 export { app, server };
 

@@ -7,7 +7,9 @@ import {
   getMe, 
   forgotPassword, 
   resetPassword,
-  changePassword 
+  changePassword,
+  downloadMyData,
+  deleteMyAccount,
 } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { loginRateLimiter, authActionRateLimiter } from '../middleware/rateLimiter.js';
@@ -63,6 +65,12 @@ const changePasswordSchema = z.object({
   }),
 });
 
+const deleteAccountSchema = z.object({
+  body: z.object({
+    password: z.string().min(1, 'Password confirmation is required to delete your account'),
+  }),
+});
+
 // Routes
 router.post('/register', validate(registerSchema), register);
 router.post('/login', loginRateLimiter, validate(loginSchema), login);
@@ -71,5 +79,7 @@ router.get('/me', authenticate, getMe);
 router.patch('/change-password', authenticate, authActionRateLimiter, validate(changePasswordSchema), changePassword);
 router.post('/forgot-password', authActionRateLimiter, validate(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', authActionRateLimiter, validate(resetPasswordSchema), resetPassword);
+router.get('/download-data', authenticate, downloadMyData);
+router.post('/delete-account', authenticate, authActionRateLimiter, validate(deleteAccountSchema), deleteMyAccount);
 
 export default router;

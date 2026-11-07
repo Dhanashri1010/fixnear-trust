@@ -17,6 +17,8 @@ import { SkillTestSession } from '../models/SkillTestSession.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { Payment } from '../models/Payment.js';
+import { Counter, getNextInvoiceNumber } from '../models/Counter.js';
+import { redactSensitiveData } from '../middleware/errorMonitoring.js';
 import { validateScriptPassword } from '../scripts/createAdmin.js';
 
 let mongod;
@@ -58,6 +60,7 @@ beforeEach(async () => {
   await TestAttempt.deleteMany({});
   await AuditLog.collection.deleteMany({});
   await Payment.deleteMany({});
+  await Counter.deleteMany({});
 
   // Seed default platform settings
   await Setting.create({
@@ -1348,5 +1351,448 @@ describe('Full Customer & Provider End-to-End Lifecycle', () => {
         note: 'Attempting duplicate resolution on already resolved ticket.',
       });
     expect(duplicateResolve.status).toBe(409);
+  });
+});
+
+describe('Final Round - Sequential Invoices, Quotation Locks, Account Data & Deletion', () => {
+  it('generates sequential unique invoice numbers per year with Counter and guarantees no duplicates under heavy concurrency', async () => {
+    const year = 2026;
+    const inv1 = await getNextInvoiceNumber(year);
+    expect(inv1).toBe('INV-2026-000001');
+
+    const inv2 = await getNextInvoiceNumber(year);
+    expect(inv2).toBe('INV-2026-000002');
+
+    // Run 30 calls concurrently
+    const concurrentCount = 30;
+    const promises = Array.from({ length: concurrentCount }, () => getNextInvoiceNumber(year));
+    const results = await Promise.all(promises);
+
+    expect(results.length).toBe(concurrentCount);
+    const uniqueSet = new Set(results);
+    expect(uniqueSet.size).toBe(concurrentCount);
+
+    // Each should strictly match INV-2026-XXXXXX format
+    for (const inv of results) {
+      expect(inv).toMatch(/^INV-2026-\d{6}$/);
+    }
+  });
+
+  it('rejects new quotations when job is COMPLETED, CANCELLED, or payment has started', async () => {
+    const userRes = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Quote Test Customer',
+        email: 'quote.cust@fixnear.test',
+        password: 'Password123!',
+        phone: '9876543210',
+        city: 'Mumbai',
+        role: 'customer',
+      });
+    const customer = userRes.body.user;
+
+    const provUserRes = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Quote Test Provider',
+        email: 'quote.prov@fixnear.test',
+        password: 'Password123!',
+        phone: '9876543211',
+        city: 'Mumbai',
+        role: 'provider',
+      });
+    const provLoginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'quote.prov@fixnear.test', password: 'Password123!' });
+    const provCookie = provLoginRes.headers['set-cookie'];
+
+    const provider = await Provider.findOne({ userId: provUserRes.body.user.id });
+    provider.status = 'approved';
+    provider.isOnline = true;
+    await provider.save();
+
+    // 1. Booking is COMPLETED
+    const completedBooking = await Booking.create({
+      bookingId: 'FX-QTCMP1',
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: '9876543210',
+      serviceId: 'electrical-repair',
+      serviceTitle: 'Electrical Repair',
+      completionOtp: '1234',
+      providerId: provider._id,
+      providerName: provider.name,
+      status: 'COMPLETED',
+      basePrice: 500,
+      address: '123 Test Road',
+      scheduledDate: '2026-11-20',
+      timeSlot: '10:00 AM',
+    });
+
+    const quoteOnCompleted = await request(app)
+      .post(`/api/bookings/${completedBooking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({
+        items: [{ desc: 'New capacitor', amount: 300 }],
+      });
+    expect(quoteOnCompleted.status).toBe(400);
+    expect(quoteOnCompleted.body.message).toMatch(/Cannot submit a new quotation after the job is completed/i);
+
+    // 2. Booking is CANCELLED
+    const cancelledBooking = await Booking.create({
+      bookingId: 'FX-QTCAN1',
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: '9876543210',
+      serviceId: 'electrical-repair',
+      serviceTitle: 'Electrical Repair',
+      completionOtp: '1234',
+      providerId: provider._id,
+      providerName: provider.name,
+      status: 'CANCELLED',
+      basePrice: 500,
+      address: '123 Test Road',
+      scheduledDate: '2026-11-20',
+      timeSlot: '10:00 AM',
+    });
+
+    const quoteOnCancelled = await request(app)
+      .post(`/api/bookings/${cancelledBooking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({
+        items: [{ desc: 'New switch', amount: 200 }],
+      });
+    expect(quoteOnCancelled.status).toBe(400);
+
+    // 3. Payment has started (razorpayOrderId exists)
+    const paidStartedBooking = await Booking.create({
+      bookingId: 'FX-QTPAY1',
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: '9876543210',
+      serviceId: 'electrical-repair',
+      serviceTitle: 'Electrical Repair',
+      completionOtp: '1234',
+      providerId: provider._id,
+      providerName: provider.name,
+      status: 'WORKING',
+      razorpayOrderId: 'order_pay_started_123',
+      basePrice: 500,
+      address: '123 Test Road',
+      scheduledDate: '2026-11-20',
+      timeSlot: '10:00 AM',
+    });
+
+    const quoteOnPaidStarted = await request(app)
+      .post(`/api/bookings/${paidStartedBooking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({
+        items: [{ desc: 'New fuse', amount: 150 }],
+      });
+    expect(quoteOnPaidStarted.status).toBe(400);
+    expect(quoteOnPaidStarted.body.message).toMatch(/Cannot submit a quotation after payment has started/i);
+  });
+
+  it('rejects approve and decline when booking is COMPLETED, CANCELLED, or payment has started', async () => {
+    const custRes = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Decision Test Cust',
+        email: 'decision.cust@fixnear.test',
+        password: 'Password123!',
+        phone: '9876543210',
+        city: 'Mumbai',
+        role: 'customer',
+      });
+    const custLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'decision.cust@fixnear.test', password: 'Password123!' });
+    const custCookie = custLogin.headers['set-cookie'];
+    const customer = custRes.body.user;
+
+    // 1. COMPLETED booking with pending quotation
+    const completedBooking = await Booking.create({
+      bookingId: 'FX-QDEC1',
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: '9876543210',
+      serviceId: 'plumbing-repair',
+      serviceTitle: 'Plumbing Repair',
+      completionOtp: '1234',
+      status: 'COMPLETED',
+      basePrice: 400,
+      address: '123 Test St',
+      scheduledDate: '2026-11-20',
+      timeSlot: '10:00 AM',
+      quotation: {
+        status: 'PENDING_CUSTOMER_APPROVAL',
+        total: 250,
+        items: [{ desc: 'Filter', amount: 250 }],
+      },
+      invoice: { baseAmount: 400, extraAmount: 0, totalAmount: 420 },
+    });
+
+    const approveCompleted = await request(app)
+      .patch(`/api/bookings/${completedBooking._id}/quotation/approve`)
+      .set('Cookie', custCookie);
+    expect(approveCompleted.status).toBe(400);
+    expect(approveCompleted.body.message).toMatch(/Cannot approve quotation for a completed booking/i);
+
+    const declineCompleted = await request(app)
+      .patch(`/api/bookings/${completedBooking._id}/quotation/decline`)
+      .set('Cookie', custCookie);
+    expect(declineCompleted.status).toBe(400);
+    expect(declineCompleted.body.message).toMatch(/Cannot decline quotation for a completed booking/i);
+
+    // 2. CANCELLED booking
+    const cancelledBooking = await Booking.create({
+      bookingId: 'FX-QDEC2',
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: '9876543210',
+      serviceId: 'plumbing-repair',
+      serviceTitle: 'Plumbing Repair',
+      completionOtp: '1234',
+      status: 'CANCELLED',
+      basePrice: 400,
+      address: '123 Test St',
+      scheduledDate: '2026-11-20',
+      timeSlot: '10:00 AM',
+      quotation: {
+        status: 'PENDING_CUSTOMER_APPROVAL',
+        total: 250,
+        items: [{ desc: 'Filter', amount: 250 }],
+      },
+    });
+
+    const approveCancelled = await request(app)
+      .patch(`/api/bookings/${cancelledBooking._id}/quotation/approve`)
+      .set('Cookie', custCookie);
+    expect(approveCancelled.status).toBe(400);
+    expect(approveCancelled.body.message).toMatch(/Cannot approve quotation for a cancelled booking/i);
+
+    const declineCancelled = await request(app)
+      .patch(`/api/bookings/${cancelledBooking._id}/quotation/decline`)
+      .set('Cookie', custCookie);
+    expect(declineCancelled.status).toBe(400);
+    expect(declineCancelled.body.message).toMatch(/Cannot decline quotation for a cancelled booking/i);
+
+    // 3. Payment has started
+    const paymentBooking = await Booking.create({
+      bookingId: 'FX-QDEC3',
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: '9876543210',
+      serviceId: 'plumbing-repair',
+      serviceTitle: 'Plumbing Repair',
+      completionOtp: '1234',
+      status: 'WORKING',
+      paymentStatus: 'PAID',
+      basePrice: 400,
+      address: '123 Test St',
+      scheduledDate: '2026-11-20',
+      timeSlot: '10:00 AM',
+      quotation: {
+        status: 'PENDING_CUSTOMER_APPROVAL',
+        total: 250,
+        items: [{ desc: 'Filter', amount: 250 }],
+      },
+    });
+
+    const approvePaid = await request(app)
+      .patch(`/api/bookings/${paymentBooking._id}/quotation/approve`)
+      .set('Cookie', custCookie);
+    expect(approvePaid.status).toBe(400);
+    expect(approvePaid.body.message).toMatch(/Cannot approve quotation after payment has started/i);
+
+    const declinePaid = await request(app)
+      .patch(`/api/bookings/${paymentBooking._id}/quotation/decline`)
+      .set('Cookie', custCookie);
+    expect(declinePaid.status).toBe(400);
+    expect(declinePaid.body.message).toMatch(/Cannot decline quotation after payment has started/i);
+  });
+
+  it('downloads user data in JSON format and executes account deletion with password verification and anonymization', async () => {
+    const custRes = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Anonymize Target',
+        email: 'anonymize.me@fixnear.test',
+        password: 'Password123!',
+        phone: '9876543210',
+        city: 'Mumbai',
+        role: 'customer',
+      });
+    const custLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'anonymize.me@fixnear.test', password: 'Password123!' });
+    const custCookie = custLogin.headers['set-cookie'];
+    const userId = custRes.body.user.id;
+
+    // Create a finished booking and a review
+    const settledBooking = await Booking.create({
+      bookingId: 'FX-ANON1',
+      customerId: userId,
+      customerName: 'Anonymize Target',
+      customerPhone: '9876543210',
+      serviceId: 'cleaning-service',
+      serviceTitle: 'Deep Cleaning',
+      completionOtp: '1234',
+      status: 'COMPLETED',
+      paymentStatus: 'PAID',
+      basePrice: 450,
+      address: '42 Secret Residency, Bandra West',
+      scheduledDate: '2026-11-10',
+      timeSlot: '11:00 AM',
+      invoiceNumber: 'INV-2026-000100',
+    });
+
+    const dummyProviderId = new mongoose.Types.ObjectId();
+    await Review.create({
+      bookingId: settledBooking._id,
+      customerId: userId,
+      authorName: 'Anonymize Target',
+      providerId: dummyProviderId,
+      rating: 5,
+      comment: 'Very helpful and punctual!',
+    });
+
+    // 1. Download data
+    const downloadRes = await request(app)
+      .get('/api/auth/download-data')
+      .set('Cookie', custCookie);
+    expect(downloadRes.status).toBe(200);
+    expect(downloadRes.headers['content-type']).toContain('application/json');
+    expect(downloadRes.headers['content-disposition']).toContain('attachment');
+    expect(downloadRes.body.platform).toBe('FixNear Trust');
+    expect(downloadRes.body.user.email).toBe('anonymize.me@fixnear.test');
+    expect(downloadRes.body.bookings.length).toBe(1);
+    expect(downloadRes.body.reviews.length).toBe(1);
+
+    // 2. Attempt delete with wrong password -> rejected
+    const badPassRes = await request(app)
+      .post('/api/auth/delete-account')
+      .set('Cookie', custCookie)
+      .send({ password: 'WrongPassword999!' });
+    expect(badPassRes.status).toBe(400);
+    expect(badPassRes.body.message).toMatch(/Incorrect password/i);
+
+    // 3. Attempt delete while active booking exists -> rejected
+    const activeBooking = await Booking.create({
+      bookingId: 'FX-ACTV1',
+      customerId: userId,
+      customerName: 'Anonymize Target',
+      customerPhone: '9876543210',
+      serviceId: 'cleaning-service',
+      serviceTitle: 'Deep Cleaning',
+      completionOtp: '1234',
+      status: 'WORKING',
+      basePrice: 500,
+      address: '42 Secret Residency',
+      scheduledDate: '2026-11-20',
+      timeSlot: '10:00 AM',
+    });
+
+    const blockedActiveRes = await request(app)
+      .post('/api/auth/delete-account')
+      .set('Cookie', custCookie)
+      .send({ password: 'Password123!' });
+    expect(blockedActiveRes.status).toBe(400);
+    expect(blockedActiveRes.body.message).toMatch(/Cannot delete account while you have active bookings/i);
+
+    // Remove active booking
+    await Booking.deleteOne({ _id: activeBooking._id });
+
+    // 4. Attempt delete while an unpaid completed booking exists -> rejected
+    const unpaidBooking = await Booking.create({
+      bookingId: 'FX-UNPD1',
+      customerId: userId,
+      customerName: 'Anonymize Target',
+      customerPhone: '9876543210',
+      serviceId: 'cleaning-service',
+      serviceTitle: 'Deep Cleaning',
+      completionOtp: '1234',
+      status: 'COMPLETED',
+      paymentStatus: 'PENDING',
+      basePrice: 500,
+      address: '42 Secret Residency',
+      scheduledDate: '2026-11-20',
+      timeSlot: '10:00 AM',
+    });
+
+    const blockedUnpaidRes = await request(app)
+      .post('/api/auth/delete-account')
+      .set('Cookie', custCookie)
+      .send({ password: 'Password123!' });
+    expect(blockedUnpaidRes.status).toBe(400);
+    expect(blockedUnpaidRes.body.message).toMatch(/Cannot delete account while you have unpaid completed bookings/i);
+
+    // Remove unpaid booking
+    await Booking.deleteOne({ _id: unpaidBooking._id });
+
+    // 5. Successful account deletion with valid password
+    const deleteRes = await request(app)
+      .post('/api/auth/delete-account')
+      .set('Cookie', custCookie)
+      .send({ password: 'Password123!' });
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.success).toBe(true);
+
+    // Verify user document was anonymized and blocked
+    const anonymizedUser = await User.findById(userId);
+    expect(anonymizedUser.name).toBe('Deleted User');
+    expect(anonymizedUser.email).toContain('@deleted.fixnear.local');
+    expect(anonymizedUser.phone).toBe('0000000000');
+    expect(anonymizedUser.isBlocked).toBe(true);
+
+    // Verify booking personal fields are redacted while accounting fields remain
+    const anonymizedBooking = await Booking.findById(settledBooking._id);
+    expect(anonymizedBooking.customerName).toBe('Deleted User');
+    expect(anonymizedBooking.customerPhone).toBe('0000000000');
+    expect(anonymizedBooking.address).toContain('Redacted');
+    expect(anonymizedBooking.basePrice).toBe(450); // Accounting financial record preserved
+    expect(anonymizedBooking.invoiceNumber).toBe('INV-2026-000100'); // Accounting invoice number preserved
+
+    // Verify review is anonymized
+    const anonymizedReview = await Review.findOne({ customerId: userId });
+    expect(anonymizedReview.authorName).toBe('Deleted User');
+
+    // Verify audit log entry was created
+    const auditRecord = await AuditLog.findOne({ targetId: String(userId) });
+    expect(auditRecord).toBeDefined();
+    expect(auditRecord.action).toBe('USER_ACCOUNT_DELETED_ANONYMIZED');
+
+    // Attempting login with old email must now fail (unauthorized or not found)
+    const loginAgain = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'anonymize.me@fixnear.test', password: 'Password123!' });
+    expect([400, 401]).toContain(loginAgain.status);
+  });
+
+  it('attaches X-Request-Id header and sanitizes passwords, card numbers and tokens in error logs', async () => {
+    const res = await request(app).get('/api/health');
+    expect(res.headers['x-request-id']).toBeDefined();
+    expect(res.headers['x-request-id'].length).toBeGreaterThan(10);
+
+    // Test redactor utility directly
+    const rawData = {
+      password: 'MySecretPassword123!',
+      token: 'jwt.token.here',
+      cardNumber: '4532 1122 3344 5566',
+      normalField: 'Hello World',
+      nested: {
+        authorization: 'Bearer super_secret_token_12345',
+        creditCard: '5105105105105100',
+        clean: 42,
+      },
+    };
+    const redacted = redactSensitiveData(rawData);
+    expect(redacted.password).toBe('[REDACTED]');
+    expect(redacted.token).toBe('[REDACTED]');
+    expect(redacted.cardNumber).toBe('[REDACTED]');
+    expect(redacted.normalField).toBe('Hello World');
+    expect(redacted.nested.authorization).toBe('[REDACTED]');
+    expect(redacted.nested.creditCard).toBe('[REDACTED]');
+    expect(redacted.nested.clean).toBe(42);
   });
 });

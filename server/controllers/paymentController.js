@@ -6,6 +6,7 @@ import { Provider } from '../models/Provider.js';
 import { User } from '../models/User.js';
 import { notifyUser } from './notificationController.js';
 import { sendJobCompletedEmail } from '../utils/emailHelper.js';
+import { getNextInvoiceNumber } from '../models/Counter.js';
 import { io } from '../server.js';
 
 // GET /api/payments/config
@@ -39,7 +40,8 @@ export const markBookingPaidHelper = async ({
   req,
 }) => {
   const finalAmount = calculateBookingTotal(booking);
-  const invoiceNumber = receiptNumber || booking.invoiceNumber || `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const isSequentialInvoice = booking.invoiceNumber && /^INV-\d{4}-\d{6}$/.test(booking.invoiceNumber);
+  const invoiceNumber = receiptNumber || (isSequentialInvoice ? booking.invoiceNumber : await getNextInvoiceNumber());
 
   // Atomic update: condition paymentStatus !== 'PAID' guarantees single execution
   const updatedBooking = await Booking.findOneAndUpdate(
@@ -51,6 +53,7 @@ export const markBookingPaidHelper = async ({
         razorpayPaymentId: razorpayPaymentId || booking.razorpayPaymentId,
         razorpayOrderId: razorpayOrderId || booking.razorpayOrderId,
         invoiceNumber,
+        'invoice.invoiceNo': invoiceNumber,
         'invoice.status': 'PAID',
         'invoice.paidAt': new Date(),
         'invoice.totalAmount': finalAmount,
@@ -445,7 +448,8 @@ export const confirmCashPayment = async (req, res, next) => {
       });
     }
 
-    const invoiceNumber = booking.invoiceNumber || `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const isSequentialInvoice = booking.invoiceNumber && /^INV-\d{4}-\d{6}$/.test(booking.invoiceNumber);
+    const invoiceNumber = isSequentialInvoice ? booking.invoiceNumber : await getNextInvoiceNumber();
     const totalAmount = calculateBookingTotal(booking);
 
     // 2. Atomic update on paymentStatus !== 'PAID'
@@ -456,6 +460,7 @@ export const confirmCashPayment = async (req, res, next) => {
           paymentStatus: 'PAID',
           paymentMethod: 'CASH',
           invoiceNumber,
+          'invoice.invoiceNo': invoiceNumber,
           'invoice.status': 'PAID',
           'invoice.paidAt': new Date(),
           'invoice.totalAmount': totalAmount,

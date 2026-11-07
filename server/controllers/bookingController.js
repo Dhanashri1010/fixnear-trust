@@ -6,6 +6,7 @@ import { Provider } from '../models/Provider.js';
 import { Review } from '../models/Review.js';
 import { Dispute } from '../models/Dispute.js';
 import { Setting } from '../models/Setting.js';
+import { Payment } from '../models/Payment.js';
 import { Notification } from '../models/Notification.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { io } from '../server.js';
@@ -33,6 +34,17 @@ const notifyUser = async ({ userId, role, title, message, type = 'booking', link
   } catch (err) {
     console.warn('[Notification Error]:', err.message);
   }
+};
+
+// Check if payment has started or concluded for a booking
+const checkPaymentStarted = async (booking) => {
+  if (['PAID', 'CASH_RECEIVED'].includes(booking.paymentStatus)) return true;
+  if (booking.razorpayOrderId) return true;
+  const payment = await Payment.findOne({
+    bookingId: booking._id,
+    status: { $in: ['INITIATED', 'CAPTURED', 'PAID'] },
+  });
+  return Boolean(payment);
 };
 
 // Generate unique booking number FX-xxxxx
@@ -154,7 +166,7 @@ export const createBooking = async (req, res, next) => {
       completionOtp,
       platformFeeSnapshot,
       commissionRateSnapshot,
-      invoiceNumber: `INV-${bookingNumber}`,
+      invoiceNumber: '',
       offeredTo: [
         {
           providerId: targetProvider._id,
@@ -170,7 +182,7 @@ export const createBooking = async (req, res, next) => {
         status: 'NONE',
       },
       invoice: {
-        invoiceNo: `INV-${bookingNumber}`,
+        invoiceNo: '',
         status: 'UNPAID',
         baseAmount: service.startingPrice,
         extraAmount: 0,
@@ -590,6 +602,27 @@ export const createQuotation = async (req, res, next) => {
       });
     }
 
+    if (booking.status === 'COMPLETED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot submit a new quotation after the job is completed.',
+      });
+    }
+
+    if (booking.status === 'CANCELLED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot submit a quotation for a cancelled booking.',
+      });
+    }
+
+    if (await checkPaymentStarted(booking)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot submit a quotation after payment has started.',
+      });
+    }
+
     if (!['ACCEPTED', 'ON_THE_WAY', 'WORKING'].includes(booking.status)) {
       return res.status(400).json({
         success: false,
@@ -684,6 +717,20 @@ export const approveQuotation = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Forbidden: Only the customer can approve quotations.' });
     }
 
+    if (['COMPLETED', 'CANCELLED'].includes(booking.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot approve quotation for a ${booking.status.toLowerCase()} booking.`,
+      });
+    }
+
+    if (await checkPaymentStarted(booking)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot approve quotation after payment has started.',
+      });
+    }
+
     if (!booking.quotation || booking.quotation.status !== 'PENDING_CUSTOMER_APPROVAL') {
       return res.status(400).json({
         success: false,
@@ -731,6 +778,20 @@ export const declineQuotation = async (req, res, next) => {
 
     if (String(booking.customerId) !== String(req.user._id)) {
       return res.status(403).json({ success: false, message: 'Forbidden: Only the customer can decline quotations.' });
+    }
+
+    if (['COMPLETED', 'CANCELLED'].includes(booking.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot decline quotation for a ${booking.status.toLowerCase()} booking.`,
+      });
+    }
+
+    if (await checkPaymentStarted(booking)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot decline quotation after payment has started.',
+      });
     }
 
     if (!booking.quotation || booking.quotation.status !== 'PENDING_CUSTOMER_APPROVAL') {

@@ -3,6 +3,10 @@ import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import { User } from '../models/User.js';
 import { Provider } from '../models/Provider.js';
+import { Booking } from '../models/Booking.js';
+import { Review } from '../models/Review.js';
+import { Dispute } from '../models/Dispute.js';
+import { AuditLog } from '../models/AuditLog.js';
 import { sendPasswordResetEmail, sendPasswordChangedEmail } from '../utils/emailHelper.js';
 
 const signToken = (id) => {
@@ -289,5 +293,252 @@ export const changePassword = async (req, res) => {
       success: false,
       message: 'Failed to change password. Please try again.',
     });
+  }
+};
+
+// GET /api/auth/download-data (authenticated)
+// Exports the user's profile, bookings, reviews and tickets as a JSON document
+export const downloadMyData = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const userRole = req.user.role;
+
+    const user = await User.findById(userId).select('-password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    let provider = null;
+    let bookings = [];
+    let reviews = [];
+    let disputes = [];
+
+    if (userRole === 'provider') {
+      provider = await Provider.findOne({ userId });
+      if (provider) {
+        bookings = await Booking.find({ providerId: provider._id }).lean();
+        reviews = await Review.find({ providerId: provider._id }).lean();
+        disputes = await Dispute.find({ providerId: provider._id }).lean();
+      }
+    } else {
+      bookings = await Booking.find({ customerId: userId }).lean();
+      reviews = await Review.find({ customerId: userId }).lean();
+      disputes = await Dispute.find({ customerId: userId }).lean();
+    }
+
+    const payload = {
+      platform: 'FixNear Trust',
+      exportedAt: new Date().toISOString(),
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        city: user.city,
+        savedAddresses: user.savedAddresses,
+        createdAt: user.createdAt,
+      },
+      provider: provider
+        ? {
+            id: provider._id,
+            category: provider.category,
+            subcategories: provider.subcategories,
+            experienceYears: provider.experienceYears,
+            status: provider.status,
+            ratingAvg: provider.ratingAvg,
+            ratingCount: provider.ratingCount,
+            completedJobsCount: provider.completedJobsCount,
+            city: provider.city,
+          }
+        : null,
+      bookingsCount: bookings.length,
+      bookings,
+      reviewsCount: reviews.length,
+      reviews,
+      ticketsCount: disputes.length,
+      tickets: disputes,
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="fixnear-data-export.json"');
+    return res.status(200).send(JSON.stringify(payload, null, 2));
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/auth/delete-account (authenticated, requires password)
+// Anonymizes personal fields while retaining booking and payment financial records for accounting
+export const deleteMyAccount = async (req, res, next) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password confirmation is required to delete your account.',
+      });
+    }
+
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Account not found.' });
+    }
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Incorrect password. Account deletion aborted.',
+      });
+    }
+
+    // 1. Check for active bookings or unpaid completed jobs
+    if (user.role === 'customer') {
+      const activeBooking = await Booking.findOne({
+        customerId: user._id,
+        status: { $in: ['REQUESTED', 'ACCEPTED', 'ON_THE_WAY', 'WORKING'] },
+      });
+      if (activeBooking) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot delete account while you have active bookings (Booking #${activeBooking.bookingId}). Please wait until the service is finished or cancelled.`,
+        });
+      }
+
+      const unpaidBooking = await Booking.findOne({
+        customerId: user._id,
+        status: 'COMPLETED',
+        paymentStatus: { $ne: 'PAID' },
+      });
+      if (unpaidBooking) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot delete account while you have unpaid completed bookings (Booking #${unpaidBooking.bookingId}). Please complete payment first.`,
+        });
+      }
+    }
+
+    let provider = null;
+    if (user.role === 'provider') {
+      provider = await Provider.findOne({ userId: user._id });
+      if (provider) {
+        const activeJob = await Booking.findOne({
+          providerId: provider._id,
+          status: { $in: ['ACCEPTED', 'ON_THE_WAY', 'WORKING'] },
+        });
+        if (activeJob) {
+          return res.status(400).json({
+            success: false,
+            message: `Cannot delete account while you have active jobs assigned (Booking #${activeJob.bookingId}). Please complete or release the job first.`,
+          });
+        }
+
+        const unpaidJob = await Booking.findOne({
+          providerId: provider._id,
+          status: 'COMPLETED',
+          paymentStatus: { $ne: 'PAID' },
+        });
+        if (unpaidJob) {
+          return res.status(400).json({
+            success: false,
+            message: 'Cannot delete account while there are unpaid completed bookings awaiting settlement.',
+          });
+        }
+      }
+    }
+
+    // 2. Anonymize user record
+    const anonymizedEmail = `deleted-${user._id}@deleted.fixnear.local`;
+    user.name = 'Deleted User';
+    user.email = anonymizedEmail;
+    user.phone = '0000000000';
+    user.avatar = '';
+    user.savedAddresses = [];
+    user.isBlocked = true;
+    user.blockedReason = 'Account self-deleted and anonymized upon user request.';
+    user.passwordChangedAt = new Date();
+    await user.save();
+
+    // 3. Anonymize provider record if applicable
+    if (provider) {
+      provider.name = 'Deleted Provider';
+      provider.email = anonymizedEmail;
+      provider.phone = '0000000000';
+      provider.isOnline = false;
+      provider.status = 'suspended';
+      provider.idProofUrl = '';
+      provider.idProofPublicId = '';
+      provider.certificateUrl = '';
+      provider.certificatePublicId = '';
+      provider.avatar = '';
+      await provider.save();
+    }
+
+    // 4. Anonymize personal info in booking history while preserving amounts/timestamps for accounting
+    if (user.role === 'customer') {
+      await Booking.updateMany(
+        { customerId: user._id },
+        {
+          $set: {
+            customerName: 'Deleted User',
+            customerPhone: '0000000000',
+            address: 'Redacted (Account Deleted)',
+            notes: '',
+            photos: [],
+          },
+        }
+      );
+      await Review.updateMany(
+        { customerId: user._id },
+        {
+          $set: {
+            authorName: 'Deleted User',
+            customerName: 'Deleted User',
+            photos: [],
+          },
+        }
+      );
+    } else if (provider) {
+      await Booking.updateMany(
+        { providerId: provider._id },
+        {
+          $set: {
+            providerName: 'Deleted Provider',
+            providerPhone: '0000000000',
+          },
+        }
+      );
+    }
+
+    // 5. Append-only audit record
+    await AuditLog.create({
+      adminId: user._id,
+      adminName: 'Deleted User',
+      adminEmail: anonymizedEmail,
+      action: 'USER_ACCOUNT_DELETED_ANONYMIZED',
+      targetType: 'User',
+      targetId: String(user._id),
+      details: {
+        role: user.role,
+        anonymizedAt: new Date(),
+        reason: 'Self-requested user account deletion and data anonymization',
+      },
+      ipAddress: req.ip || '',
+    });
+
+    // 6. Clear auth cookie
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Your account has been deleted and all personal data anonymized.',
+    });
+  } catch (err) {
+    next(err);
   }
 };

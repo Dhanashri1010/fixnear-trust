@@ -49,6 +49,8 @@ export const authAPI = {
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
   changePassword: (data) => api.patch('/auth/change-password', data),
+  downloadMyData: () => api.get('/auth/download-data', { responseType: 'blob' }),
+  deleteMyAccount: (password) => api.post('/auth/delete-account', { password }),
 };
 
 // Payments & Checkout API

@@ -16,7 +16,9 @@ import {
   ChevronRight,
   Shield,
   Wrench,
-  KeyRound
+  KeyRound,
+  Download,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import InitialsAvatar from './InitialsAvatar';
@@ -206,6 +208,33 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
             <span>Change Password</span>
           </div>
           <ChevronRight size={14} color="var(--text-muted)" />
+        </button>
+
+        <button 
+          className="menu-item"
+          onClick={() => { onSelectOption('DownloadData'); onClose(); }}
+          style={menuItemStyle}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Download size={16} color="var(--forest-700)" />
+            <span>Download My Data</span>
+          </div>
+          <ChevronRight size={14} color="var(--text-muted)" />
+        </button>
+
+        <button 
+          className="menu-item"
+          onClick={() => { onSelectOption('DeleteAccount'); onClose(); }}
+          style={{
+            ...menuItemStyle,
+            color: '#B91C1C'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Trash2 size={16} color="#B91C1C" />
+            <span>Delete My Account</span>
+          </div>
+          <ChevronRight size={14} color="#B91C1C" />
         </button>
       </div>
 
