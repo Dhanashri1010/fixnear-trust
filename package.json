@@ -11,6 +11,7 @@
     "server": "npm --prefix server run dev",
     "create-admin": "npm --prefix server run create-admin",
     "create-test-provider": "npm --prefix server run create-test-provider",
+    "approve-provider": "npm --prefix server run approve-provider --",
     "load-data": "npm --prefix server run load-data"
   },
   "dependencies": {

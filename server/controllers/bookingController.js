@@ -235,9 +235,32 @@ export const getMyBookings = async (req, res, next) => {
         return res.status(200).json({ success: true, count: 0, bookings: [] });
       }
       // Never send completion finish code to provider!
-      bookings = await Booking.find({ providerId: provider._id })
+      const rawBookings = await Booking.find({
+        $or: [
+          { providerId: provider._id },
+          {
+            status: 'REQUESTED',
+            offeredTo: {
+              $elemMatch: {
+                providerId: provider._id,
+                status: 'PENDING',
+              },
+            },
+          },
+        ],
+      })
         .select('-completionOtp')
         .sort({ createdAt: -1 });
+
+      bookings = rawBookings.map((b) => {
+        const obj = b.toObject();
+        // If booking is still requested/offered, do not reveal customer's phone or full address
+        if (obj.status === 'REQUESTED') {
+          obj.customerPhone = '';
+          obj.address = `${obj.city || 'Local area'}`;
+        }
+        return obj;
+      });
     } else if (req.user.role === 'admin') {
       const { status, city } = req.query;
       const filter = {};
@@ -279,10 +302,21 @@ export const getBookingById = async (req, res, next) => {
     // Role-based authorization check
     const isCustomer = String(booking.customerId) === String(req.user._id);
     let isProvider = false;
+    let isOfferedProvider = false;
     if (req.user.role === 'provider') {
       const provider = await Provider.findOne({ userId: req.user._id });
-      if (provider && booking.providerId && String(booking.providerId) === String(provider._id)) {
-        isProvider = true;
+      if (provider) {
+        if (booking.providerId && String(booking.providerId) === String(provider._id)) {
+          isProvider = true;
+        } else if (
+          booking.status === 'REQUESTED' &&
+          booking.offeredTo?.some(
+            (o) => String(o.providerId) === String(provider._id) && o.status === 'PENDING'
+          )
+        ) {
+          isProvider = true;
+          isOfferedProvider = true;
+        }
       }
     }
     const isAdmin = req.user.role === 'admin';
@@ -298,6 +332,12 @@ export const getBookingById = async (req, res, next) => {
     const bookingObj = booking.toObject();
     if (isProvider && !isAdmin) {
       delete bookingObj.completionOtp;
+    }
+
+    // Never reveal customer phone or full address to an offered provider until accepted
+    if (isOfferedProvider && !isAdmin) {
+      bookingObj.customerPhone = '';
+      bookingObj.address = `${bookingObj.city || 'Local area'}`;
     }
 
     // Do not return provider name or phone to customer until accepted
@@ -494,6 +534,92 @@ export const rescheduleBooking = async (req, res, next) => {
       success: true,
       message: 'Booking rescheduled successfully.',
       booking,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/bookings/:id/quotation (assigned provider only)
+export const createQuotation = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { items, reason } = req.body;
+    const isObjectId = mongoose.isValidObjectId(id);
+
+    const booking = await Booking.findOne({
+      $or: [
+        ...(isObjectId ? [{ _id: id }] : []),
+        { bookingId: String(id).toUpperCase() },
+      ],
+    });
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found.' });
+    }
+
+    // Only assigned provider can create quotation
+    const provider = await Provider.findOne({ userId: req.user._id });
+    if (!provider || !booking.providerId || String(booking.providerId) !== String(provider._id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: Only the assigned technician can submit a quotation for extra parts.',
+      });
+    }
+
+    if (!['ACCEPTED', 'ON_THE_WAY', 'WORKING'].includes(booking.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot submit a quotation for a job that is '${booking.status}'.`,
+      });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Quotation must include at least one item.',
+      });
+    }
+
+    const formattedItems = items.map((item) => ({
+      desc: String(item.desc || '').trim(),
+      amount: Math.round(Number(item.amount) || 0),
+      partNo: item.partNo ? String(item.partNo).trim() : '',
+    }));
+
+    const total = formattedItems.reduce((sum, item) => sum + item.amount, 0);
+
+    booking.quotation = {
+      items: formattedItems,
+      total,
+      status: 'PENDING_CUSTOMER_APPROVAL',
+      reason: (reason || '').trim(),
+      updatedAt: new Date(),
+    };
+
+    await booking.save();
+
+    if (io) {
+      io.to(`booking_${booking._id}`).emit('quotation_updated', {
+        bookingId: booking._id,
+        quotation: booking.quotation,
+      });
+      io.to(`user_${booking.customerId}`).emit('booking_updated', booking);
+    }
+
+    await notifyUser({
+      userId: booking.customerId,
+      role: 'customer',
+      title: 'Spare Parts Quotation Received',
+      message: `${provider.name} submitted a quotation of ₹${total} for additional parts/labor for Booking #${booking.bookingId}. Please approve or decline.`,
+      type: 'booking',
+      link: `/track/${booking._id}`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Quotation submitted successfully. Waiting for customer approval.',
+      quotation: booking.quotation,
     });
   } catch (err) {
     next(err);

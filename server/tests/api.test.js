@@ -9,6 +9,10 @@ import { Provider } from '../models/Provider.js';
 import { Booking } from '../models/Booking.js';
 import { Review } from '../models/Review.js';
 import { Dispute } from '../models/Dispute.js';
+import { Setting } from '../models/Setting.js';
+import { Question } from '../models/Question.js';
+import { SkillTestSession } from '../models/SkillTestSession.js';
+import { TestAttempt } from '../models/TestAttempt.js';
 import { checkExpiredOffers } from '../controllers/bookingController.js';
 
 let mongod;
@@ -37,6 +41,10 @@ beforeEach(async () => {
   await Booking.deleteMany({});
   await Review.deleteMany({});
   await Dispute.deleteMany({});
+  await Setting.deleteMany({});
+  await Question.deleteMany({});
+  await SkillTestSession.deleteMany({});
+  await TestAttempt.deleteMany({});
 });
 
 describe('FixNear Trust API Test Suite - Phase B', () => {
@@ -1282,6 +1290,422 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     expect(String(recoveredBooking.offeredTo[1].providerId)).toBe(String(p2._id));
     expect(recoveredBooking.offeredTo[1].status).toBe('PENDING');
     expect(new Date(recoveredBooking.currentOfferExpiresAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  // 15. Settings API: Public endpoint returns dynamic platform settings
+  it('settings API: returns dynamic platform fee, commission percent, pass marks, and cooldown from DB', async () => {
+    // Initial fetch returns defaults
+    const getRes = await request(app).get('/api/settings');
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.success).toBe(true);
+    expect(getRes.body.settings.platformFee).toBe(20);
+    expect(getRes.body.settings.platformCommissionPercent).toBe(10);
+    expect(getRes.body.settings.skillTestPassMark).toBe(70);
+    expect(getRes.body.settings.skillTestTimeLimitMinutes).toBe(15);
+    expect(getRes.body.settings.skillTestCooldownHours).toBe(24);
+
+    // Dynamic update test: modify DB setting
+    await Setting.findOneAndUpdate(
+      { key: 'global_settings' },
+      { $set: { platformFee: 30, platformCommissionPercent: 12 } }
+    );
+
+    const updatedRes = await request(app).get('/api/settings');
+    expect(updatedRes.body.settings.platformFee).toBe(30);
+    expect(updatedRes.body.settings.platformCommissionPercent).toBe(12);
+  });
+
+  // 16. Provider Onboarding (3-step registration) & Profile Management
+  it('provider onboarding: registers 3-step profile, forbids customers, and calculates live net earnings', async () => {
+    // 1. Customer cannot access provider console
+    const cust = await request(app).post('/api/auth/register').send({
+      name: 'Regular Customer',
+      email: 'customer-no-console@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543160',
+      city: 'Mumbai',
+      role: 'customer',
+    });
+    const custCookie = cust.headers['set-cookie'];
+
+    const forbiddenRes = await request(app).get('/api/providers/me').set('Cookie', custCookie);
+    expect(forbiddenRes.status).toBe(403);
+
+    // 2. Register provider user
+    const provUser = await request(app).post('/api/auth/register').send({
+      name: 'Ramesh Sharma',
+      email: 'ramesh.sharma@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543161',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const provCookie = provUser.headers['set-cookie'];
+
+    // 3-step onboarding registration
+    const regStepRes = await request(app)
+      .post('/api/providers/register')
+      .set('Cookie', provCookie)
+      .send({
+        name: 'Ramesh Sharma',
+        phone: '9876543161',
+        city: 'Mumbai',
+        serviceArea: 'Andheri & Juhu',
+        specialty: 'Plumbing & Drainage',
+        categoryId: 'plumbing',
+        categoryName: 'Plumbing',
+        experienceYears: 6,
+        idProofPublicId: 'id_doc_ramesh_123',
+        idProofUrl: 'https://fixnear.local/id_doc_ramesh_123.jpg',
+        certificatePublicId: 'cert_ramesh_456',
+        certificateUrl: 'https://fixnear.local/cert_ramesh_456.jpg',
+      });
+
+    expect(regStepRes.status).toBe(200);
+    expect(regStepRes.body.success).toBe(true);
+    expect(regStepRes.body.provider.status).toBe('take_skill_test');
+    expect(regStepRes.body.provider.serviceArea).toBe('Andheri & Juhu');
+    expect(regStepRes.body.provider.experienceYears).toBe(6);
+    expect(regStepRes.body.provider.skills.length).toBe(1);
+    expect(regStepRes.body.provider.skills[0].categoryId).toBe('plumbing');
+    expect(regStepRes.body.provider.skills[0].passed).toBe(false);
+
+    // Console: get profile and check live earnings calculation
+    const profileRes = await request(app).get('/api/providers/me').set('Cookie', provCookie);
+    expect(profileRes.status).toBe(200);
+    expect(profileRes.body.success).toBe(true);
+    expect(profileRes.body.provider.name).toBe('Ramesh Sharma');
+    expect(profileRes.body.earnings.today).toBe(0);
+    expect(profileRes.body.settings.platformFee).toBe(20);
+    expect(profileRes.body.settings.commissionPercent).toBe(10);
+  });
+
+  // 17. Provider Online Toggle Enforcement: strictly refuses non-approved status
+  it('online toggle: refuses unapproved (take_skill_test, waiting_for_approval, rejected, suspended) providers', async () => {
+    const provUser = await request(app).post('/api/auth/register').send({
+      name: 'Amit Verma',
+      email: 'amit.verma@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543162',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const provCookie = provUser.headers['set-cookie'];
+
+    const providerDoc = await Provider.findOne({ email: 'amit.verma@fixnear.com' });
+
+    // 1. In 'take_skill_test' -> 403 Forbidden
+    const res1 = await request(app).patch('/api/providers/me/status').set('Cookie', provCookie).send({ isOnline: true });
+    expect(res1.status).toBe(403);
+    expect(res1.body.message).toContain('Take the skill test');
+
+    // 2. In 'waiting_for_approval' -> 403 Forbidden
+    providerDoc.status = 'waiting_for_approval';
+    await providerDoc.save();
+    const res2 = await request(app).patch('/api/providers/me/status').set('Cookie', provCookie).send({ isOnline: true });
+    expect(res2.status).toBe(403);
+    expect(res2.body.message).toContain('Waiting for approval');
+
+    // 3. In 'suspended' -> 403 Forbidden
+    providerDoc.status = 'suspended';
+    await providerDoc.save();
+    const res3 = await request(app).patch('/api/providers/me/status').set('Cookie', provCookie).send({ isOnline: true });
+    expect(res3.status).toBe(403);
+    expect(res3.body.message).toContain('Suspended');
+
+    // 4. In 'approved' -> 200 OK
+    providerDoc.status = 'approved';
+    await providerDoc.save();
+    const res4 = await request(app).patch('/api/providers/me/status').set('Cookie', provCookie).send({ isOnline: true });
+    expect(res4.status).toBe(200);
+    expect(res4.body.isOnline).toBe(true);
+
+    // Can switch back to offline
+    const res5 = await request(app).patch('/api/providers/me/status').set('Cookie', provCookie).send({ isOnline: false });
+    expect(res5.status).toBe(200);
+    expect(res5.body.isOnline).toBe(false);
+  });
+
+  // 18. Private KYC Document Upload & Signed URL Access Control
+  it('private uploads & signed URLs: allows private doc upload and restricts signed document URLs to provider/admin', async () => {
+    const provUser = await request(app).post('/api/auth/register').send({
+      name: 'Pooja Patil',
+      email: 'pooja.patil@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543163',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const provCookie = provUser.headers['set-cookie'];
+
+    // 1. Provider uploads private doc
+    const uploadRes = await request(app)
+      .post('/api/upload/private')
+      .set('Cookie', provCookie)
+      .attach('file', Buffer.from('Fake PDF ID Proof Content'), {
+        filename: 'aadhaar_card.pdf',
+        contentType: 'application/pdf',
+      });
+
+    expect(uploadRes.status).toBe(200);
+    expect(uploadRes.body.success).toBe(true);
+    expect(uploadRes.body.publicId).toBeDefined();
+
+    // Save publicId to provider profile
+    await Provider.findOneAndUpdate(
+      { email: 'pooja.patil@fixnear.com' },
+      { idProofPublicId: uploadRes.body.publicId, idProofUrl: uploadRes.body.url }
+    );
+
+    // 2. Provider accesses signed URL
+    const docRes = await request(app)
+      .get('/api/providers/documents/idProof')
+      .set('Cookie', provCookie);
+
+    expect(docRes.status).toBe(200);
+    expect(docRes.body.success).toBe(true);
+    expect(docRes.body.signedUrl).toBeDefined();
+    expect(docRes.body.expiresInSeconds).toBe(600);
+
+    // 3. Customer attempts to access provider private document -> 403 Forbidden
+    const cust = await request(app).post('/api/auth/register').send({
+      name: 'Snoop Customer',
+      email: 'snoop@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543164',
+      city: 'Mumbai',
+      role: 'customer',
+    });
+    const custCookie = cust.headers['set-cookie'];
+
+    const unauthorizedDocRes = await request(app)
+      .get('/api/providers/documents/idProof')
+      .set('Cookie', custCookie);
+
+    expect(unauthorizedDocRes.status).toBe(403);
+  });
+
+  // 19. Skill Test Session, Masked Questions, Server-Side Evaluation, and 24h Cooldown
+  it('skill test: session hides correctIndex/explanation, server grades test, updates status, and enforces 24h cooldown on failure', async () => {
+    // 1. Seed 10 questions for electrician category
+    const createdQuestions = [];
+    for (let i = 1; i <= 10; i++) {
+      const q = await Question.create({
+        categoryId: 'electrician',
+        categoryName: 'Electrician',
+        questionText: `Electrician Safety Question ${i}: What is the proper procedure?`,
+        options: ['Step A', 'Step B', 'Step C', 'Step D'],
+        correctIndex: 1, // 'Step B' is correct for all
+        explanation: 'Detailed safety protocol explanation',
+        isActive: true,
+      });
+      createdQuestions.push(q);
+    }
+
+    // 2. Register provider
+    const provUser = await request(app).post('/api/auth/register').send({
+      name: 'Sunil Kadam',
+      email: 'sunil.kadam@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543165',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const provCookie = provUser.headers['set-cookie'];
+
+    // 3. Provider starts test: GET /api/skill-test/electrician
+    const startRes = await request(app).get('/api/skill-test/electrician').set('Cookie', provCookie);
+    expect(startRes.status).toBe(200);
+    expect(startRes.body.success).toBe(true);
+    expect(startRes.body.sessionId).toBeDefined();
+    expect(startRes.body.questions.length).toBe(10);
+    expect(startRes.body.durationMinutes).toBe(15);
+    expect(startRes.body.passMark).toBe(70);
+
+    // CRITICAL SECURITY AUDIT: correctIndex and explanation MUST NOT BE LEAKED to client!
+    startRes.body.questions.forEach((q) => {
+      expect(q.correctIndex).toBeUndefined();
+      expect(q.explanation).toBeUndefined();
+      expect(q.options.length).toBe(4);
+    });
+
+    const sessionId = startRes.body.sessionId;
+    const sessionQIds = startRes.body.questions.map((q) => q._id);
+
+    // 4. Reject answer with unknown question ID
+    const badAnsRes = await request(app)
+      .post('/api/skill-test/electrician/submit')
+      .set('Cookie', provCookie)
+      .send({
+        sessionId,
+        answers: [{ questionId: new mongoose.Types.ObjectId().toString(), selectedIndex: 1 }],
+      });
+    expect(badAnsRes.status).toBe(400);
+    expect(badAnsRes.body.message).toContain('not assigned in this session');
+
+    // 5. Submit 8 correct answers (80% -> passes Silver badge)
+    const validAnswers = sessionQIds.map((qId, idx) => ({
+      questionId: String(qId),
+      selectedIndex: idx < 8 ? 1 : 0, // 8 correct (idx 1), 2 wrong (idx 0)
+    }));
+
+    const submitRes = await request(app)
+      .post('/api/skill-test/electrician/submit')
+      .set('Cookie', provCookie)
+      .send({
+        sessionId,
+        answers: validAnswers,
+        warningCount: 1, // 1 tab switch (informational)
+      });
+
+    expect(submitRes.status).toBe(200);
+    expect(submitRes.body.success).toBe(true);
+    expect(submitRes.body.score).toBe(80);
+    expect(submitRes.body.passed).toBe(true);
+    expect(submitRes.body.badge).toBe('Silver');
+    expect(submitRes.body.newStatus).toBe('waiting_for_approval');
+
+    // Verify Provider status automatically updated in DB
+    const updatedProv = await Provider.findOne({ email: 'sunil.kadam@fixnear.com' });
+    expect(updatedProv.status).toBe('waiting_for_approval');
+    expect(updatedProv.badges).toContain('Silver Certified');
+    expect(updatedProv.skills[0].passed).toBe(true);
+    expect(updatedProv.skills[0].badge).toBe('Silver');
+
+    // 6. Cannot submit session twice
+    const doubleSubmitRes = await request(app)
+      .post('/api/skill-test/electrician/submit')
+      .set('Cookie', provCookie)
+      .send({ sessionId, answers: validAnswers });
+    expect(doubleSubmitRes.status).toBe(400);
+    expect(doubleSubmitRes.body.message).toContain('already been submitted');
+
+    // 7. Test cooldown logic: Simulate failing another category
+    const failAttempt = await TestAttempt.create({
+      providerId: updatedProv._id,
+      userId: updatedProv.userId,
+      categoryId: 'carpentry',
+      categoryName: 'Carpentry',
+      score: 40,
+      passed: false,
+      totalQuestions: 10,
+      correctAnswers: 4,
+      weakTopics: ['Wood Joinery'],
+      cooldownUntil: new Date(Date.now() + 24 * 3600 * 1000), // 24h in future
+    });
+
+    const cooldownStartRes = await request(app).get('/api/skill-test/carpentry').set('Cookie', provCookie);
+    expect(cooldownStartRes.status).toBe(403);
+    expect(cooldownStartRes.body.inCooldown).toBe(true);
+    expect(cooldownStartRes.body.message.toLowerCase()).toContain('cooldown');
+  });
+
+  // 20. Extra Parts Quotation Flow (Itemized spare parts quotation & Customer Approval)
+  it('extra parts quotation: provider submits itemized parts quote and customer approves to update invoice', async () => {
+    // 1. Create assigned provider and customer
+    const provUser = await request(app).post('/api/auth/register').send({
+      name: 'Vijay Tech',
+      email: 'vijay.tech@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543166',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const provCookie = provUser.headers['set-cookie'];
+    const pDoc = await Provider.findOneAndUpdate(
+      { email: 'vijay.tech@fixnear.com' },
+      {
+        $set: {
+          status: 'approved',
+          isOnline: true,
+          specialty: 'AC Repair',
+          skills: [{ categoryId: 'ac-repair', categoryName: 'AC Repair', passed: true, testScore: 90 }],
+        },
+      },
+      { new: true }
+    );
+
+    const cust = await request(app).post('/api/auth/register').send({
+      name: 'Anjali Desai',
+      email: 'anjali.desai@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543167',
+      city: 'Mumbai',
+      role: 'customer',
+    });
+    const custCookie = cust.headers['set-cookie'];
+
+    const service = await Service.create({
+      serviceId: 'ac-servicing-quote-test',
+      categoryId: 'ac-repair',
+      category: 'AC Repair',
+      title: 'AC Deep Clean & Repair',
+      startingPrice: 499,
+      isActive: true,
+    });
+
+    // Create booking and assign to provider (status: WORKING)
+    const booking = await Booking.create({
+      bookingId: 'FX-QUOTE1',
+      customerId: cust.body.user ? cust.body.user.id : new mongoose.Types.ObjectId(),
+      customerName: 'Anjali Desai',
+      customerPhone: '9876543167',
+      providerId: pDoc._id,
+      providerName: pDoc.name,
+      providerPhone: pDoc.phone,
+      serviceId: service.serviceId,
+      serviceTitle: service.title,
+      basePrice: service.startingPrice,
+      address: 'Bandra West, Mumbai',
+      city: 'Mumbai',
+      scheduledDate: '2026-12-31',
+      timeSlot: 'Afternoon (01:00 PM - 04:00 PM)',
+      status: 'WORKING',
+      completionOtp: '8899',
+      timeline: [],
+      invoice: {
+        invoiceNo: 'INV-QUOTE1',
+        status: 'UNPAID',
+        baseAmount: 499,
+        extraAmount: 0,
+        totalAmount: 499,
+      },
+    });
+
+    // 2. Assigned provider submits quotation for burnt capacitor & copper pipe
+    const quoteRes = await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({
+        items: [
+          { desc: 'Running Capacitor 45uF', amount: 450, partNo: 'CAP-45UF' },
+          { desc: 'Copper Pipe Flare Nut & Joint', amount: 350, partNo: 'COP-NUT-01' },
+        ],
+        reason: 'Capacitor swollen and flare nut leaking refrigerant gas',
+      });
+
+    expect(quoteRes.status).toBe(200);
+    expect(quoteRes.body.success).toBe(true);
+    expect(quoteRes.body.quotation.status).toBe('PENDING_CUSTOMER_APPROVAL');
+    expect(quoteRes.body.quotation.total).toBe(800); // 450 + 350
+    expect(quoteRes.body.quotation.items.length).toBe(2);
+
+    // 3. Customer approves quotation
+    const approveRes = await request(app)
+      .patch(`/api/bookings/${booking._id}/quotation/approve`)
+      .set('Cookie', custCookie);
+
+    expect(approveRes.status).toBe(200);
+    expect(approveRes.body.success).toBe(true);
+    expect(approveRes.body.quotation.status).toBe('APPROVED');
+    // Invoice is automatically updated: 499 base + 800 extra = 1299 total
+    expect(approveRes.body.invoice.extraAmount).toBe(800);
+    expect(approveRes.body.invoice.totalAmount).toBe(1299);
+
+    // Verify DB consistency
+    const updatedBooking = await Booking.findById(booking._id);
+    expect(updatedBooking.quotation.status).toBe('APPROVED');
+    expect(updatedBooking.invoice.totalAmount).toBe(1299);
   });
 
 });

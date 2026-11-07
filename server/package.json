@@ -9,6 +9,7 @@
     "dev": "node --watch server.js",
     "create-admin": "node scripts/createAdmin.js",
     "create-test-provider": "node scripts/createTestProvider.js",
+    "approve-provider": "node scripts/approveProvider.js",
     "load-data": "node scripts/loadData.js",
     "test": "vitest run"
   },

@@ -71,7 +71,7 @@ export const register = async (req, res) => {
         email: newUser.email,
         phone: newUser.phone || '',
         city: newUser.city,
-        status: 'waiting_for_approval',
+        status: 'take_skill_test',
       });
     }
 

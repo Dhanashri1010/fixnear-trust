@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -15,6 +15,19 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only image files (JPG, PNG, WebP) are allowed.'));
+    }
+  },
+});
+
+// Private KYC docs (supports images and PDF up to 5 MB)
+const privateDocUpload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JPG, PNG, and PDF files up to 5 MB are allowed.'));
     }
   },
 });
@@ -70,6 +83,49 @@ router.post('/upload', authenticate, upload.array('photos', 3), async (req, res,
     res.status(200).json({
       success: true,
       urls,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/upload/private (ID proof / Certificate - private/authenticated)
+router.post('/upload/private', authenticate, authorize('provider', 'admin'), privateDocUpload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded.' });
+    }
+
+    if (!isCloudinaryConfigured()) {
+      // Local development / fallback simulation for private file
+      const simulatedPublicId = `private_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      return res.status(200).json({
+        success: true,
+        publicId: simulatedPublicId,
+        url: `/api/providers/documents/${simulatedPublicId}`,
+        message: 'File securely recorded (local private simulation).',
+      });
+    }
+
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'fixnear_kyc_private',
+          type: 'authenticated', // Private authenticated asset
+          resource_type: req.file.mimetype === 'application/pdf' ? 'raw' : 'image',
+        },
+        (error, res) => {
+          if (error) return reject(error);
+          resolve(res);
+        }
+      );
+      stream.end(req.file.buffer);
+    });
+
+    res.status(200).json({
+      success: true,
+      publicId: result.public_id,
+      url: result.secure_url,
     });
   } catch (err) {
     next(err);

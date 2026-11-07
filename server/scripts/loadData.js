@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { Category } from '../models/Category.js';
 import { Service } from '../models/Service.js';
 import { Question } from '../models/Question.js';
+import { Setting } from '../models/Setting.js';
 import { SEED_CATEGORIES, SEED_SERVICES } from '../data/seedData.js';
 import { QUESTION_BANK_SEED } from '../data/questionBankData.js';
 
@@ -77,6 +78,10 @@ const loadData = async () => {
       );
     }
     console.log(`[Load Data CLI] ✓ ${QUESTION_BANK_SEED.length} examination questions synchronized.`);
+
+    // 4. Sync Global Settings
+    const settings = await Setting.getSettings();
+    console.log(`[Load Data CLI] ✓ Global platform settings initialized (Platform fee: ₹${settings.platformFee}, Commission: ${settings.platformCommissionPercent}%).`);
 
     console.log('\n======================================================');
     console.log('DATA LOAD SUCCESSFUL:');

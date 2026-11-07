@@ -6,6 +6,7 @@ import {
   getBookingById,
   cancelBooking,
   rescheduleBooking,
+  createQuotation,
   approveQuotation,
   declineQuotation,
   submitReview,
@@ -44,6 +45,19 @@ const rescheduleBookingSchema = z.object({
   }),
 });
 
+const createQuotationSchema = z.object({
+  body: z.object({
+    items: z.array(
+      z.object({
+        desc: z.string().min(1, 'Item description is required'),
+        amount: z.number().positive('Amount must be positive'),
+        partNo: z.string().optional(),
+      })
+    ).min(1, 'At least one item is required in quotation'),
+    reason: z.string().optional(),
+  }),
+});
+
 const reviewBookingSchema = z.object({
   body: z.object({
     rating: z.number().min(1, 'Rating must be at least 1').max(5, 'Rating cannot exceed 5'),
@@ -68,7 +82,7 @@ const statusBookingSchema = z.object({
 });
 
 // All booking routes require authentication
-router.use(authenticate);
+router.use('/bookings', authenticate);
 
 // Customer bookings
 router.post('/bookings', authorize('customer'), validate(createBookingSchema), createBooking);
@@ -78,6 +92,7 @@ router.get('/bookings/:id', getBookingById);
 // Actions
 router.patch('/bookings/:id/cancel', authorize('customer', 'admin'), validate(cancelBookingSchema), cancelBooking);
 router.patch('/bookings/:id/reschedule', authorize('customer', 'admin'), validate(rescheduleBookingSchema), rescheduleBooking);
+router.post('/bookings/:id/quotation', authorize('provider'), validate(createQuotationSchema), createQuotation);
 router.patch('/bookings/:id/quotation/approve', authorize('customer'), approveQuotation);
 router.patch('/bookings/:id/quotation/decline', authorize('customer'), declineQuotation);
 router.post('/bookings/:id/review', authorize('customer'), validate(reviewBookingSchema), submitReview);

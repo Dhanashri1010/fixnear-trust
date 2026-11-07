@@ -59,3 +59,4 @@ const skillTestSessionSchema = new mongoose.Schema(
 
 export const SkillTestSession = mongoose.model('SkillTestSession', skillTestSessionSchema);
 export default SkillTestSession;
+

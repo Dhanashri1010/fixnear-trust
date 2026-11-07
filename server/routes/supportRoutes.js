@@ -14,7 +14,7 @@ const createTicketSchema = z.object({
   }),
 });
 
-router.use(authenticate);
+router.use('/support', authenticate);
 
 router.post('/support', validate(createTicketSchema), createSupportTicket);
 router.get('/support/mine', getMySupportTickets);

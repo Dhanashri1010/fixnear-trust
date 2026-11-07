@@ -235,6 +235,19 @@ cd server && npm test
 ```
 > **Multi-OS Note**: Tests run automatically across Windows, macOS, and Linux. If you already have a local `mongod` binary installed (e.g. at `/usr/bin/mongod` or `C:\Program Files\MongoDB\Server\8.2\bin\mongod.exe`), you can optionally export the `MONGOMS_SYSTEM_BINARY` environment variable pointing to it; otherwise, `mongodb-memory-server` will automatically download and cache the appropriate binary.
 
+### 8. Handy Testing CLI Commands
+FixNear Trust provides local command-line utilities for smooth evaluation (all scripts refuse to run in `production`):
+```bash
+# Approve a provider instantly by email (sets status to 'approved' and online):
+npm run approve-provider -- <provider-email>
+
+# Create a verified, online test provider using values from server/.env:
+npm run create-test-provider
+
+# Synchronize seed categories, services, question bank, and global platform settings to MongoDB:
+npm run load-data
+```
+
 ---
 
 ## 🔒 Security Rules & Production Safety

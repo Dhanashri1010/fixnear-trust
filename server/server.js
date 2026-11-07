@@ -17,6 +17,8 @@ import bookingRoutes from './routes/bookingRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import supportRoutes from './routes/supportRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import settingRoutes from './routes/settingRoutes.js';
+import skillTestRoutes from './routes/skillTestRoutes.js';
 import { apiRateLimiter } from './middleware/rateLimiter.js';
 import { User } from './models/User.js';
 import { Provider } from './models/Provider.js';
@@ -185,12 +187,14 @@ app.use('/api', apiRateLimiter);
 // API Routes
 app.use('/api', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api', settingRoutes);
 app.use('/api', serviceRoutes);
 app.use('/api', providerRoutes);
 app.use('/api', bookingRoutes);
 app.use('/api', notificationRoutes);
 app.use('/api', supportRoutes);
 app.use('/api', uploadRoutes);
+app.use('/api', skillTestRoutes);
 
 // Root route
 app.get('/', (req, res) => {
