@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { User } from '../models/User.js';
 import { Provider } from '../models/Provider.js';
+import { validateScriptPassword } from './createAdmin.js';
 
 dotenv.config();
 
@@ -11,32 +12,45 @@ const createTestProvider = async () => {
     process.exit(1);
   }
 
-  const providerEmail = (process.env.TEST_PROVIDER_EMAIL || 'provider.test@fixnear.com').toLowerCase();
-  const providerPassword = process.env.TEST_PROVIDER_PASSWORD || 'ProviderSecure123!';
+  const providerEmail = process.env.TEST_PROVIDER_EMAIL;
+  const providerPassword = process.env.TEST_PROVIDER_PASSWORD;
   const providerCity = process.env.TEST_PROVIDER_CITY || 'Mumbai';
+
+  if (!providerEmail || !providerPassword) {
+    console.error('[Test Provider Error] TEST_PROVIDER_EMAIL and TEST_PROVIDER_PASSWORD environment variables are strictly required. No default passwords are permitted.');
+    process.exit(1);
+  }
+
+  const validation = validateScriptPassword(providerPassword, 'Test Provider');
+  if (!validation.valid) {
+    console.error(`[Test Provider Error] ${validation.message}`);
+    process.exit(1);
+  }
 
   try {
     const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/fixnear';
     await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 });
     console.log('[Test Provider CLI] Connected to MongoDB.');
 
-    let user = await User.findOne({ email: providerEmail });
+    let user = await User.findOne({ email: providerEmail.toLowerCase() });
     if (user) {
       user.password = providerPassword;
       user.role = 'provider';
       user.city = providerCity;
       user.name = 'Vikram Malhotra';
       user.phone = '+91 98201 54321';
+      user.mustChangePassword = false;
       await user.save();
       console.log('[Test Provider CLI] Updated existing user account.');
     } else {
       user = await User.create({
         name: 'Vikram Malhotra',
-        email: providerEmail,
+        email: providerEmail.toLowerCase(),
         password: providerPassword,
         role: 'provider',
         phone: '+91 98201 54321',
         city: providerCity,
+        mustChangePassword: false,
       });
       console.log('[Test Provider CLI] Created new provider user account.');
     }
@@ -59,12 +73,9 @@ const createTestProvider = async () => {
       provider.status = 'approved';
       provider.isOnline = true;
       provider.skills = allSkills;
-      provider.ratingAvg = 4.95;
-      provider.ratingCount = 88;
-      provider.jobsDone = 142;
-      provider.specialty = 'Master Certified Technician';
+      provider.serviceCategories = allSkills.map((s) => s.categoryId);
       await provider.save();
-      console.log('[Test Provider CLI] Provider profile updated to approved and online.');
+      console.log('[Test Provider CLI] Updated existing provider record to approved, online status.');
     } else {
       provider = await Provider.create({
         userId: user._id,
@@ -72,33 +83,35 @@ const createTestProvider = async () => {
         email: user.email,
         phone: user.phone,
         city: providerCity,
-        specialty: 'Master Certified Technician',
         status: 'approved',
         isOnline: true,
-        skills: allSkills,
-        ratingAvg: 4.95,
-        ratingCount: 88,
-        jobsDone: 142,
         experienceYears: 6,
-        badges: ['Skill Verified', 'Police Clearance Verified', 'Top Rated Specialist'],
+        skills: allSkills,
+        serviceCategories: allSkills.map((s) => s.categoryId),
+        serviceRadiusKm: 25,
+        ratingAvg: 4.8,
+        ratingCount: 15,
+        jobsDone: 24,
       });
-      console.log('[Test Provider CLI] Created verified, online provider profile.');
+      console.log('[Test Provider CLI] Created new verified provider record.');
     }
 
-    console.log(`\n======================================================`);
-    console.log(`TEST PROVIDER READY (Verified & Online):`);
-    console.log(`Email: ${providerEmail}`);
-    console.log(`Password: ${providerPassword}`);
-    console.log(`City: ${providerCity}`);
-    console.log(`Provider ID: ${provider._id}`);
-    console.log(`======================================================\n`);
+    console.log('\n======================================================');
+    console.log('TEST SPECIALIST READY:');
+    console.log(`Email:    ${providerEmail}`);
+    console.log(`City:     ${providerCity}`);
+    console.log('Status:   Approved & Online');
+    console.log('Categories: Electrical, Plumbing, AC, Appliances, Cleaning, Carpentry');
+    console.log('======================================================\n');
   } catch (err) {
-    console.error('[Test Provider CLI] Error:', err.message);
+    console.error('[Test Provider Error]:', err.message);
+    process.exit(1);
   } finally {
     await mongoose.disconnect();
     process.exit(0);
   }
 };
 
-createTestProvider();
-
+if (process.argv[1] && process.argv[1].endsWith('createTestProvider.js')) {
+  createTestProvider();
+}

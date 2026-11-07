@@ -59,13 +59,23 @@ FixNear Trust is a security-first, verified local home services platform. This d
 - **Historical Fee & Commission Snapshots**:
   - Every booking records `platformFeeSnapshot` and `commissionRateSnapshot` at creation time.
   - Subsequent admin changes to global platform fees never alter historical bookings or technician earnings.
-- **Cryptographic HMAC-SHA256 Signature Verification**:
+- **Cryptographic Timing-Safe HMAC-SHA256 Signature Verification**:
   - Online payments through Razorpay require verifying the cryptographic signature:
     $$\text{HMAC-SHA256}(\text{order\_id} + "|" + \text{payment\_id}, \text{RAZORPAY\_KEY\_SECRET})$$
-  - Altered or missing signatures return `400 Bad Request`.
-- **Idempotent Payment Handling**:
-  - Payment order creation reuses existing unexpired orders for the same booking to prevent duplicate order generation.
-  - Verification calls and webhook deliveries check `booking.paymentStatus === 'PAID'` and return existing receipts safely without double-marking earnings or sending duplicate emails.
+  - Signatures are compared using `crypto.timingSafeEqual` with byte-length checks to eliminate timing side-channel attacks.
+- **Production Payment Capture Verification**:
+  - In production mode, the server communicates directly with the Razorpay API to fetch the transaction record, verifying that its status is `captured` and that its captured amount matches the order total before transitioning booking state.
+- **Atomic Concurrency & Single Earnings Credit**:
+  - State transition to `PAID` is guarded by an atomic conditional query:
+    $$\{ \_id: \text{bookingId}, \text{paymentStatus}: \{ \$ne: \text{'PAID'} \} \}$$
+  - Provider earnings are credited, invoices generated, and confirmation emails dispatched strictly if and only if the atomic update matched, ensuring provider balances cannot be credited twice even under simultaneous verification calls.
+- **Byte-Exact Raw Webhook Verification**:
+  - Razorpay Webhooks are processed via `express.raw({ type: 'application/json' })` mounted prior to `express.json()`.
+  - The HMAC-SHA256 signature is verified against the raw binary request payload using `RAZORPAY_WEBHOOK_SECRET` (with no fallback to key secrets).
+  - Webhooks support `payment.captured`, `order.paid`, and `refund.processed` events with strict idempotency.
+- **Cash Payment Confirmation Lock**:
+  - Technicians cannot confirm cash payments if an online payment was `INITIATED` within the preceding 15 minutes, preventing accidental double billing.
+  - When cash is confirmed, an immediate notification is pushed to the customer so they can contest unauthorized confirmations.
 - **Dispute Settlement Safety**:
   - Admin dispute resolutions are atomic and permitted only once per dispute (`status: 'OPEN'`). Duplicate attempts return `409 Conflict`.
   - Server validates that `refundAmount + providerPayout <= booking.invoice.totalAmount`.
@@ -80,6 +90,11 @@ FixNear Trust is a security-first, verified local home services platform. This d
 - **Atomic Last-Administrator Protection**:
   - The database maintains an active admin counter (`Setting.activeAdminCount`).
   - Deactivation utilizes an atomic conditional decrement (`{ activeAdminCount: { $gt: 1 } }`), making it mathematically impossible to deactivate the final remaining active administrator even under concurrent requests.
+- **Hardened Administrative Bootstrapping**:
+  - Scripts `createAdmin.js` and `createTestProvider.js` mandate `ADMIN_PASSWORD` / `TEST_PROVIDER_PASSWORD` with a minimum of 12 characters including letters, numbers, and symbols.
+  - Known weak or default example passwords are explicitly rejected at the CLI boundary.
+- **Production Secret Validation**:
+  - The server inspects `JWT_SECRET` on boot and refuses to start in production mode if it matches any known weak, default, or example strings.
 - **Injection & ReDoS Prevention**:
   - `express-mongo-sanitize` scrubs all incoming `req.body`, `req.query`, and `req.params` against NoSQL operator injections (`$`, `.`).
   - `escapeRegex` utility neutralizes special regex metacharacters across all search and filtering queries.
@@ -95,13 +110,11 @@ FixNear Trust is a security-first, verified local home services platform. This d
 ## 5. Dependency Audit & Vulnerability Summary
 
 - **Frontend (`fixnear-trust`)**:
-  - `npm audit`: **0 vulnerabilities**.
+  - `npm audit`: **0 vulnerabilities** (clean).
 - **Backend (`server`)**:
-  - Production security dependencies: `express-mongo-sanitize`, `helmet`, `cors`, `bcryptjs`, `jsonwebtoken`, `zod`, `express-rate-limit`.
-  - As of Phase E, standard `npm audit` reports 2 dependency tree advisories:
-    1. `nodemailer` (under review for upcoming v7 transition).
-    2. `zod` (v3 to v4 migration scheduled).
-  - Neither advisory exposes exploitable vectors in FixNear's sandboxed, sanitized API pipeline.
+  - `npm audit`: **0 vulnerabilities** (clean).
+  - Dependencies: `nodemailer` is upgraded to the latest secure release (`10.3.1`) and `zod` is updated to the latest patched version.
+  - Zero high or critical vulnerabilities exist across the active dependency trees.
 
 ---
 

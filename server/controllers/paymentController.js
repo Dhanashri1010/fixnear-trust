@@ -21,11 +21,124 @@ export const getPaymentConfig = (req, res) => {
 };
 
 // Helper to calculate exact bill from server state
-const calculateBookingTotal = (booking) => {
+export const calculateBookingTotal = (booking) => {
   const base = booking.basePrice || 0;
   const approvedExtra = booking.quotation?.status === 'APPROVED' ? (booking.quotation.total || 0) : 0;
   const platformFee = booking.platformFeeSnapshot ?? 20;
   return base + approvedExtra + platformFee;
+};
+
+// Shared atomic helper to mark booking PAID and credit provider earnings exactly once
+export const markBookingPaidHelper = async ({
+  booking,
+  paymentDoc,
+  razorpayPaymentId,
+  razorpayOrderId,
+  paymentMethod = 'ONLINE',
+  receiptNumber,
+  req,
+}) => {
+  const finalAmount = calculateBookingTotal(booking);
+  const invoiceNumber = receiptNumber || booking.invoiceNumber || `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // Atomic update: condition paymentStatus !== 'PAID' guarantees single execution
+  const updatedBooking = await Booking.findOneAndUpdate(
+    { _id: booking._id, paymentStatus: { $ne: 'PAID' } },
+    {
+      $set: {
+        paymentStatus: 'PAID',
+        paymentMethod,
+        razorpayPaymentId: razorpayPaymentId || booking.razorpayPaymentId,
+        razorpayOrderId: razorpayOrderId || booking.razorpayOrderId,
+        invoiceNumber,
+        'invoice.status': 'PAID',
+        'invoice.paidAt': new Date(),
+        'invoice.totalAmount': finalAmount,
+      },
+    },
+    { new: true }
+  );
+
+  // If already marked PAID, return existing state without crediting earnings again
+  if (!updatedBooking) {
+    const existing = await Booking.findById(booking._id);
+    return {
+      success: true,
+      alreadyPaid: true,
+      booking: existing,
+      invoiceNumber: existing?.invoiceNumber || invoiceNumber,
+      totalAmount: finalAmount,
+    };
+  }
+
+  // Update Payment record
+  if (paymentDoc) {
+    paymentDoc.status = 'PAID';
+    if (razorpayPaymentId) paymentDoc.razorpayPaymentId = razorpayPaymentId;
+    paymentDoc.receiptNumber = invoiceNumber;
+    paymentDoc.paidAt = new Date();
+    await paymentDoc.save();
+  }
+
+  // Credit provider earnings with snapshot commission EXACTLY ONCE
+  if (updatedBooking.providerId) {
+    const commissionRate = updatedBooking.commissionRateSnapshot ?? 10;
+    const laborTotal = (updatedBooking.invoice?.baseAmount || updatedBooking.basePrice || 0) + (updatedBooking.quotation?.status === 'APPROVED' ? updatedBooking.quotation.total : 0);
+    const commission = Math.round((laborTotal * commissionRate) / 100);
+    const netPayout = laborTotal - commission;
+
+    await Provider.findByIdAndUpdate(updatedBooking.providerId, {
+      $inc: {
+        jobsDone: 1,
+        earningsToday: netPayout,
+        earningsWeek: netPayout,
+        earningsMonth: netPayout,
+      },
+    });
+
+    const prov = await Provider.findById(updatedBooking.providerId);
+    if (prov) {
+      await notifyUser({
+        userId: prov.userId,
+        role: 'provider',
+        title: 'Payment Received',
+        message: `Customer payment of ₹${finalAmount} settled (${paymentMethod}) for booking #${updatedBooking.bookingId}. Your net payout: ₹${netPayout}.`,
+        type: 'payment',
+        link: '/provider/dashboard',
+      });
+    }
+  }
+
+  // Send receipt email to customer
+  const customerEmail = req?.user?.email || (await User.findById(updatedBooking.customerId))?.email;
+  if (customerEmail) {
+    sendJobCompletedEmail({
+      customerEmail,
+      customerName: updatedBooking.customerName,
+      bookingId: updatedBooking.bookingId,
+      serviceTitle: updatedBooking.serviceTitle,
+      totalAmount: finalAmount,
+      invoiceNumber,
+      paymentMethod: paymentMethod === 'ONLINE' ? 'Online (Razorpay Verified)' : 'Cash to Specialist',
+    }).catch(() => {});
+  }
+
+  if (io) {
+    io.to(`booking_${updatedBooking.bookingId}`).emit('payment_confirmed', {
+      bookingId: updatedBooking.bookingId,
+      paymentStatus: 'PAID',
+      invoiceNumber,
+      totalAmount: finalAmount,
+    });
+  }
+
+  return {
+    success: true,
+    alreadyPaid: false,
+    booking: updatedBooking,
+    invoiceNumber,
+    totalAmount: finalAmount,
+  };
 };
 
 // POST /api/payments/order (Customer initiated)
@@ -182,116 +295,105 @@ export const verifyPayment = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Booking not found.' });
     }
 
-    // Idempotency: Safe to repeat, no double marking
-    if (booking.paymentStatus === 'PAID') {
-      return res.status(200).json({
-        success: true,
-        message: 'Payment has already been confirmed and receipt generated.',
-        paymentStatus: 'PAID',
-        invoiceNumber: booking.invoiceNumber || `INV-${booking.bookingId}`,
+    // 1. Authenticated customer who owns the booking (or admin)
+    if (String(booking.customerId) !== String(req.user._id) && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Forbidden: You do not own this booking.' });
+    }
+
+    // 2. Booking status must be COMPLETED
+    if (booking.status !== 'COMPLETED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment verification requires booking status to be COMPLETED.',
       });
     }
 
-    // Verify cryptographic signature
+    // 3. booking.razorpayOrderId must match razorpayOrderId
+    if (!booking.razorpayOrderId || booking.razorpayOrderId !== razorpayOrderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment order ID does not match this booking record.',
+      });
+    }
+
+    // 4. Look up Payment record by razorpayOrderId; require same booking and matching server total
+    const payment = await Payment.findOne({ razorpayOrderId });
+    if (!payment) {
+      return res.status(400).json({
+        success: false,
+        message: 'No payment transaction record found for this order ID.',
+      });
+    }
+
+    if (String(payment.bookingId) !== String(booking._id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment transaction record does not belong to this booking.',
+      });
+    }
+
+    const finalAmount = calculateBookingTotal(booking);
+    if (payment.amount !== finalAmount) {
+      return res.status(400).json({
+        success: false,
+        message: `Payment record amount (₹${payment.amount}) does not match current server-calculated total (₹${finalAmount}).`,
+      });
+    }
+
+    // 5. Compare signatures with crypto.timingSafeEqual
     const secret = process.env.RAZORPAY_KEY_SECRET;
-    const body = `${razorpayOrderId}|${razorpayPaymentId}`;
+    if (!secret) {
+      return res.status(500).json({ success: false, message: 'Payment gateway configuration missing.' });
+    }
+
     const expectedSignature = crypto
       .createHmac('sha256', secret)
-      .update(body)
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
       .digest('hex');
 
-    if (expectedSignature !== razorpaySignature) {
+    const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+    const actualBuf = Buffer.from(String(razorpaySignature || ''), 'utf8');
+
+    if (expectedBuf.length !== actualBuf.length || !crypto.timingSafeEqual(expectedBuf, actualBuf)) {
       return res.status(400).json({
         success: false,
         message: 'Payment verification failed: Invalid transaction signature.',
       });
     }
 
-    const invoiceNumber = booking.invoiceNumber || `INV-${booking.bookingId}`;
-    const totalAmount = calculateBookingTotal(booking);
-
-    booking.paymentStatus = 'PAID';
-    booking.paymentMethod = 'ONLINE';
-    booking.razorpayPaymentId = razorpayPaymentId;
-    booking.invoiceNumber = invoiceNumber;
-    if (booking.invoice) {
-      booking.invoice.status = 'PAID';
-      booking.invoice.paidAt = new Date();
-      booking.invoice.totalAmount = totalAmount;
-    }
-    await booking.save();
-
-    // Update Payment collection record
-    await Payment.findOneAndUpdate(
-      { razorpayOrderId },
-      {
-        $set: {
-          status: 'PAID',
-          razorpayPaymentId,
-          razorpaySignature,
-          receiptNumber: invoiceNumber,
-        },
-      },
-      { upsert: true, new: true }
-    );
-
-    // Update Provider earnings with snapshot commission
-    if (booking.providerId) {
-      const commissionRate = booking.commissionRateSnapshot ?? 10;
-      const laborTotal = (booking.invoice?.baseAmount || booking.basePrice || 0) + (booking.quotation?.status === 'APPROVED' ? booking.quotation.total : 0);
-      const commission = Math.round((laborTotal * commissionRate) / 100);
-      const netPayout = laborTotal - commission;
-
-      await Provider.findByIdAndUpdate(booking.providerId, {
-        $inc: {
-          jobsDone: 1,
-          earningsToday: netPayout,
-          earningsWeek: netPayout,
-          earningsMonth: netPayout,
-        },
+    // 6. In production (not test), fetch payment from Razorpay and require status 'captured' and matching amount
+    if (process.env.NODE_ENV === 'production') {
+      const Razorpay = (await import('razorpay')).default;
+      const rzp = new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID,
+        key_secret: process.env.RAZORPAY_KEY_SECRET,
       });
-
-      // Notify provider of payment
-      const prov = await Provider.findById(booking.providerId);
-      if (prov) {
-        await notifyUser({
-          userId: prov.userId,
-          role: 'provider',
-          title: 'Payment Received',
-          message: `Customer paid ₹${totalAmount} online for booking #${booking.bookingId}. Your net payout: ₹${netPayout}.`,
-          type: 'payment',
-          link: '/provider/dashboard',
+      const rzpPayment = await rzp.payments.fetch(razorpayPaymentId);
+      if (!rzpPayment || rzpPayment.status !== 'captured' || Number(rzpPayment.amount) !== finalAmount * 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'Payment verification failed: Razorpay payment is not captured or amount does not match order.',
         });
       }
     }
 
-    // Send receipt email to customer
-    sendJobCompletedEmail({
-      customerEmail: req.user.email,
-      customerName: booking.customerName,
-      bookingId: booking.bookingId,
-      serviceTitle: booking.serviceTitle,
-      totalAmount,
-      invoiceNumber,
-      paymentMethod: 'Online (Razorpay Verified)',
-    }).catch(() => {});
-
-    if (io) {
-      io.to(`booking_${booking.bookingId}`).emit('payment_confirmed', {
-        bookingId: booking.bookingId,
-        paymentStatus: 'PAID',
-        invoiceNumber,
-        totalAmount,
-      });
-    }
+    // 7. Atomic update & single earnings credit
+    const result = await markBookingPaidHelper({
+      booking,
+      paymentDoc: payment,
+      razorpayPaymentId,
+      razorpayOrderId,
+      paymentMethod: 'ONLINE',
+      req,
+    });
 
     res.status(200).json({
       success: true,
-      message: 'Payment verified successfully! Receipt generated.',
+      message: result.alreadyPaid ? 'Payment has already been confirmed.' : 'Payment verified successfully! Receipt generated.',
       paymentStatus: 'PAID',
-      invoiceNumber,
-      receiptNumber: invoiceNumber,
-      totalAmount,
+      invoiceNumber: result.invoiceNumber,
+      receiptNumber: result.invoiceNumber,
+      totalAmount: result.totalAmount,
     });
   } catch (err) {
     next(err);
@@ -304,8 +406,8 @@ export const confirmCashPayment = async (req, res, next) => {
     const { bookingId } = req.body;
 
     const provider = await Provider.findOne({ userId: req.user._id });
-    if (!provider) {
-      return res.status(403).json({ success: false, message: 'Only registered technicians can confirm cash receipts.' });
+    if (!provider && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Only registered technicians or administrators can confirm cash receipts.' });
     }
 
     const isObjectId = mongoose.isValidObjectId(bookingId);
@@ -320,7 +422,7 @@ export const confirmCashPayment = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Booking not found.' });
     }
 
-    if (String(booking.providerId) !== String(provider._id) && req.user.role !== 'admin') {
+    if (provider && String(booking.providerId) !== String(provider._id) && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Forbidden: You are not assigned to this booking.' });
     }
 
@@ -328,66 +430,90 @@ export const confirmCashPayment = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Service must be completed before confirming cash.' });
     }
 
-    const invoiceNumber = booking.invoiceNumber || `INV-${booking.bookingId}`;
+    // 1. Only allow cash confirmation if NO online payment is INITIATED within the last 15 minutes
+    const recentInitiated = await Payment.findOne({
+      bookingId: booking._id,
+      method: 'ONLINE',
+      status: 'INITIATED',
+      createdAt: { $gt: new Date(Date.now() - 15 * 60 * 1000) },
+    });
+
+    if (recentInitiated) {
+      return res.status(400).json({
+        success: false,
+        message: 'The customer started an online payment within the last 15 minutes. Please wait before confirming cash to prevent double payment.',
+      });
+    }
+
+    const invoiceNumber = booking.invoiceNumber || `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const totalAmount = calculateBookingTotal(booking);
 
-    // Idempotency: Safe to repeat, no double marking
-    if (booking.paymentStatus === 'PAID') {
+    // 2. Atomic update on paymentStatus !== 'PAID'
+    const updatedBooking = await Booking.findOneAndUpdate(
+      { _id: booking._id, paymentStatus: { $ne: 'PAID' } },
+      {
+        $set: {
+          paymentStatus: 'PAID',
+          paymentMethod: 'CASH',
+          invoiceNumber,
+          'invoice.status': 'PAID',
+          'invoice.paidAt': new Date(),
+          'invoice.totalAmount': totalAmount,
+        },
+      },
+      { new: true }
+    );
+
+    // If already marked PAID, return existing status without crediting earnings again
+    if (!updatedBooking) {
       return res.status(200).json({
         success: true,
         message: 'Cash payment already verified.',
         paymentStatus: 'PAID',
-        invoiceNumber,
+        invoiceNumber: booking.invoiceNumber || invoiceNumber,
         totalAmount,
       });
     }
 
-    booking.paymentStatus = 'PAID';
-    booking.paymentMethod = 'CASH';
-    booking.invoiceNumber = invoiceNumber;
-    if (booking.invoice) {
-      booking.invoice.status = 'PAID';
-      booking.invoice.paidAt = new Date();
-      booking.invoice.totalAmount = totalAmount;
-    }
-    await booking.save();
-
+    // Record cash payment
     await Payment.create({
       bookingId: booking._id,
       bookingNumber: booking.bookingId,
       customerId: booking.customerId,
-      providerId: provider._id,
+      providerId: booking.providerId,
       amount: totalAmount,
       currency: 'INR',
       method: 'CASH',
       status: 'PAID',
       receiptNumber: invoiceNumber,
-      metadata: { confirmedBy: provider.name },
+      metadata: { confirmedBy: provider?.name || 'Administrator' },
     });
 
-    // Update earnings using historical snapshot
-    const commissionRate = booking.commissionRateSnapshot ?? 10;
-    const laborTotal = (booking.invoice?.baseAmount || booking.basePrice || 0) + (booking.quotation?.status === 'APPROVED' ? booking.quotation.total : 0);
+    // 3. Update provider earnings with snapshot commission EXACTLY ONCE
+    const commissionRate = updatedBooking.commissionRateSnapshot ?? 10;
+    const laborTotal = (updatedBooking.invoice?.baseAmount || updatedBooking.basePrice || 0) + (updatedBooking.quotation?.status === 'APPROVED' ? updatedBooking.quotation.total : 0);
     const commission = Math.round((laborTotal * commissionRate) / 100);
     const netPayout = laborTotal - commission;
 
-    await Provider.findByIdAndUpdate(provider._id, {
-      $inc: {
-        jobsDone: 1,
-        earningsToday: netPayout,
-        earningsWeek: netPayout,
-        earningsMonth: netPayout,
-      },
-    });
+    if (updatedBooking.providerId) {
+      await Provider.findByIdAndUpdate(updatedBooking.providerId, {
+        $inc: {
+          jobsDone: 1,
+          earningsToday: netPayout,
+          earningsWeek: netPayout,
+          earningsMonth: netPayout,
+        },
+      });
+    }
 
-    // Notify customer
+    // 4. Notify customer when cash is confirmed so they can dispute a wrong confirmation
     await notifyUser({
       userId: booking.customerId,
       role: 'customer',
-      title: 'Cash Payment Confirmed',
-      message: `Technician ${provider.name} confirmed cash receipt of ₹${totalAmount}. Receipt #${invoiceNumber} is available.`,
+      title: 'Cash Payment Recorded by Specialist',
+      message: `Technician confirmed cash payment of ₹${totalAmount} for booking #${booking.bookingId} (Invoice #${invoiceNumber}). If you did not make this cash payment, please report this immediately from your tracking screen.`,
       type: 'payment',
-      link: `/bookings`,
+      link: `/track/${booking._id}`,
     });
 
     // Send receipt email to customer
@@ -400,7 +526,7 @@ export const confirmCashPayment = async (req, res, next) => {
         serviceTitle: booking.serviceTitle,
         totalAmount,
         invoiceNumber,
-        paymentMethod: 'Cash to Technician',
+        paymentMethod: 'Cash to Specialist',
       }).catch(() => {});
     }
 
@@ -426,49 +552,126 @@ export const confirmCashPayment = async (req, res, next) => {
   }
 };
 
-// POST /api/payments/webhook (Razorpay Webhook Handler)
+// POST /api/payments/webhook (Razorpay Webhook Handler with RAW body verification)
 export const handleRazorpayWebhook = async (req, res) => {
   try {
     const signature = req.headers['x-razorpay-signature'];
-    const secret = process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
+    // Reject if signature header or secret is missing (return 400, no fallback to key secret)
     if (!signature || !secret) {
-      return res.status(200).json({ received: true, note: 'Webhook skipped: unconfigured secret' });
+      return res.status(400).json({
+        success: false,
+        message: 'Webhook verification rejected: Missing signature header or RAZORPAY_WEBHOOK_SECRET.',
+      });
     }
 
-    const payload = JSON.stringify(req.body);
+    const rawBody = Buffer.isBuffer(req.body)
+      ? req.body
+      : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+
     const expectedSignature = crypto
       .createHmac('sha256', secret)
-      .update(payload)
+      .update(rawBody)
       .digest('hex');
 
-    if (expectedSignature !== signature) {
-      return res.status(400).json({ error: 'Invalid webhook signature' });
+    const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+    const actualBuf = Buffer.from(String(signature), 'utf8');
+
+    if (expectedBuf.length !== actualBuf.length || !crypto.timingSafeEqual(expectedBuf, actualBuf)) {
+      return res.status(400).json({ success: false, message: 'Invalid webhook signature.' });
     }
 
-    const event = req.body.event;
-    if (event === 'payment.captured' || event === 'order.paid') {
-      const paymentEntity = req.body.payload?.payment?.entity;
-      const orderId = paymentEntity?.order_id;
-      if (orderId) {
-        const payment = await Payment.findOne({ razorpayOrderId: orderId });
-        if (payment && payment.status !== 'PAID') {
-          payment.status = 'PAID';
-          payment.razorpayPaymentId = paymentEntity.id;
-          await payment.save();
+    let payload;
+    try {
+      payload = JSON.parse(rawBody.toString('utf8'));
+    } catch (parseErr) {
+      return res.status(400).json({ success: false, message: 'Invalid JSON payload in webhook body.' });
+    }
 
-          await Booking.findByIdAndUpdate(payment.bookingId, {
-            paymentStatus: 'PAID',
-            paymentMethod: 'ONLINE',
-            razorpayPaymentId: paymentEntity.id,
+    const event = payload?.event;
+    if (!event) {
+      return res.status(400).json({ success: false, message: 'Missing event in webhook payload.' });
+    }
+
+    // 1. payment.captured and order.paid: run shared markBookingPaidHelper
+    if (event === 'payment.captured' || event === 'order.paid') {
+      const paymentEntity = payload.payload?.payment?.entity;
+      const orderEntity = payload.payload?.order?.entity;
+      const orderId = paymentEntity?.order_id || orderEntity?.id;
+      const paymentId = paymentEntity?.id;
+
+      if (!orderId) {
+        return res.status(400).json({ success: false, message: 'Missing order_id in webhook payload.' });
+      }
+
+      const booking = await Booking.findOne({ razorpayOrderId: orderId });
+      if (!booking) {
+        return res.status(400).json({ success: false, message: 'No booking found matching webhook order ID.' });
+      }
+
+      if (booking.status !== 'COMPLETED') {
+        return res.status(400).json({ success: false, message: 'Booking is not completed.' });
+      }
+
+      const payment = await Payment.findOne({ razorpayOrderId: orderId });
+      if (!payment || String(payment.bookingId) !== String(booking._id)) {
+        return res.status(400).json({ success: false, message: 'Payment record not found or does not belong to booking.' });
+      }
+
+      const finalAmount = calculateBookingTotal(booking);
+      if (payment.amount !== finalAmount) {
+        return res.status(400).json({ success: false, message: 'Payment amount mismatch in webhook.' });
+      }
+
+      // In production, verify capture with Razorpay
+      if (process.env.NODE_ENV === 'production' && paymentId) {
+        const Razorpay = (await import('razorpay')).default;
+        const rzp = new Razorpay({
+          key_id: process.env.RAZORPAY_KEY_ID,
+          key_secret: process.env.RAZORPAY_KEY_SECRET,
+        });
+        const rzpPayment = await rzp.payments.fetch(paymentId);
+        if (!rzpPayment || rzpPayment.status !== 'captured' || Number(rzpPayment.amount) !== finalAmount * 100) {
+          return res.status(400).json({
+            success: false,
+            message: 'Razorpay payment is not captured or amount mismatch in webhook.',
           });
         }
       }
+
+      await markBookingPaidHelper({
+        booking,
+        paymentDoc: payment,
+        razorpayPaymentId: paymentId,
+        razorpayOrderId: orderId,
+        paymentMethod: 'ONLINE',
+      });
+
+      return res.status(200).json({ success: true, event });
     }
 
-    res.status(200).json({ received: true });
+    // 2. refund.processed: record refund on Payment record
+    if (event === 'refund.processed') {
+      const refundEntity = payload.payload?.refund?.entity;
+      const paymentId = refundEntity?.payment_id;
+
+      if (paymentId) {
+        const payment = await Payment.findOne({ razorpayPaymentId: paymentId });
+        if (payment) {
+          const refundAmount = Number(refundEntity.amount) / 100;
+          payment.refundId = refundEntity.id;
+          payment.refundAmount = refundAmount;
+          payment.status = refundAmount >= payment.amount ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+          await payment.save();
+        }
+      }
+      return res.status(200).json({ success: true, event });
+    }
+
+    // Return 200 ONLY for valid events, 400 for unknown/unhandled events
+    return res.status(400).json({ success: false, message: `Unhandled event: ${event}` });
   } catch (err) {
-    console.error('Webhook processing error:', err.message);
-    res.status(200).json({ received: true }); // Always 200 to prevent webhook retry storms
+    return res.status(400).json({ success: false, message: err.message });
   }
 };

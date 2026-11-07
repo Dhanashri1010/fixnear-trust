@@ -135,14 +135,15 @@ PORT=5000
 NODE_ENV=development
 CLIENT_URL=http://localhost:5173
 MONGODB_URI=mongodb://127.0.0.1:27017/fixnear
-JWT_SECRET=super_secure_random_64_character_hex_secret_key_fixnear_trust_2026
+JWT_SECRET=<generate with: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))">
 ADMIN_EMAIL=admin@fixnear.com
-ADMIN_PASSWORD=AdminSecurePass123!
+ADMIN_PASSWORD=<choose a strong password min 12 chars with letter, number, and symbol>
 TEST_PROVIDER_EMAIL=provider.test@fixnear.com
-TEST_PROVIDER_PASSWORD=ProviderSecure123!
+TEST_PROVIDER_PASSWORD=<choose a strong password min 12 chars with letter, number, and symbol>
 TEST_PROVIDER_CITY=Mumbai
 RAZORPAY_KEY_ID=rzp_test_YourTestKeyIdHere
 RAZORPAY_KEY_SECRET=YourTestKeySecretHere
+RAZORPAY_WEBHOOK_SECRET=YourWebhookSecretHere
 ```
 
 ### 3. Install Dependencies
@@ -215,15 +216,16 @@ Visit `http://localhost:5173` in your browser.
 | `NODE_ENV` | **Yes** | `development` / `production` | Environment mode; controls cookie security, mock fallbacks, and log verbosity. |
 | `CLIENT_URL` | **Yes** | `http://localhost:5173` | Allowed CORS origin and Socket.io client domain. |
 | `MONGODB_URI` | **Yes** | `mongodb+srv://...` | Connection URI for MongoDB Atlas or local MongoDB instance. |
-| `JWT_SECRET` | **Yes** | `64+ character random string` | Secret used to sign and verify HMAC-SHA256 JWT auth tokens. |
+| `JWT_SECRET` | **Yes** | `<generate with: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))">` | Secret used to sign and verify HMAC-SHA256 JWT auth tokens. |
 | `JWT_EXPIRES_IN` | Optional | `7d` | Token expiration duration. |
 | `ADMIN_EMAIL` | **Yes** | `admin@fixnear.com` | Email address for initial admin bootstrapping. |
-| `ADMIN_PASSWORD` | **Yes** | `AdminSecurePass123!` | Password for initial admin account (min 8 chars, letter + number). |
+| `ADMIN_PASSWORD` | **Yes** | `<choose a strong password>` | Password for initial admin account (min 12 chars, letter + number + symbol). |
 | `TEST_PROVIDER_EMAIL` | Optional | `provider.test@fixnear.com` | Email used by `npm run create-test-provider`. |
-| `TEST_PROVIDER_PASSWORD`| Optional | `ProviderSecure123!` | Password used by `npm run create-test-provider`. |
+| `TEST_PROVIDER_PASSWORD`| Optional | `<choose a strong password>` | Password used by `npm run create-test-provider` (min 12 chars, letter + number + symbol). |
 | `TEST_PROVIDER_CITY` | Optional | `Mumbai` | Service territory city for test provider. |
 | `RAZORPAY_KEY_ID` | Optional | `rzp_test_...` | Public key ID for Razorpay online payment integration. |
 | `RAZORPAY_KEY_SECRET` | Optional | `...` | Secret key used for Razorpay order generation & HMAC-SHA256 signature checks. |
+| `RAZORPAY_WEBHOOK_SECRET`| Optional | `...` | Secret key configured in Razorpay dashboard to verify HMAC-SHA256 signature of incoming webhooks. |
 | `CLOUDINARY_CLOUD_NAME`| Optional | `fixnear-cloud` | Cloudinary cloud identifier for image assets and document storage. |
 | `CLOUDINARY_API_KEY` | Optional | `123456789012345` | Cloudinary API access key. |
 | `CLOUDINARY_API_SECRET`| Optional | `...` | Cloudinary API access secret. |
@@ -263,6 +265,21 @@ To switch the platform to live real-money payments:
    RAZORPAY_KEY_SECRET=YOUR_LIVE_KEY_SECRET
    ```
 5. Restart your backend server. The `/api/payments/config` endpoint will automatically distribute the new public Key ID to client checkouts.
+
+### 3. Webhook Configuration
+To automatically capture background payment completions and refund events:
+1. In the Razorpay Dashboard, navigate to **Settings** -> **Webhooks**.
+2. Click **Add New Webhook**.
+3. **Webhook URL**: Enter your production API endpoint: `https://your-domain.com/api/payments/webhook` (or local tunneling endpoint `https://<tunnel-id>.ngrok-free.app/api/payments/webhook` during testing).
+4. **Secret**: Enter a cryptographically strong secret and add it to `server/.env`:
+   ```env
+   RAZORPAY_WEBHOOK_SECRET=YourGeneratedWebhookSecretString
+   ```
+5. **Active Events**: Subscribe to the following events:
+   - `payment.captured`
+   - `order.paid`
+   - `refund.processed`
+6. The server validates incoming webhooks using the byte-exact RAW request body and cryptographic `crypto.timingSafeEqual` comparison, ensuring zero replay or tampering attacks.
 
 ---
 
@@ -343,7 +360,7 @@ Follow this scenario guide to manually verify the platform end-to-end:
 3. **Browse Services**: Select a service (e.g., *Ceiling Fan Repair & Installation* under *Electricals*).
 4. **Complete Booking**: Select date, time slot, and enter an address in **Mumbai**.
 5. **Observe Dispatch**: The booking enters `REQUESTED` status. The system searches for the nearest online verified technician matching the category.
-6. **Technician Acceptance**: Log in to the Technician Portal (`provider.test@fixnear.com` / `ProviderSecure123!`). The incoming job radar displays the offer with a 60-second countdown. Click **Accept Job**.
+6. **Technician Acceptance**: Log in to the Technician Portal (`provider.test@fixnear.com` / password configured in `TEST_PROVIDER_PASSWORD`). The incoming job radar displays the offer with a 60-second countdown. Click **Accept Job**.
 7. **Customer View**: The customer's tracking screen immediately reflects *Technician Assigned* via real-time Socket.io, displaying the specialist's name and contact number.
 
 ### Scenario 2: Service Execution, Extra Quotation & OTP Completion
@@ -363,7 +380,7 @@ Follow this scenario guide to manually verify the platform end-to-end:
 2. **Review Submission**: The customer rates the technician 5 stars with a comment.
 3. **File a Dispute**: Click **File a Dispute / Complaint**, enter details, and submit.
 4. **Admin Mediation**:
-   - Log in to the Admin Portal at `http://localhost:5173/admin/login` (`admin@fixnear.com` / `AdminSecurePass123!`).
+   - Log in to the Admin Portal at `http://localhost:5173/admin/login` (`admin@fixnear.com` / password configured in `ADMIN_PASSWORD`).
    - Navigate to the **Disputes** desk.
    - Review evidence and click **Resolve Ticket**. Select *Refund Customer* (₹200) and *Pay Technician* (₹520).
    - Enter mediation notes and submit. Both customer and technician receive immediate real-time notifications and confirmation emails.

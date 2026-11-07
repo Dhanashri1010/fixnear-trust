@@ -28,6 +28,7 @@ import { User } from './models/User.js';
 import { Provider } from './models/Provider.js';
 import { Booking } from './models/Booking.js';
 import { checkExpiredOffers } from './controllers/bookingController.js';
+import { handleRazorpayWebhook } from './controllers/paymentController.js';
 
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -37,10 +38,32 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 dotenv.config();
 
+// Known weak or example JWT secret values that must never be used in production
+export const KNOWN_EXAMPLE_JWT_SECRETS = [
+  'your_jwt_secret_key_minimum_32_characters_long',
+  'super_secure_random_64_character_hex_secret_key_fixnear_trust_2026',
+  'default_jwt_secret_key_for_development_purposes_only',
+  'secret',
+  'jwt_secret',
+  'random_jwt_secret_key_change_in_production_1234567890',
+  'test-jwt-secret-do-not-use-in-production-long-key-32',
+];
+
 // Enforce JWT_SECRET check
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   console.error('[FATAL SECURITY ERROR] JWT_SECRET environment variable is missing or shorter than 32 characters. Server refusing to start.');
   process.exit(1);
+}
+
+if (process.env.NODE_ENV === 'production') {
+  const secretLower = process.env.JWT_SECRET.toLowerCase();
+  const isKnownWeak = KNOWN_EXAMPLE_JWT_SECRETS.some(
+    (weak) => secretLower === weak.toLowerCase() || secretLower.includes('super_secure_random_64_character') || secretLower.includes('your_jwt_secret_key')
+  );
+  if (isKnownWeak) {
+    console.error('[FATAL SECURITY ERROR] JWT_SECRET equals a known weak example secret. In production, you MUST generate a cryptographically strong random secret.');
+    process.exit(1);
+  }
 }
 
 const app = express();
@@ -224,6 +247,14 @@ app.use(
 );
 
 app.use(cookieParser());
+
+// Webhook RAW body parser: MUST be mounted before express.json() to preserve byte-exact payload for HMAC
+app.post(
+  '/api/payments/webhook',
+  express.raw({ type: 'application/json' }),
+  handleRazorpayWebhook
+);
+
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 

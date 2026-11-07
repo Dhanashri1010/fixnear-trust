@@ -5,7 +5,6 @@ import {
   createPaymentOrder,
   verifyPayment,
   confirmCashPayment,
-  handleRazorpayWebhook,
 } from '../controllers/paymentController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { paymentRateLimiter } from '../middleware/rateLimiter.js';
@@ -66,9 +65,6 @@ router.post(
   validate(cashConfirmSchema),
   confirmCashPayment
 );
-
-// Webhook for Razorpay asynchronous events
-router.post('/webhook', handleRazorpayWebhook);
 
 export default router;
 

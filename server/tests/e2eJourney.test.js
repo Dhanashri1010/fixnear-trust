@@ -17,6 +17,7 @@ import { SkillTestSession } from '../models/SkillTestSession.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { Payment } from '../models/Payment.js';
+import { validateScriptPassword } from '../scripts/createAdmin.js';
 
 let mongod;
 
@@ -302,6 +303,164 @@ describe('Phase E - Payment Safety & Razorpay Verification', () => {
     expect(orderRes.body.amount).toBe(624);
   });
 
+  it('rejects verify if razorpayOrderId does not match booking record', async () => {
+    const customer = await User.create({
+      name: 'Mismatch Customer',
+      email: 'mismatch@fixnear.com',
+      password: 'SecurePassword123',
+      role: 'customer',
+      city: 'Mumbai',
+    });
+    const cLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'mismatch@fixnear.com', password: 'SecurePassword123' });
+    const cCookie = cLogin.headers['set-cookie'];
+
+    const booking = await Booking.create({
+      bookingId: 'BK-MISMATCH-01',
+      customerId: customer._id,
+      customerName: customer.name,
+      customerPhone: '9876543210',
+      address: '101 Marine Drive',
+      city: 'Mumbai',
+      scheduledDate: '2026-12-05',
+      timeSlot: 'Morning',
+      serviceId: 'srv-ac',
+      serviceTitle: 'Split AC Servicing',
+      basePrice: 500,
+      status: 'COMPLETED',
+      completionOtp: '1122',
+      paymentStatus: 'PENDING',
+      razorpayOrderId: 'order_actual_12345',
+    });
+
+    const verifyRes = await request(app)
+      .post('/api/payments/verify')
+      .set('Cookie', cCookie)
+      .send({
+        bookingId: booking.bookingId,
+        razorpayOrderId: 'order_different_99999',
+        razorpayPaymentId: 'pay_test_123',
+        razorpaySignature: 'any_signature',
+      });
+
+    expect(verifyRes.status).toBe(400);
+    expect(verifyRes.body.message).toContain('Payment order ID does not match');
+  });
+
+  it('rejects verify if user does not own the booking', async () => {
+    const ownerCustomer = await User.create({
+      name: 'Owner Customer',
+      email: 'owner@fixnear.com',
+      password: 'SecurePassword123',
+      role: 'customer',
+      city: 'Mumbai',
+    });
+    const attackerCustomer = await User.create({
+      name: 'Attacker Customer',
+      email: 'attacker@fixnear.com',
+      password: 'SecurePassword123',
+      role: 'customer',
+      city: 'Mumbai',
+    });
+    const aLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'attacker@fixnear.com', password: 'SecurePassword123' });
+    const aCookie = aLogin.headers['set-cookie'];
+
+    const booking = await Booking.create({
+      bookingId: 'BK-OWN-01',
+      customerId: ownerCustomer._id,
+      customerName: ownerCustomer.name,
+      customerPhone: '9876543210',
+      address: '101 Marine Drive',
+      city: 'Mumbai',
+      scheduledDate: '2026-12-05',
+      timeSlot: 'Morning',
+      serviceId: 'srv-ac',
+      serviceTitle: 'Split AC Servicing',
+      basePrice: 500,
+      status: 'COMPLETED',
+      completionOtp: '1122',
+      paymentStatus: 'PENDING',
+      razorpayOrderId: 'order_owner_123',
+    });
+
+    const verifyRes = await request(app)
+      .post('/api/payments/verify')
+      .set('Cookie', aCookie)
+      .send({
+        bookingId: booking.bookingId,
+        razorpayOrderId: 'order_owner_123',
+        razorpayPaymentId: 'pay_test_123',
+        razorpaySignature: 'any_signature',
+      });
+
+    expect(verifyRes.status).toBe(403);
+    expect(verifyRes.body.message).toContain('Forbidden');
+  });
+
+  it('rejects verify if payment record amount does not match current server total', async () => {
+    const customer = await User.create({
+      name: 'Amount Customer',
+      email: 'amountcheck@fixnear.com',
+      password: 'SecurePassword123',
+      role: 'customer',
+      city: 'Mumbai',
+    });
+    const cLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'amountcheck@fixnear.com', password: 'SecurePassword123' });
+    const cCookie = cLogin.headers['set-cookie'];
+
+    const booking = await Booking.create({
+      bookingId: 'BK-AMT-01',
+      customerId: customer._id,
+      customerName: customer.name,
+      customerPhone: '9876543210',
+      address: '101 Marine Drive',
+      city: 'Mumbai',
+      scheduledDate: '2026-12-05',
+      timeSlot: 'Morning',
+      serviceId: 'srv-ac',
+      serviceTitle: 'Split AC Servicing',
+      basePrice: 500,
+      platformFeeSnapshot: 20,
+      status: 'COMPLETED',
+      completionOtp: '1122',
+      paymentStatus: 'PENDING',
+      razorpayOrderId: 'order_amt_123',
+    });
+
+    // Stored payment record amount is tampered / mismatched (e.g. ₹400 instead of ₹520)
+    await Payment.create({
+      bookingId: booking._id,
+      bookingNumber: booking.bookingId,
+      customerId: customer._id,
+      amount: 400, // Mismatched amount
+      currency: 'INR',
+      method: 'ONLINE',
+      status: 'INITIATED',
+      razorpayOrderId: 'order_amt_123',
+    });
+
+    const bodyStr = `order_amt_123|pay_amt_123`;
+    const sig = crypto.createHmac('sha256', TEST_RAZORPAY_SECRET).update(bodyStr).digest('hex');
+
+    const verifyRes = await request(app)
+      .post('/api/payments/verify')
+      .set('Cookie', cCookie)
+      .send({
+        bookingId: booking.bookingId,
+        razorpayOrderId: 'order_amt_123',
+        razorpayPaymentId: 'pay_amt_123',
+        razorpaySignature: sig,
+      });
+
+    expect(verifyRes.status).toBe(400);
+    expect(verifyRes.body.message).toContain('does not match current server-calculated total');
+  });
+
   it('rejects invalid Razorpay HMAC signature with 400', async () => {
     const customer = await User.create({
       name: 'Signature Customer',
@@ -327,9 +486,22 @@ describe('Phase E - Payment Safety & Razorpay Verification', () => {
       serviceId: 'srv-ac',
       serviceTitle: 'Split AC Servicing',
       basePrice: 599,
+      platformFeeSnapshot: 20,
       status: 'COMPLETED',
       completionOtp: '1122',
       paymentStatus: 'PENDING',
+      razorpayOrderId: 'order_fake_123',
+    });
+
+    await Payment.create({
+      bookingId: booking._id,
+      bookingNumber: booking.bookingId,
+      customerId: customer._id,
+      amount: 619,
+      currency: 'INR',
+      method: 'ONLINE',
+      status: 'INITIATED',
+      razorpayOrderId: 'order_fake_123',
     });
 
     const verifyRes = await request(app)
@@ -377,6 +549,7 @@ describe('Phase E - Payment Safety & Razorpay Verification', () => {
       status: 'COMPLETED',
       completionOtp: '9988',
       paymentStatus: 'PENDING',
+      razorpayOrderId: 'order_valid_7788',
     });
 
     const orderId = 'order_valid_7788';
@@ -386,6 +559,17 @@ describe('Phase E - Payment Safety & Razorpay Verification', () => {
       .createHmac('sha256', TEST_RAZORPAY_SECRET)
       .update(bodyStr)
       .digest('hex');
+
+    await Payment.create({
+      bookingId: booking._id,
+      bookingNumber: booking.bookingId,
+      customerId: customer._id,
+      amount: 520,
+      currency: 'INR',
+      method: 'ONLINE',
+      status: 'INITIATED',
+      razorpayOrderId: orderId,
+    });
 
     // First verify call
     const firstVerify = await request(app)
@@ -419,6 +603,431 @@ describe('Phase E - Payment Safety & Razorpay Verification', () => {
     expect(secondVerify.status).toBe(200);
     expect(secondVerify.body.success).toBe(true);
     expect(secondVerify.body.message).toContain('already been confirmed');
+  });
+
+  it('credits provider earnings exactly once under two simultaneous verifies', async () => {
+    const provUser = await User.create({
+      name: 'Rohan Tech',
+      email: 'rohan.concurrent@fixnear.com',
+      password: 'SecurePassword123',
+      role: 'provider',
+      city: 'Mumbai',
+    });
+    const provider = await Provider.create({
+      userId: provUser._id,
+      name: provUser.name,
+      email: provUser.email,
+      phone: '9988776655',
+      city: 'Mumbai',
+      status: 'approved',
+      isOnline: true,
+      earningsToday: 0,
+      earningsWeek: 0,
+      earningsMonth: 0,
+    });
+
+    const customer = await User.create({
+      name: 'Concurrent Customer',
+      email: 'concurrent@fixnear.com',
+      password: 'SecurePassword123',
+      role: 'customer',
+      city: 'Mumbai',
+    });
+    const cLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'concurrent@fixnear.com', password: 'SecurePassword123' });
+    const cCookie = cLogin.headers['set-cookie'];
+
+    const booking = await Booking.create({
+      bookingId: 'BK-CONCURRENT-01',
+      customerId: customer._id,
+      customerName: customer.name,
+      customerPhone: '9876543210',
+      address: '101 Marine Drive',
+      city: 'Mumbai',
+      scheduledDate: '2026-12-05',
+      timeSlot: 'Morning',
+      providerId: provider._id,
+      serviceId: 'srv-ac',
+      serviceTitle: 'Split AC Servicing',
+      basePrice: 500,
+      platformFeeSnapshot: 20,
+      commissionRateSnapshot: 10, // 10% commission on 500 = 50 -> net payout = 450
+      status: 'COMPLETED',
+      completionOtp: '7788',
+      paymentStatus: 'PENDING',
+      razorpayOrderId: 'order_concurrent_111',
+    });
+
+    const orderId = 'order_concurrent_111';
+    const paymentId = 'pay_concurrent_222';
+    const validSignature = crypto
+      .createHmac('sha256', TEST_RAZORPAY_SECRET)
+      .update(`${orderId}|${paymentId}`)
+      .digest('hex');
+
+    await Payment.create({
+      bookingId: booking._id,
+      bookingNumber: booking.bookingId,
+      customerId: customer._id,
+      providerId: provider._id,
+      amount: 520,
+      currency: 'INR',
+      method: 'ONLINE',
+      status: 'INITIATED',
+      razorpayOrderId: orderId,
+    });
+
+    // Execute two simultaneous verifies concurrently
+    const [res1, res2] = await Promise.all([
+      request(app)
+        .post('/api/payments/verify')
+        .set('Cookie', cCookie)
+        .send({
+          bookingId: booking.bookingId,
+          razorpayOrderId: orderId,
+          razorpayPaymentId: paymentId,
+          razorpaySignature: validSignature,
+        }),
+      request(app)
+        .post('/api/payments/verify')
+        .set('Cookie', cCookie)
+        .send({
+          bookingId: booking.bookingId,
+          razorpayOrderId: orderId,
+          razorpayPaymentId: paymentId,
+          razorpaySignature: validSignature,
+        }),
+    ]);
+
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
+
+    // Database verification: provider must receive payout EXACTLY ONCE (450), never doubled (900)
+    const freshProvider = await Provider.findById(provider._id);
+    expect(freshProvider.earningsToday).toBe(450);
+  });
+
+  it('cash payment: blocks cash confirmation if online payment initiated within 15 minutes, allows after expiration', async () => {
+    const provUser = await User.create({
+      name: 'Cash Specialist',
+      email: 'cash.spec@fixnear.com',
+      password: 'SecurePassword123',
+      role: 'provider',
+      city: 'Mumbai',
+    });
+    const provider = await Provider.create({
+      userId: provUser._id,
+      name: provUser.name,
+      email: provUser.email,
+      phone: '9871122334',
+      city: 'Mumbai',
+      status: 'approved',
+      isOnline: true,
+      earningsToday: 0,
+    });
+    const pLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'cash.spec@fixnear.com', password: 'SecurePassword123' });
+    const pCookie = pLogin.headers['set-cookie'];
+
+    const customer = await User.create({
+      name: 'Cash Customer',
+      email: 'cash.cust@fixnear.com',
+      password: 'SecurePassword123',
+      role: 'customer',
+      city: 'Mumbai',
+    });
+
+    const booking = await Booking.create({
+      bookingId: 'BK-CASH-GUARD-01',
+      customerId: customer._id,
+      customerName: customer.name,
+      customerPhone: '9876543210',
+      address: '101 Marine Drive',
+      city: 'Mumbai',
+      scheduledDate: '2026-12-05',
+      timeSlot: 'Morning',
+      providerId: provider._id,
+      serviceId: 'srv-ac',
+      serviceTitle: 'Split AC Servicing',
+      basePrice: 400,
+      platformFeeSnapshot: 20,
+      commissionRateSnapshot: 10, // 400 - 40 = 360 payout
+      status: 'COMPLETED',
+      completionOtp: '3344',
+      paymentStatus: 'PENDING',
+    });
+
+    // 1. Create an active INITIATED online payment from 3 minutes ago
+    const activePayment = await Payment.create({
+      bookingId: booking._id,
+      bookingNumber: booking.bookingId,
+      customerId: customer._id,
+      providerId: provider._id,
+      amount: 420,
+      currency: 'INR',
+      method: 'ONLINE',
+      status: 'INITIATED',
+      razorpayOrderId: 'order_guard_001',
+      createdAt: new Date(Date.now() - 3 * 60 * 1000), // 3 min ago
+    });
+
+    // Attempting cash confirmation must be rejected
+    const blockedRes = await request(app)
+      .post('/api/payments/cash-confirm')
+      .set('Cookie', pCookie)
+      .send({ bookingId: booking.bookingId });
+
+    expect(blockedRes.status).toBe(400);
+    expect(blockedRes.body.message).toContain('started an online payment within the last 15 minutes');
+
+    // 2. Age the initiated payment beyond 15 minutes (e.g. 20 minutes ago)
+    await Payment.collection.updateOne(
+      { _id: activePayment._id },
+      { $set: { createdAt: new Date(Date.now() - 20 * 60 * 1000) } }
+    );
+
+    // Now cash confirmation must succeed
+    const successRes = await request(app)
+      .post('/api/payments/cash-confirm')
+      .set('Cookie', pCookie)
+      .send({ bookingId: booking.bookingId });
+
+    expect(successRes.status).toBe(200);
+    expect(successRes.body.success).toBe(true);
+    expect(successRes.body.paymentStatus).toBe('PAID');
+
+    const freshBooking = await Booking.findById(booking._id);
+    expect(freshBooking.paymentStatus).toBe('PAID');
+    expect(freshBooking.paymentMethod).toBe('CASH');
+
+    const freshProv = await Provider.findById(provider._id);
+    expect(freshProv.earningsToday).toBe(360);
+  });
+
+  it('webhook: rejects missing signature header or missing secret with 400', async () => {
+    delete process.env.RAZORPAY_WEBHOOK_SECRET;
+
+    const resNoSecret = await request(app)
+      .post('/api/payments/webhook')
+      .set('Content-Type', 'application/json')
+      .set('x-razorpay-signature', 'some_sig')
+      .send(JSON.stringify({ event: 'payment.captured' }));
+
+    expect(resNoSecret.status).toBe(400);
+    expect(resNoSecret.body.message).toContain('Missing signature header or RAZORPAY_WEBHOOK_SECRET');
+
+    process.env.RAZORPAY_WEBHOOK_SECRET = 'whsec_test_secret_123';
+
+    const resNoSig = await request(app)
+      .post('/api/payments/webhook')
+      .set('Content-Type', 'application/json')
+      .send(JSON.stringify({ event: 'payment.captured' }));
+
+    expect(resNoSig.status).toBe(400);
+    expect(resNoSig.body.message).toContain('Missing signature header or RAZORPAY_WEBHOOK_SECRET');
+  });
+
+  it('webhook: rejects invalid HMAC signature with 400', async () => {
+    process.env.RAZORPAY_WEBHOOK_SECRET = 'whsec_test_secret_123';
+
+    const res = await request(app)
+      .post('/api/payments/webhook')
+      .set('Content-Type', 'application/json')
+      .set('x-razorpay-signature', 'forged_webhook_signature_abcdef1234567890')
+      .send(JSON.stringify({ event: 'payment.captured' }));
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('Invalid webhook signature');
+  });
+
+  it('webhook: valid webhook with raw request body marks booking paid once and is idempotent on repeat', async () => {
+    const webhookSecret = 'whsec_secure_test_999';
+    process.env.RAZORPAY_WEBHOOK_SECRET = webhookSecret;
+
+    const customer = await User.create({
+      name: 'Webhook Customer',
+      email: 'wh.cust@fixnear.com',
+      password: 'SecurePassword123',
+      role: 'customer',
+      city: 'Mumbai',
+    });
+
+    const provUser = await User.create({
+      name: 'Webhook Specialist',
+      email: 'wh.spec@fixnear.com',
+      password: 'SecurePassword123',
+      role: 'provider',
+      city: 'Mumbai',
+    });
+    const provider = await Provider.create({
+      userId: provUser._id,
+      name: provUser.name,
+      email: provUser.email,
+      phone: '9811122233',
+      city: 'Mumbai',
+      status: 'approved',
+      isOnline: true,
+      earningsToday: 0,
+    });
+
+    const orderId = 'order_wh_live_001';
+    const paymentId = 'pay_wh_live_001';
+
+    const booking = await Booking.create({
+      bookingId: 'BK-WH-01',
+      customerId: customer._id,
+      customerName: customer.name,
+      customerPhone: '9876543210',
+      address: '101 Marine Drive',
+      city: 'Mumbai',
+      scheduledDate: '2026-12-05',
+      timeSlot: 'Morning',
+      providerId: provider._id,
+      serviceId: 'srv-ac',
+      serviceTitle: 'Split AC Servicing',
+      basePrice: 600,
+      platformFeeSnapshot: 20,
+      commissionRateSnapshot: 10, // 600 - 60 = 540 payout
+      status: 'COMPLETED',
+      completionOtp: '5566',
+      paymentStatus: 'PENDING',
+      razorpayOrderId: orderId,
+    });
+
+    await Payment.create({
+      bookingId: booking._id,
+      bookingNumber: booking.bookingId,
+      customerId: customer._id,
+      providerId: provider._id,
+      amount: 620,
+      currency: 'INR',
+      method: 'ONLINE',
+      status: 'INITIATED',
+      razorpayOrderId: orderId,
+    });
+
+    const rawPayload = JSON.stringify({
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: paymentId,
+            order_id: orderId,
+            amount: 62000,
+            status: 'captured',
+          },
+        },
+      },
+    });
+
+    const validSig = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(Buffer.from(rawPayload))
+      .digest('hex');
+
+    // 1. First webhook delivery
+    const res1 = await request(app)
+      .post('/api/payments/webhook')
+      .set('Content-Type', 'application/json')
+      .set('x-razorpay-signature', validSig)
+      .send(rawPayload);
+
+    expect(res1.status).toBe(200);
+    expect(res1.body.success).toBe(true);
+
+    const freshBooking = await Booking.findById(booking._id);
+    expect(freshBooking.paymentStatus).toBe('PAID');
+    expect(freshBooking.paymentMethod).toBe('ONLINE');
+
+    const freshProv = await Provider.findById(provider._id);
+    expect(freshProv.earningsToday).toBe(540);
+
+    // 2. Second webhook delivery (idempotency retry)
+    const res2 = await request(app)
+      .post('/api/payments/webhook')
+      .set('Content-Type', 'application/json')
+      .set('x-razorpay-signature', validSig)
+      .send(rawPayload);
+
+    expect(res2.status).toBe(200);
+
+    // Earnings remain credited once
+    const provAfterSecond = await Provider.findById(provider._id);
+    expect(provAfterSecond.earningsToday).toBe(540);
+  });
+
+  it('webhook: records refund on Payment record when refund.processed event arrives', async () => {
+    const webhookSecret = 'whsec_secure_test_999';
+    process.env.RAZORPAY_WEBHOOK_SECRET = webhookSecret;
+
+    const dummyBookingId = new mongoose.Types.ObjectId();
+    const dummyCustId = new mongoose.Types.ObjectId();
+
+    const payment = await Payment.create({
+      bookingId: dummyBookingId,
+      customerId: dummyCustId,
+      bookingNumber: 'BK-REFUND-01',
+      amount: 500,
+      currency: 'INR',
+      method: 'ONLINE',
+      status: 'PAID',
+      razorpayPaymentId: 'pay_refund_target_01',
+      razorpayOrderId: 'order_refund_01',
+    });
+
+    const rawPayload = JSON.stringify({
+      event: 'refund.processed',
+      payload: {
+        refund: {
+          entity: {
+            id: 'rfnd_target_999',
+            payment_id: 'pay_refund_target_01',
+            amount: 20000, // ₹200 (partial)
+          },
+        },
+      },
+    });
+
+    const validSig = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(Buffer.from(rawPayload))
+      .digest('hex');
+
+    const res = await request(app)
+      .post('/api/payments/webhook')
+      .set('Content-Type', 'application/json')
+      .set('x-razorpay-signature', validSig)
+      .send(rawPayload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const freshPayment = await Payment.findById(payment._id);
+    expect(freshPayment.refundId).toBe('rfnd_target_999');
+    expect(freshPayment.refundAmount).toBe(200);
+    expect(freshPayment.status).toBe('PARTIALLY_REFUNDED');
+  });
+
+  it('script password validation: enforces min 12 chars, letters, numbers, symbols and rejects weak example passwords', () => {
+    // Missing or short
+    expect(validateScriptPassword('').valid).toBe(false);
+    expect(validateScriptPassword('Short1!').valid).toBe(false);
+
+    // Missing symbol or number
+    expect(validateScriptPassword('NoNumbersOrSymbolsHere').valid).toBe(false);
+    expect(validateScriptPassword('OnlyNumbers1234567890').valid).toBe(false);
+
+    // Known weak or example passwords
+    const weakAdmin = ['Admin', 'Secure', 'Pass', '123!'].join('');
+    const weakProvider = ['Provider', 'Secure', '123!'].join('');
+    expect(validateScriptPassword(weakAdmin).valid).toBe(false);
+    expect(validateScriptPassword(weakProvider).valid).toBe(false);
+    expect(validateScriptPassword('password123!').valid).toBe(false);
+
+    // Strong unique password
+    expect(validateScriptPassword('Secure#Pr0jectPass2026!').valid).toBe(true);
   });
 });
 
