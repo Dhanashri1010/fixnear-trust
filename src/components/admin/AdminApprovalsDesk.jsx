@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { useToast } from '../../context/ToastContext';
+import InitialsAvatar from '../common/InitialsAvatar';
 
 export default function AdminApprovalsDesk() {
   const { 
@@ -234,10 +235,10 @@ export default function AdminApprovalsDesk() {
                 marginBottom: '20px'
               }}>
                 <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                  <img
-                    src={activeCandidate.avatar || "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80"}
-                    alt={activeCandidate.name}
-                    style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border-light)' }}
+                  <InitialsAvatar
+                    name={activeCandidate.name}
+                    avatarUrl={activeCandidate.avatar}
+                    size={64}
                   />
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -319,7 +320,7 @@ export default function AdminApprovalsDesk() {
                   {/* Document 1: Government ID Proof */}
                   <div 
                     onClick={() => {
-                      setPreviewDocUrl(activeCandidate.idProofUrl || "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=1000&q=80");
+                      setPreviewDocUrl(activeCandidate.idProofUrl || "");
                       setPreviewDocTitle(`${activeCandidate.name} - Government ID Proof (Aadhaar / DL)`);
                     }}
                     style={{

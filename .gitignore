@@ -37,3 +37,6 @@ Thumbs.db
 coverage
 .nyc_output
 .vitest_cache
+
+# Private uploads storage (development fallback)
+server/uploads-private/

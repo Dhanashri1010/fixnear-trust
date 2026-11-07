@@ -1,10 +1,11 @@
 // ===================================================================
 // FixNear Trust - Full Service Provider (Technician) Dashboard
-// Online/Offline Toggle | 60s Incoming Job Radar | Active Job Pipeline
-// Extra Quotation Modal | Completion OTP Verify | Earnings & Payouts
+// Connected to MongoDB REST API & Socket.io
+// Online/Offline Switch | 60s Incoming Job Radar | Active Job Pipeline
+// Extra Quotation Modal | Completion Code Verify | Live Earnings
 // ===================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   Wrench, 
@@ -30,86 +31,151 @@ import {
   Plus, 
   Sparkles,
   TrendingUp,
-  CreditCard
+  CreditCard,
+  RefreshCw,
+  ExternalLink,
+  FileCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useStore } from '../../context/StoreContext';
 import { useToast } from '../../context/ToastContext';
+import { providersAPI, bookingsAPI, getSocket } from '../../services/api';
 
 export default function ProviderDashboardPage() {
   const navigate = useNavigate();
-  const { currentUser, userProfile, providerProfile, logOut } = useAuth();
-  const { 
-    bookings, 
-    technicians, 
-    advanceBookingStage, 
-    submitExtraQuotation, 
-    releaseInvoiceEscrow,
-    toggleProviderOnlineStatus,
-    acceptJobBooking,
-    declineJobBooking
-  } = useStore();
+  const { currentUser, userProfile, logOut } = useAuth();
   const { showToast } = useToast();
 
-  const providerId = providerProfile?.userId || currentUser?.uid || "";
-  const technician = technicians.find(t => t.id === providerId || t.userId === providerId) || {
-    id: providerId,
-    name: providerProfile?.name || userProfile?.name || "Technician Partner",
-    status: providerProfile?.status || "approved",
-    isOnline: true,
-    ratingAvg: 4.94,
-    ratingCount: 428,
-    jobsDone: 1420,
-    testScore: 92,
-    verifiedSkills: [
-      { categoryName: "Air Conditioning", score: 92, badge: "Gold" },
-      { categoryName: "Plumbing Systems", score: 85, badge: "Silver" }
-    ]
-  };
+  const [provider, setProvider] = useState(null);
+  const [earnings, setEarnings] = useState({ today: 0, week: 0, month: 0, totalJobs: 0 });
+  const [settings, setSettings] = useState({ commissionPercent: 10, platformFee: 20 });
+  const [reviews, setReviews] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState('active-jobs'); // 'active-jobs' | 'incoming' | 'history' | 'earnings' | 'profile'
-  const [isOnline, setIsOnline] = useState(technician.isOnline ?? true);
+  const [activeTab, setActiveTab] = useState('active-jobs'); // 'active-jobs' | 'history' | 'earnings' | 'profile'
+  const [isOnline, setIsOnline] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   // Incoming Job Countdown (60 seconds)
+  const [incomingOffer, setIncomingOffer] = useState(null);
   const [incomingCountdown, setIncomingCountdown] = useState(60);
-  const [dismissedJobs, setDismissedJobs] = useState([]);
+  const [actionInProgress, setActionInProgress] = useState(false);
 
-  // Modals
+  // Extra Quote Modal State
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
   const [selectedJobForQuote, setSelectedJobForQuote] = useState(null);
-  const [quoteReason, setQuoteReason] = useState('Outdoor compressor capacitor degraded (tested 18uF vs rated 45uF).');
-  const [quotePartName, setQuotePartName] = useState('OEM EPCOS Dual Motor Run-Capacitor (45+5 uF)');
-  const [quotePartCost, setQuotePartCost] = useState(450);
-  const [quoteLaborCost, setQuoteLaborCost] = useState(100);
+  const [quoteReason, setQuoteReason] = useState('');
+  const [quotePartName, setQuotePartName] = useState('');
+  const [quotePartCost, setQuotePartCost] = useState('');
+  const [quoteLaborCost, setQuoteLaborCost] = useState('');
+  const [quoteSubmitting, setQuoteSubmitting] = useState(false);
 
+  // Completion Code Modal State
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
   const [selectedJobForOtp, setSelectedJobForOtp] = useState(null);
   const [enteredOtp, setEnteredOtp] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'escrow'
   const [otpSubmitting, setOtpSubmitting] = useState(false);
 
-  // Filter bookings for this provider
-  const myBookings = bookings.filter(b => b.providerId === providerId || b.providerId === "provider-demo-1" || !b.providerId);
-  const activeJobs = myBookings.filter(b => ['ACCEPTED', 'ON_THE_WAY', 'WORKING'].includes(b.status));
-  const completedJobs = myBookings.filter(b => b.status === 'COMPLETED');
-  
-  // Potential incoming requests (status: 'REQUESTED')
-  const incomingRequests = bookings.filter(b => 
-    b.status === 'REQUESTED' && 
-    !dismissedJobs.includes(b.id)
-  );
+  // Document preview state
+  const [documentLoading, setDocumentLoading] = useState(null);
+
+  // Fetch Dashboard Data from API
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const [profileRes, bookingsRes] = await Promise.all([
+        providersAPI.getMyProfile(),
+        bookingsAPI.getMyBookings(),
+      ]);
+
+      if (profileRes.success) {
+        setProvider(profileRes.provider);
+        setIsOnline(Boolean(profileRes.provider?.isOnline));
+        if (profileRes.earnings) setEarnings(profileRes.earnings);
+        if (profileRes.settings) setSettings(profileRes.settings);
+        if (profileRes.reviews) setReviews(profileRes.reviews);
+      }
+
+      if (bookingsRes.success && Array.isArray(bookingsRes.bookings)) {
+        setBookings(bookingsRes.bookings);
+
+        // Check if there is an unexpired incoming offer for this provider
+        const pendingOffer = bookingsRes.bookings.find(
+          (b) => b.status === 'REQUESTED' && (!b.currentOfferExpiresAt || new Date(b.currentOfferExpiresAt) > new Date())
+        );
+
+        if (pendingOffer && !incomingOffer) {
+          const diffMs = pendingOffer.currentOfferExpiresAt ? new Date(pendingOffer.currentOfferExpiresAt).getTime() - Date.now() : 60000;
+          const secondsRemaining = Math.max(1, Math.min(60, Math.floor(diffMs / 1000)));
+          setIncomingOffer({
+            bookingId: pendingOffer._id || pendingOffer.bookingId,
+            displayBookingId: pendingOffer.bookingId,
+            serviceTitle: pendingOffer.serviceTitle,
+            city: pendingOffer.city,
+            area: pendingOffer.address || pendingOffer.city,
+            scheduledDate: pendingOffer.scheduledDate,
+            timeSlot: pendingOffer.timeSlot,
+            price: pendingOffer.basePrice,
+          });
+          setIncomingCountdown(secondsRemaining);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load provider dashboard:', err);
+      showToast(err.message || 'Failed to refresh dashboard data.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [incomingOffer, showToast]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  // Socket.io Real-Time Dispatch and Booking Status Listeners
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleNewOffer = (offer) => {
+      setIncomingOffer({
+        bookingId: offer.bookingId,
+        displayBookingId: offer.bookingId,
+        serviceTitle: offer.serviceTitle,
+        city: offer.city,
+        area: offer.area || offer.city,
+        scheduledDate: offer.scheduledDate,
+        timeSlot: offer.timeSlot,
+        price: offer.price,
+      });
+      setIncomingCountdown(offer.expiresInSeconds || 60);
+      showToast(`⚡ New job dispatch offered in ${offer.area || offer.city}!`, 'info');
+    };
+
+    const handleBookingUpdate = () => {
+      fetchDashboardData();
+    };
+
+    socket.on('new_job_offered', handleNewOffer);
+    socket.on('booking_updated', handleBookingUpdate);
+    socket.on('booking_status_updated', handleBookingUpdate);
+
+    return () => {
+      socket.off('new_job_offered', handleNewOffer);
+      socket.off('booking_updated', handleBookingUpdate);
+      socket.off('booking_status_updated', handleBookingUpdate);
+    };
+  }, [fetchDashboardData, showToast]);
 
   // 60-second timer for incoming job radar
   useEffect(() => {
-    if (!isOnline || incomingRequests.length === 0) return;
+    if (!incomingOffer) return;
 
     const timer = setInterval(() => {
-      setIncomingCountdown(prev => {
+      setIncomingCountdown((prev) => {
         if (prev <= 1) {
-          // Auto-pass first incoming request
-          const firstJobId = incomingRequests[0]?.id;
-          if (firstJobId) {
-            setDismissedJobs(d => [...d, firstJobId]);
-          }
+          setIncomingOffer(null);
+          showToast('Job offer window expired.', 'info');
+          fetchDashboardData();
           return 60;
         }
         return prev - 1;
@@ -117,41 +183,98 @@ export default function ProviderDashboardPage() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOnline, incomingRequests]);
+  }, [incomingOffer, fetchDashboardData, showToast]);
 
-  // Online / Offline Toggle
+  // Online / Offline Switch
   const handleToggleOnline = async () => {
-    const nextState = !isOnline;
-    setIsOnline(nextState);
-    await toggleProviderOnlineStatus(providerId, nextState);
-    showToast(nextState ? "You are now ONLINE. Dispatches active." : "You are OFFLINE. No dispatches will be sent.", nextState ? "success" : "info");
+    if (statusUpdating) return;
+    setStatusUpdating(true);
+    const targetState = !isOnline;
+
+    try {
+      const res = await providersAPI.updateOnlineStatus(targetState);
+      if (res.success) {
+        setIsOnline(targetState);
+        showToast(
+          targetState
+            ? 'You are now ONLINE. Ready to receive dispatch requests.'
+            : 'You are now OFFLINE. No dispatches will be sent.',
+          targetState ? 'success' : 'info'
+        );
+      }
+    } catch (err) {
+      showToast(err.message || 'Could not update online status.', 'error');
+    } finally {
+      setStatusUpdating(false);
+    }
   };
 
-  // Accept / Decline Incoming Request
+  // Accept Incoming Offer
   const handleAcceptJob = async (jobId) => {
-    await acceptJobBooking(jobId, providerId, technician.name);
-    showToast("Job Accepted! Head over to your Active Jobs queue.", "success");
-    setActiveTab('active-jobs');
+    if (actionInProgress) return;
+    setActionInProgress(true);
+    try {
+      const res = await bookingsAPI.updateStatus(jobId, 'ACCEPTED');
+      if (res.success) {
+        showToast('Job Accepted! Heading to your Active Jobs queue.', 'success');
+        setIncomingOffer(null);
+        setActiveTab('active-jobs');
+        await fetchDashboardData();
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to accept job. It may have expired.', 'error');
+      setIncomingOffer(null);
+      await fetchDashboardData();
+    } finally {
+      setActionInProgress(false);
+    }
   };
 
-  const handleDeclineJob = (jobId) => {
-    setDismissedJobs(prev => [...prev, jobId]);
-    showToast("Job request declined.", "info");
+  // Decline Incoming Offer
+  const handleDeclineJob = async (jobId) => {
+    if (actionInProgress) return;
+    setActionInProgress(true);
+    try {
+      await bookingsAPI.declineBooking(jobId);
+      showToast('Job offer declined.', 'info');
+      setIncomingOffer(null);
+      await fetchDashboardData();
+    } catch (err) {
+      showToast(err.message || 'Failed to decline job.', 'error');
+      setIncomingOffer(null);
+    } finally {
+      setActionInProgress(false);
+    }
   };
 
-  // Pipeline Step Advance
+  // Pipeline Step Advance (e.g. ON_THE_WAY, WORKING)
   const handleAdvanceStep = async (bookingId, targetStatus) => {
-    await advanceBookingStage(bookingId, targetStatus);
-    const messages = {
-      'ON_THE_WAY': "Status updated: You are on the way! Customer notified with live GPS.",
-      'WORKING': "Status updated: Diagnostic and triage work underway at doorstep."
-    };
-    showToast(messages[targetStatus] || "Status updated.", "success");
+    if (actionInProgress) return;
+    setActionInProgress(true);
+    try {
+      const res = await bookingsAPI.updateStatus(bookingId, targetStatus);
+      if (res.success) {
+        const messages = {
+          ON_THE_WAY: "Status updated: You are on the way! Customer notified with live GPS.",
+          WORKING: "Status updated: Diagnostic and triage work underway at doorstep.",
+        };
+        showToast(messages[targetStatus] || 'Status updated.', 'success');
+        await fetchDashboardData();
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to update job status.', 'error');
+    } finally {
+      setActionInProgress(false);
+    }
   };
 
-  // Send Extra Quotation
+  // Send Extra Quotation Modal Handler
   const handleOpenQuoteModal = (job) => {
     setSelectedJobForQuote(job);
+    setQuoteReason('');
+    setQuotePartName('');
+    setQuotePartCost('');
+    setQuoteLaborCost('');
     setIsQuoteModalOpen(true);
   };
 
@@ -159,22 +282,37 @@ export default function ProviderDashboardPage() {
     e.preventDefault();
     if (!selectedJobForQuote) return;
 
-    await submitExtraQuotation(selectedJobForQuote.id, {
-      reason: quoteReason,
-      parts: [
-        { name: quotePartName, cost: Number(quotePartCost), tax: Math.round(quotePartCost * 0.18), oemCertified: true }
-      ],
-      laborAddon: Number(quoteLaborCost)
-    });
+    setQuoteSubmitting(true);
+    try {
+      const items = [
+        {
+          desc: quotePartName.trim(),
+          amount: Math.round(Number(quotePartCost) + Number(quoteLaborCost || 0)),
+        },
+      ];
 
-    setIsQuoteModalOpen(false);
-    showToast("Digital quotation sent! Waiting for customer authorization.", "success");
+      const res = await bookingsAPI.createQuotation(selectedJobForQuote._id, {
+        items,
+        reason: quoteReason.trim(),
+      });
+
+      if (res.success) {
+        setIsQuoteModalOpen(false);
+        showToast('Itemized quotation submitted! Awaiting customer authorization.', 'success');
+        await fetchDashboardData();
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to submit quotation.', 'error');
+    } finally {
+      setQuoteSubmitting(false);
+    }
   };
 
-  // Complete Job with Customer OTP
+  // Complete Job with Customer 4-digit code
   const handleOpenOtpModal = (job) => {
     setSelectedJobForOtp(job);
     setEnteredOtp('');
+    setPaymentMethod('cash');
     setIsOtpModalOpen(true);
   };
 
@@ -182,23 +320,64 @@ export default function ProviderDashboardPage() {
     e.preventDefault();
     if (!selectedJobForOtp) return;
 
-    setOtpSubmitting(true);
-    const result = await releaseInvoiceEscrow(selectedJobForOtp.id, enteredOtp);
-    setOtpSubmitting(false);
+    if (!enteredOtp || enteredOtp.trim().length !== 4) {
+      showToast('Please enter the 4-digit completion code provided by the customer.', 'error');
+      return;
+    }
 
-    if (result.success) {
-      setIsOtpModalOpen(false);
-      showToast("OTP verified! Job completed and escrow payment released.", "success");
-      setActiveTab('history');
-    } else {
-      showToast(result.message || "Invalid OTP entered.", "error");
+    setOtpSubmitting(true);
+    try {
+      const res = await bookingsAPI.updateStatus(selectedJobForOtp._id, 'COMPLETED', enteredOtp.trim());
+      if (res.success) {
+        setIsOtpModalOpen(false);
+        showToast('Completion code verified! Job marked COMPLETED and earnings credited.', 'success');
+        setActiveTab('history');
+        await fetchDashboardData();
+      }
+    } catch (err) {
+      showToast(err.message || 'Invalid completion code.', 'error');
+    } finally {
+      setOtpSubmitting(false);
     }
   };
 
-  // Financials Calculation
-  const totalCompletedEarnings = completedJobs.reduce((sum, b) => sum + (b.invoice?.actualBilledTotal || b.price || 499), 0);
-  const platformFee = Math.round(totalCompletedEarnings * 0.15);
-  const netTechnicianPayout = totalCompletedEarnings - platformFee;
+  // Safe document view handler
+  const handleViewDocument = async (type) => {
+    setDocumentLoading(type);
+    try {
+      const res = await providersAPI.getPrivateDocumentSignedUrl(type);
+      if (res.success && res.url) {
+        window.open(res.url, '_blank', 'noopener,noreferrer');
+      } else {
+        window.open(`/api/providers/documents/${type}/file`, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      // Fallback to streaming endpoint directly
+      window.open(`/api/providers/documents/${type}/file`, '_blank', 'noopener,noreferrer');
+    } finally {
+      setDocumentLoading(null);
+    }
+  };
+
+  // Filter Bookings
+  const activeJobs = bookings.filter((b) => ['ACCEPTED', 'ON_THE_WAY', 'WORKING'].includes(b.status));
+  const completedJobs = bookings.filter((b) => b.status === 'COMPLETED');
+
+  const providerName = provider?.name || userProfile?.name || currentUser?.name || 'Technician Partner';
+  const providerStatus = provider?.status || 'take_skill_test';
+  const providerRating = provider?.ratingAvg || 5.0;
+  const providerJobsCount = provider?.jobsDone || completedJobs.length;
+
+  if (loading) {
+    return (
+      <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '85vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', color: 'var(--forest-800)' }}>
+          <RefreshCw className="spinner" size={32} style={{ margin: '0 auto 12px auto' }} />
+          <p style={{ fontWeight: 600 }}>Loading Service Partner Portal...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '85vh', padding: '32px 16px 80px 16px' }}>
@@ -236,20 +415,20 @@ export default function ProviderDashboardPage() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--forest-900)' }}>
-                  {technician.name}
+                  {providerName}
                 </h1>
-                <span className={`badge ${technician.status === 'approved' ? 'badge-forest' : technician.status === 'under_review' ? 'badge-yellow' : 'badge-demo'}`} style={{ fontSize: '11px' }}>
-                  {technician.status === 'approved' ? '✓ Verified Partner' : technician.status === 'under_review' ? '⏳ Under Review' : '📝 Test Pending'}
+                <span className={`badge ${providerStatus === 'approved' ? 'badge-forest' : providerStatus === 'waiting_for_approval' ? 'badge-yellow' : 'badge-demo'}`} style={{ fontSize: '11px' }}>
+                  {providerStatus === 'approved' ? '✓ Verified Partner' : providerStatus === 'waiting_for_approval' ? '⏳ Under Review' : providerStatus === 'needs_info' ? '⚠️ More Info Needed' : providerStatus === 'rejected' ? '❌ KYC Rejected' : '📝 Test Required'}
                 </span>
-                {technician.testScore > 0 && (
+                {provider?.skills?.some(s => s.passed) && (
                   <span className="badge badge-forest" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Award size={12} />
-                    <span>Skill Score: {technician.testScore}%</span>
+                    <span>Skill Certified</span>
                   </span>
                 )}
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Specialist Partner Console • Rating: <strong>⭐ {technician.ratingAvg || 4.9}</strong> ({technician.jobsDone || 1400}+ jobs)
+                Specialist Partner Console • City: <strong>{provider?.city || 'Local'}</strong> • Rating: <strong>⭐ {providerRating}</strong> ({providerJobsCount} jobs completed)
               </div>
             </div>
           </div>
@@ -266,9 +445,11 @@ export default function ProviderDashboardPage() {
                 borderRadius: 'var(--radius-full)',
                 backgroundColor: isOnline ? '#DCFCE7' : '#F3F4F6',
                 border: `1.5px solid ${isOnline ? '#22C55E' : '#D1D5DB'}`,
-                cursor: 'pointer',
+                cursor: statusUpdating ? 'not-allowed' : 'pointer',
+                opacity: statusUpdating ? 0.7 : 1,
                 transition: 'all 0.2s ease'
               }}
+              title={providerStatus !== 'approved' ? 'Only approved partners can go online' : 'Toggle dispatch availability'}
             >
               <div style={{
                 width: '10px',
@@ -295,7 +476,7 @@ export default function ProviderDashboardPage() {
         </div>
 
         {/* Status Pipeline Banner if not yet approved */}
-        {technician.status === 'pending_test' && (
+        {providerStatus === 'take_skill_test' && (
           <div style={{
             padding: '20px 24px',
             borderRadius: 'var(--radius-lg)',
@@ -323,7 +504,7 @@ export default function ProviderDashboardPage() {
           </div>
         )}
 
-        {technician.status === 'under_review' && (
+        {providerStatus === 'waiting_for_approval' && (
           <div style={{
             padding: '16px 20px',
             borderRadius: 'var(--radius-lg)',
@@ -336,12 +517,12 @@ export default function ProviderDashboardPage() {
           }}>
             <Clock size={20} color="var(--forest-700)" style={{ flexShrink: 0 }} />
             <div style={{ fontSize: '13.5px', color: 'var(--forest-900)' }}>
-              <strong>Application Under Verification:</strong> You scored <strong>{technician.testScore}%</strong> on your skill test! Your KYC documents are currently in the Admin Approval queue. Dispatches will activate upon admin sign-off.
+              <strong>Application Under Verification:</strong> You have passed your skill test! Your KYC documents are currently in the Admin Approval queue. Dispatches will activate upon admin sign-off.
             </div>
           </div>
         )}
 
-        {technician.status === 'rejected' && (
+        {providerStatus === 'rejected' && (
           <div style={{
             padding: '20px 24px',
             borderRadius: 'var(--radius-lg)',
@@ -361,7 +542,7 @@ export default function ProviderDashboardPage() {
                   KYC Verification Unsuccessful
                 </div>
                 <div style={{ fontSize: '13.5px', color: '#B91C1C', marginTop: '2px' }}>
-                  <strong>Admin Reason:</strong> {technician.rejectionReason || "Uploaded documents could not be verified. Please ensure your Govt ID is clear and legible."}
+                  <strong>Admin Reason:</strong> {provider.rejectionReason || "Uploaded documents could not be verified. Please ensure your Govt ID is clear and legible."}
                 </div>
               </div>
             </div>
@@ -372,7 +553,7 @@ export default function ProviderDashboardPage() {
           </div>
         )}
 
-        {technician.status === 'needs_info' && (
+        {providerStatus === 'needs_info' && (
           <div style={{
             padding: '20px 24px',
             borderRadius: 'var(--radius-lg)',
@@ -392,7 +573,7 @@ export default function ProviderDashboardPage() {
                   Additional Information Requested
                 </div>
                 <div style={{ fontSize: '13.5px', color: '#B45309', marginTop: '2px' }}>
-                  <strong>Admin Message:</strong> {technician.adminMessage || "Please upload a clearer copy of your Govt ID proof or provide your trade license."}
+                  <strong>Admin Message:</strong> {provider.adminMessage || "Please upload a clearer copy of your Govt ID proof or trade certificate."}
                 </div>
               </div>
             </div>
@@ -403,7 +584,7 @@ export default function ProviderDashboardPage() {
           </div>
         )}
 
-        {technician.status === 'suspended' && (
+        {providerStatus === 'suspended' && (
           <div style={{
             padding: '20px 24px',
             borderRadius: 'var(--radius-lg)',
@@ -420,30 +601,29 @@ export default function ProviderDashboardPage() {
                 Account Suspended by FixNear Trust & Safety
               </div>
               <div style={{ fontSize: '13.5px', color: '#7F1D1D', marginTop: '2px' }}>
-                Reason: {technician.suspensionReason || "Account flagged due to customer disputes or quality reviews below platform standards."}
+                Reason: {provider.suspensionReason || "Account flagged due to customer disputes or quality reviews below platform standards."}
               </div>
             </div>
           </div>
         )}
 
-        {/* Incoming Job Radar Banner (if any available and online) */}
-        {isOnline && incomingRequests.length > 0 && (
+        {/* Incoming Job Radar Banner (Live Offer with 60s Countdown) */}
+        {isOnline && incomingOffer && (
           <div style={{
             backgroundColor: '#FFFFFF',
             borderRadius: 'var(--radius-xl)',
             padding: '22px 24px',
             border: '2px solid #22C55E',
             boxShadow: '0 4px 20px -2px rgba(34, 197, 94, 0.25)',
-            marginBottom: '24px',
-            animation: 'pulse 2s infinite'
+            marginBottom: '24px'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="badge badge-forest" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
-                  ⚡ New Incoming Dispatch
+                  ⚡ New Incoming Dispatch Offer
                 </span>
                 <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  Nearest available technician match
+                  Nearest verified technician match in {incomingOffer.city}
                 </span>
               </div>
               <div style={{
@@ -458,58 +638,60 @@ export default function ProviderDashboardPage() {
                 borderRadius: 'var(--radius-full)'
               }}>
                 <Clock size={15} />
-                <span>Expires in {incomingCountdown}s</span>
+                <span>Offer expires in {incomingCountdown}s</span>
               </div>
             </div>
 
             {/* Request Details */}
-            {incomingRequests.slice(0, 1).map(req => (
-              <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)' }}>
-                    {req.serviceTitle}
-                  </h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <MapPin size={14} color="var(--forest-700)" />
-                      {req.address}
-                    </span>
-                    <span>•</span>
-                    <span>Customer: <strong>{req.customerName || 'Aarav Patel'}</strong></span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Estimated Payout</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--forest-800)' }}>
-                      ₹{req.basePrice || req.price || 599}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleAcceptJob(req.id)}
-                      className="btn btn-primary"
-                      style={{ backgroundColor: '#16A34A', padding: '12px 24px', fontWeight: 800 }}
-                    >
-                      <Check size={16} />
-                      <span>Accept Job</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeclineJob(req.id)}
-                      className="btn btn-outline"
-                      style={{ borderColor: '#FCA5A5', color: '#DC2626' }}
-                    >
-                      <X size={16} />
-                      <span>Pass</span>
-                    </button>
-                  </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)' }}>
+                  {incomingOffer.serviceTitle}
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', flexWrap: 'wrap' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <MapPin size={14} color="var(--forest-700)" />
+                    {incomingOffer.area}
+                  </span>
+                  <span>•</span>
+                  <span>Date: <strong>{incomingOffer.scheduledDate}</strong></span>
+                  <span>•</span>
+                  <span>Slot: <strong>{incomingOffer.timeSlot}</strong></span>
                 </div>
               </div>
-            ))}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Estimated Payout</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--forest-800)' }}>
+                    ₹{incomingOffer.price}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    disabled={actionInProgress}
+                    onClick={() => handleAcceptJob(incomingOffer.bookingId)}
+                    className="btn btn-primary"
+                    style={{ backgroundColor: '#16A34A', padding: '10px 20px', fontWeight: 800 }}
+                  >
+                    <Check size={16} />
+                    <span>Accept Job</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionInProgress}
+                    onClick={() => handleDeclineJob(incomingOffer.bookingId)}
+                    className="btn btn-outline"
+                    style={{ borderColor: '#FCA5A5', color: '#DC2626', padding: '10px 16px' }}
+                  >
+                    <X size={16} />
+                    <span>Pass</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -579,7 +761,7 @@ export default function ProviderDashboardPage() {
             }}
           >
             <DollarSign size={16} />
-            <span>Earnings & Payouts</span>
+            <span>Live Earnings</span>
           </button>
 
           <button
@@ -599,7 +781,7 @@ export default function ProviderDashboardPage() {
             }}
           >
             <Award size={16} />
-            <span>Verified Skills & Badges</span>
+            <span>Credentials & KYC</span>
           </button>
         </div>
 
@@ -613,19 +795,24 @@ export default function ProviderDashboardPage() {
                   No Active Jobs In Progress
                 </h3>
                 <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', maxWidth: '420px', margin: '6px auto 16px auto' }}>
-                  Keep your status set to <strong>Online</strong> to receive instant customer dispatch requests in your locality.
+                  Keep your status set to <strong>Online</strong> to receive instant customer dispatch requests matching your verified skills.
                 </p>
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                  <button type="button" onClick={() => setIsOnline(true)} className="btn btn-primary btn-sm">
-                    Ensure Online Status
+                  <button 
+                    type="button" 
+                    onClick={handleToggleOnline} 
+                    className="btn btn-primary btn-sm"
+                    disabled={isOnline || providerStatus !== 'approved'}
+                  >
+                    {isOnline ? 'Currently Online' : 'Go Online Now'}
                   </button>
                 </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {activeJobs.map(job => (
+                {activeJobs.map((job) => (
                   <div
-                    key={job.id}
+                    key={job._id || job.bookingId}
                     className="card"
                     style={{
                       padding: '24px 28px',
@@ -640,11 +827,16 @@ export default function ProviderDashboardPage() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                           <span className="badge badge-forest" style={{ fontSize: '11px' }}>
-                            Booking #{job.id}
+                            Booking #{job.bookingId}
                           </span>
                           <span className={`badge ${job.status === 'WORKING' ? 'badge-yellow' : 'badge-forest'}`} style={{ fontSize: '11px' }}>
                             {job.status.replace('_', ' ')}
                           </span>
+                          {job.disputeStatus === 'OPEN' && (
+                            <span className="badge badge-yellow" style={{ fontSize: '11px' }}>
+                              ⚠️ Complaint Open
+                            </span>
+                          )}
                         </div>
                         <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--forest-900)' }}>
                           {job.serviceTitle}
@@ -652,9 +844,9 @@ export default function ProviderDashboardPage() {
                       </div>
 
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Billed Total</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Estimated Payout</div>
                         <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--forest-800)' }}>
-                          ₹{job.invoice?.actualBilledTotal || job.price || 599}
+                          ₹{job.invoice?.totalAmount || job.basePrice}
                         </div>
                       </div>
                     </div>
@@ -671,40 +863,41 @@ export default function ProviderDashboardPage() {
                     }}>
                       <div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Customer Name</div>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)' }}>{job.customerName || 'Aarav Patel'}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{job.customerPhone || '+91 98201 54321'}</div>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)' }}>{job.customerName || 'Customer'}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{job.customerPhone || 'Contact revealed upon arrival'}</div>
                       </div>
 
                       <div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Doorstep Address</div>
                         <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--forest-900)' }}>{job.address}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Slot: {job.slot || 'Morning (10:00 AM)'}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Slot: {job.scheduledDate} ({job.timeSlot})</div>
                       </div>
 
                       <div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Reported Problem</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Problem Description</div>
                         <div style={{ fontSize: '12.5px', color: 'var(--forest-900)', lineHeight: 1.4 }}>
-                          "{job.problemNote || job.notes || 'AC cooling reduced over past week'}"
+                          "{job.notes || 'Standard service request'}"
                         </div>
                       </div>
                     </div>
 
-                    {/* Quotation Status notice if pending */}
+                    {/* Quotation Status notice if submitted */}
                     {job.quotation && (
                       <div style={{
                         padding: '12px 16px',
                         borderRadius: 'var(--radius-md)',
-                        backgroundColor: job.quotation.status === 'APPROVED' ? 'var(--forest-50)' : '#FEF3C7',
-                        border: `1px solid ${job.quotation.status === 'APPROVED' ? 'var(--forest-200)' : '#F59E0B'}`,
+                        backgroundColor: job.quotation.status === 'APPROVED' ? 'var(--forest-50)' : job.quotation.status === 'REJECTED' ? '#FEF2F2' : '#FEF3C7',
+                        border: `1px solid ${job.quotation.status === 'APPROVED' ? 'var(--forest-200)' : job.quotation.status === 'REJECTED' ? '#EF4444' : '#F59E0B'}`,
                         marginBottom: '18px',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
                         fontSize: '13px'
                       }}>
-                        <FileText size={16} color={job.quotation.status === 'APPROVED' ? 'var(--forest-700)' : '#B45309'} />
+                        <FileText size={16} color={job.quotation.status === 'APPROVED' ? 'var(--forest-700)' : job.quotation.status === 'REJECTED' ? '#DC2626' : '#B45309'} />
                         <span>
-                          <strong>Quotation #{job.quotation.id}:</strong> Status is <strong>{job.quotation.status.replace('_', ' ')}</strong> (₹{job.quotation.finalTotalEstimate} Total).
+                          <strong>Spare Parts Quotation:</strong> Status is <strong>{job.quotation.status.replace(/_/g, ' ')}</strong> (₹{job.quotation.total} Extra).
+                          {job.quotation.reason && ` Reason: "${job.quotation.reason}"`}
                         </span>
                       </div>
                     )}
@@ -723,7 +916,8 @@ export default function ProviderDashboardPage() {
                         {job.status === 'ACCEPTED' && (
                           <button
                             type="button"
-                            onClick={() => handleAdvanceStep(job.id, 'ON_THE_WAY')}
+                            disabled={actionInProgress}
+                            onClick={() => handleAdvanceStep(job._id, 'ON_THE_WAY')}
                             className="btn btn-primary btn-sm"
                             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                           >
@@ -735,7 +929,8 @@ export default function ProviderDashboardPage() {
                         {job.status === 'ON_THE_WAY' && (
                           <button
                             type="button"
-                            onClick={() => handleAdvanceStep(job.id, 'WORKING')}
+                            disabled={actionInProgress}
+                            onClick={() => handleAdvanceStep(job._id, 'WORKING')}
                             className="btn btn-primary btn-sm"
                             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                           >
@@ -763,14 +958,14 @@ export default function ProviderDashboardPage() {
                               style={{ backgroundColor: '#16A34A', display: 'flex', alignItems: 'center', gap: '6px' }}
                             >
                               <KeyRound size={14} />
-                              <span>Complete Job with OTP</span>
+                              <span>Finish with Customer Code</span>
                             </button>
                           </>
                         )}
                       </div>
 
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        Completion OTP is held securely by the customer until satisfaction.
+                        The 4-digit completion code is held securely by the customer until repair satisfaction.
                       </div>
                     </div>
                   </div>
@@ -789,13 +984,13 @@ export default function ProviderDashboardPage() {
 
             {completedJobs.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}>
-                No completed jobs yet. Complete jobs using OTP to build your verified trust score.
+                No completed jobs yet. Complete jobs using customer code to build your verified trust score.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {completedJobs.map(job => (
+                {completedJobs.map((job) => (
                   <div
-                    key={job.id}
+                    key={job._id || job.bookingId}
                     style={{
                       padding: '18px',
                       borderRadius: 'var(--radius-md)',
@@ -817,20 +1012,20 @@ export default function ProviderDashboardPage() {
                         </span>
                       </div>
                       <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                        Customer: {job.customerName || 'Aarav Patel'} · Booking #{job.id}
+                        Customer: {job.customerName || 'Verified Customer'} · Booking #{job.bookingId} · {job.scheduledDate}
                       </div>
                       {job.review && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px', fontSize: '12px', color: '#B45309' }}>
                           <Star size={13} fill="#F59E0B" color="#F59E0B" />
-                          <span>Rated {job.review.rating}/5 — "{job.review.content}"</span>
+                          <span>Rated {job.review.rating}/5 — "{job.review.comment}"</span>
                         </div>
                       )}
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Paid via Escrow</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Paid Amount</div>
                       <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-800)' }}>
-                        ₹{job.invoice?.actualBilledTotal || job.price || 599}
+                        ₹{job.invoice?.totalAmount || job.basePrice}
                       </div>
                     </div>
                   </div>
@@ -851,39 +1046,33 @@ export default function ProviderDashboardPage() {
               marginBottom: '24px'
             }}>
               <div className="card" style={{ padding: '22px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Total Billed Work</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Today's Net Earnings</div>
                 <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '4px' }}>
-                  ₹{totalCompletedEarnings.toLocaleString()}
+                  ₹{(earnings?.today || 0).toLocaleString()}
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  Across {completedJobs.length} completed jobs
+                  Platform fee (₹{settings.platformFee}) & {settings.commissionPercent}% commission deducted
                 </div>
               </div>
 
               <div className="card" style={{ padding: '22px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Net Take-Home (85%)</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Last 7 Days (Week)</div>
                 <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--forest-800)', marginTop: '4px' }}>
-                  ₹{netTechnicianPayout.toLocaleString()}
+                  ₹{(earnings?.week || 0).toLocaleString()}
                 </div>
                 <div style={{ fontSize: '12px', color: '#16A34A', marginTop: '4px', fontWeight: 600 }}>
-                  FixNear 15% commission deducted
+                  Active rolling weekly total
                 </div>
               </div>
 
               <div className="card" style={{ padding: '22px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Available for Direct Bank Transfer</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Last 30 Days (Month)</div>
                 <div style={{ fontSize: '28px', fontWeight: 800, color: '#15803D', marginTop: '4px' }}>
-                  ₹{netTechnicianPayout.toLocaleString()}
+                  ₹{(earnings?.month || 0).toLocaleString()}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => alert(`Simulated instant UPI payout of ₹${netTechnicianPayout} processed to your verified account!`)}
-                  className="btn btn-primary btn-sm"
-                  style={{ marginTop: '8px', width: '100%' }}
-                >
-                  <CreditCard size={14} />
-                  <span>Request Instant Payout</span>
-                </button>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  Across {earnings?.totalJobs || completedJobs.length} completed jobs
+                </div>
               </div>
             </div>
 
@@ -893,7 +1082,7 @@ export default function ProviderDashboardPage() {
                 FixNear Fair Partner Commission Structure
               </h3>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                FixNear deducts a flat <strong>15% commission</strong> covering lead generation, real-time GPS dispatching, payment gateway fees, and 30-day customer warranty coverage. You keep <strong>85% of labor and spare parts</strong> with zero hidden deductions.
+                FixNear deducts a flat <strong>{settings.commissionPercent}% commission</strong> and a <strong>₹{settings.platformFee} platform security fee</strong> per completed order. This fee funds lead generation, customer support, and warranty escrows. Technicians keep <strong>{100 - settings.commissionPercent}% of labor and authorized spare parts</strong> with zero surprise deductions.
               </p>
             </div>
           </div>
@@ -903,54 +1092,135 @@ export default function ProviderDashboardPage() {
         {activeTab === 'profile' && (
           <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '16px' }}>
-              Your Verified Technical Credentials
+              Your Verified Technical Credentials & KYC
             </h2>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginBottom: '28px' }}>
-              {technician.verifiedSkills?.map((skill, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    padding: '20px',
-                    borderRadius: 'var(--radius-lg)',
-                    border: '1.5px solid var(--forest-600)',
-                    backgroundColor: 'var(--forest-50)'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
-                    <div style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: 'var(--radius-md)',
-                      backgroundColor: 'var(--forest-700)',
-                      color: '#FFFFFF',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Award size={20} />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--forest-900)' }}>
-                        {skill.categoryName}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--forest-700)', fontWeight: 700 }}>
-                        {skill.badge || 'Gold'} Verified Badge
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                    Assessment Score: <strong>{skill.score}%</strong> (Passed anti-cheat test)
-                  </div>
+            {/* Profile Overview */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px',
+              padding: '16px',
+              backgroundColor: 'var(--bg-warm)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: '24px'
+            }}>
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Specialty & City</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)' }}>{provider?.specialty || 'General Service Specialist'}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{provider?.city} • {provider?.serviceArea || 'Citywide'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Experience</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)' }}>{provider?.experienceYears || 1}+ Years Working Field Experience</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Phone: {provider?.phone || userProfile?.phone || 'On file'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>KYC Status</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: providerStatus === 'approved' ? '#15803D' : '#D97706' }}>
+                  {providerStatus.toUpperCase().replace(/_/g, ' ')}
                 </div>
-              ))}
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  ID Proof: {provider?.idProofUrl ? '✓ Uploaded' : 'Missing'}
+                </div>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            {/* Verified Skills Grid */}
+            <h3 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '12px' }}>
+              Skills Certification
+            </h3>
+
+            {provider?.skills && provider.skills.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+                {provider.skills.map((skill, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '20px',
+                      borderRadius: 'var(--radius-lg)',
+                      border: `1.5px solid ${skill.passed ? 'var(--forest-600)' : '#E5E7EB'}`,
+                      backgroundColor: skill.passed ? 'var(--forest-50)' : '#F9FAFB'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: skill.passed ? 'var(--forest-700)' : '#9CA3AF',
+                        color: '#FFFFFF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Award size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--forest-900)' }}>
+                          {skill.categoryName || 'Trade Craft'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: skill.passed ? 'var(--forest-700)' : '#6B7280', fontWeight: 700 }}>
+                          {skill.passed ? 'Verified Skill Badge' : 'Certification Pending'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      Score: <strong>{skill.testScore || 0}%</strong> {skill.passed ? '(Passed anti-cheat exam)' : '(Requires 70% to pass)'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                No verified skills recorded yet. Complete your trade craft test to receive incoming dispatches.
+              </p>
+            )}
+
+            {/* KYC Uploaded Documents Review */}
+            <h3 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '12px' }}>
+              Private KYC Documents
+            </h3>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px' }}>
+              {provider?.idProofUrl ? (
+                <button
+                  type="button"
+                  disabled={documentLoading === 'idProof'}
+                  onClick={() => handleViewDocument('idProof')}
+                  className="btn btn-outline btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <FileCheck size={14} color="var(--forest-700)" />
+                  <span>{documentLoading === 'idProof' ? 'Generating Signed URL...' : 'View Govt ID Proof (Private)'}</span>
+                  <ExternalLink size={12} />
+                </button>
+              ) : (
+                <span style={{ fontSize: '13px', color: '#DC2626' }}>Govt ID proof not uploaded</span>
+              )}
+
+              {provider?.certificateUrl && (
+                <button
+                  type="button"
+                  disabled={documentLoading === 'certificate'}
+                  onClick={() => handleViewDocument('certificate')}
+                  className="btn btn-outline btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <FileCheck size={14} color="var(--forest-700)" />
+                  <span>{documentLoading === 'certificate' ? 'Generating Signed URL...' : 'View Trade Certificate (Private)'}</span>
+                  <ExternalLink size={12} />
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <Link to="/provider/test" className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Plus size={16} />
                 <span>Test for Another Trade Craft</span>
+              </Link>
+              <Link to="/provider/register" className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Update KYC Details</span>
               </Link>
             </div>
           </div>
@@ -997,6 +1267,7 @@ export default function ProviderDashboardPage() {
                   <textarea
                     rows={2}
                     required
+                    placeholder="e.g. Capacitor degraded causing motor hum..."
                     value={quoteReason}
                     onChange={(e) => setQuoteReason(e.target.value)}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', fontSize: '13px' }}
@@ -1010,6 +1281,7 @@ export default function ProviderDashboardPage() {
                   <input
                     type="text"
                     required
+                    placeholder="e.g. OEM Dual Run Capacitor 45uF"
                     value={quotePartName}
                     onChange={(e) => setQuotePartName(e.target.value)}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', fontSize: '13px' }}
@@ -1024,6 +1296,8 @@ export default function ProviderDashboardPage() {
                     <input
                       type="number"
                       required
+                      min="0"
+                      placeholder="e.g. 450"
                       value={quotePartCost}
                       onChange={(e) => setQuotePartCost(e.target.value)}
                       style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', fontSize: '13px' }}
@@ -1032,11 +1306,12 @@ export default function ProviderDashboardPage() {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '6px' }}>
-                      Installation Labor (₹) *
+                      Installation Labor (₹)
                     </label>
                     <input
                       type="number"
-                      required
+                      min="0"
+                      placeholder="e.g. 100"
                       value={quoteLaborCost}
                       onChange={(e) => setQuoteLaborCost(e.target.value)}
                       style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)', fontSize: '13px' }}
@@ -1053,17 +1328,17 @@ export default function ProviderDashboardPage() {
                   display: 'flex',
                   justifyContent: 'space-between'
                 }}>
-                  <span>Total Additional Estimate:</span>
-                  <strong>₹{Number(quotePartCost) + Number(quoteLaborCost) + Math.round(quotePartCost * 0.18)} (inc. GST)</strong>
+                  <span>Total Additional Quotation:</span>
+                  <strong>₹{Number(quotePartCost || 0) + Number(quoteLaborCost || 0)}</strong>
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
                   <button type="button" onClick={() => setIsQuoteModalOpen(false)} className="btn btn-outline btn-sm">
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-primary btn-sm">
+                  <button type="submit" disabled={quoteSubmitting} className="btn btn-primary btn-sm">
                     <Send size={14} />
-                    <span>Send Quote to Customer</span>
+                    <span>{quoteSubmitting ? 'Sending...' : 'Send Quote to Customer'}</span>
                   </button>
                 </div>
               </form>
@@ -1071,7 +1346,7 @@ export default function ProviderDashboardPage() {
           </div>
         )}
 
-        {/* MODAL 2: Complete Job with Customer OTP */}
+        {/* MODAL 2: Complete Job with Customer 4-digit code */}
         {isOtpModalOpen && selectedJobForOtp && (
           <div style={{
             position: 'fixed',
@@ -1107,11 +1382,11 @@ export default function ProviderDashboardPage() {
               </div>
 
               <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
-                Enter Customer 4-Digit Completion OTP
+                Enter Customer 4-Digit Completion Code
               </h3>
 
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: 1.5 }}>
-                Ask the customer for the completion code displayed on their FixNear tracking screen once the repair has been demonstrated.
+                Ask the customer for the 4-digit code displayed on their FixNear tracking screen once the repair has been tested and demonstrated.
               </p>
 
               <form onSubmit={handleVerifyOtpAndComplete}>
@@ -1122,7 +1397,7 @@ export default function ProviderDashboardPage() {
                   autoFocus
                   placeholder="• • • •"
                   value={enteredOtp}
-                  onChange={(e) => setEnteredOtp(e.target.value)}
+                  onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
                   style={{
                     width: '180px',
                     margin: '0 auto 20px auto',
@@ -1142,7 +1417,7 @@ export default function ProviderDashboardPage() {
                   </button>
                   <button type="submit" disabled={otpSubmitting} className="btn btn-primary" style={{ backgroundColor: '#16A34A' }}>
                     <CheckCircle2 size={16} />
-                    <span>{otpSubmitting ? 'Verifying...' : 'Verify OTP & Release Escrow'}</span>
+                    <span>{otpSubmitting ? 'Verifying...' : 'Verify Code & Finish Job'}</span>
                   </button>
                 </div>
               </form>

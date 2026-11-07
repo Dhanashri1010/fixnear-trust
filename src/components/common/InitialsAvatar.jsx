@@ -11,7 +11,7 @@ export default function InitialsAvatar({ name = 'FixNear User', avatarUrl = '', 
   };
 
   const isStockOrUnsplash = (url) => {
-    return !url || url.includes('unsplash.com') || url.includes('via.placeholder.com');
+    return !url || url.includes('placeholder') || url.includes('stock');
   };
 
   if (avatarUrl && !imgError && !isStockOrUnsplash(avatarUrl)) {

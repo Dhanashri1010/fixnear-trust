@@ -1342,7 +1342,21 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     });
     const provCookie = provUser.headers['set-cookie'];
 
-    // 3-step onboarding registration
+    // 3-step onboarding registration: rejects unauthorized publicId outside user folder
+    const badIdRes = await request(app)
+      .post('/api/providers/register')
+      .set('Cookie', provCookie)
+      .send({
+        name: 'Ramesh Sharma',
+        idProofPublicId: 'other_user_doc_123',
+      });
+    expect(badIdRes.status).toBe(400);
+    expect(badIdRes.body.message).toContain('private folder');
+
+    // Valid registration with per-user folder publicId
+    const validIdPublicId = `fixnear_kyc_private/${provUser.body.user.id}/id_doc_ramesh_123.jpg`;
+    const validCertPublicId = `fixnear_kyc_private/${provUser.body.user.id}/cert_ramesh_456.jpg`;
+
     const regStepRes = await request(app)
       .post('/api/providers/register')
       .set('Cookie', provCookie)
@@ -1355,10 +1369,10 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
         categoryId: 'plumbing',
         categoryName: 'Plumbing',
         experienceYears: 6,
-        idProofPublicId: 'id_doc_ramesh_123',
-        idProofUrl: 'https://fixnear.local/id_doc_ramesh_123.jpg',
-        certificatePublicId: 'cert_ramesh_456',
-        certificateUrl: 'https://fixnear.local/cert_ramesh_456.jpg',
+        idProofPublicId: validIdPublicId,
+        idProofUrl: `https://fixnear.local/${validIdPublicId}`,
+        certificatePublicId: validCertPublicId,
+        certificateUrl: `https://fixnear.local/${validCertPublicId}`,
       });
 
     expect(regStepRes.status).toBe(200);
@@ -1438,11 +1452,11 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     });
     const provCookie = provUser.headers['set-cookie'];
 
-    // 1. Provider uploads private doc
+    // 1. Provider uploads private PDF doc
     const uploadRes = await request(app)
       .post('/api/upload/private')
       .set('Cookie', provCookie)
-      .attach('file', Buffer.from('Fake PDF ID Proof Content'), {
+      .attach('file', Buffer.from('%PDF-1.4 Fake PDF ID Proof Content'), {
         filename: 'aadhaar_card.pdf',
         contentType: 'application/pdf',
       });
@@ -1450,14 +1464,20 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     expect(uploadRes.status).toBe(200);
     expect(uploadRes.body.success).toBe(true);
     expect(uploadRes.body.publicId).toBeDefined();
+    expect(uploadRes.body.publicId.startsWith(`fixnear_kyc_private/${provUser.body.user.id}/`)).toBe(true);
+    expect(uploadRes.body.resourceType).toBe('raw');
 
     // Save publicId to provider profile
     await Provider.findOneAndUpdate(
       { email: 'pooja.patil@fixnear.com' },
-      { idProofPublicId: uploadRes.body.publicId, idProofUrl: uploadRes.body.url }
+      {
+        idProofPublicId: uploadRes.body.publicId,
+        idProofUrl: uploadRes.body.url,
+        idProofResourceType: uploadRes.body.resourceType,
+      }
     );
 
-    // 2. Provider accesses signed URL
+    // 2. Provider accesses signed URL / local file endpoint
     const docRes = await request(app)
       .get('/api/providers/documents/idProof')
       .set('Cookie', provCookie);
@@ -1465,9 +1485,17 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     expect(docRes.status).toBe(200);
     expect(docRes.body.success).toBe(true);
     expect(docRes.body.signedUrl).toBeDefined();
+    expect(docRes.body.resourceType).toBe('raw');
     expect(docRes.body.expiresInSeconds).toBe(600);
 
-    // 3. Customer attempts to access provider private document -> 403 Forbidden
+    // 3. Provider accesses file download/view route directly and receives real PDF stream
+    const fileRes = await request(app)
+      .get('/api/providers/documents/idProof/file')
+      .set('Cookie', provCookie);
+    expect(fileRes.status).toBe(200);
+    expect(fileRes.headers['content-type']).toContain('application/pdf');
+
+    // 4. Customer attempts to access provider private document -> 403 Forbidden
     const cust = await request(app).post('/api/auth/register').send({
       name: 'Snoop Customer',
       email: 'snoop@fixnear.com',
@@ -1483,6 +1511,12 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       .set('Cookie', custCookie);
 
     expect(unauthorizedDocRes.status).toBe(403);
+
+    const unauthorizedFileRes = await request(app)
+      .get('/api/providers/documents/idProof/file')
+      .set('Cookie', custCookie);
+
+    expect(unauthorizedFileRes.status).toBe(403);
   });
 
   // 19. Skill Test Session, Masked Questions, Server-Side Evaluation, and 24h Cooldown
@@ -1532,7 +1566,40 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     const sessionId = startRes.body.sessionId;
     const sessionQIds = startRes.body.questions.map((q) => q._id);
 
-    // 4. Reject answer with unknown question ID
+    // 4. Fix 2: Resuming active session returns the EXACT same session and questions
+    const resumeRes = await request(app).get('/api/skill-test/electrician').set('Cookie', provCookie);
+    expect(resumeRes.status).toBe(200);
+    expect(resumeRes.body.sessionId).toBe(sessionId);
+    expect(resumeRes.body.isResumed).toBe(true);
+    expect(resumeRes.body.questions.length).toBe(10);
+    expect(String(resumeRes.body.questions[0]._id)).toBe(String(startRes.body.questions[0]._id));
+
+    // 5. Fix 1: Reject duplicate answers for same questionId (e.g. submitting all 4 options)
+    const duplicateAnsRes = await request(app)
+      .post('/api/skill-test/electrician/submit')
+      .set('Cookie', provCookie)
+      .send({
+        sessionId,
+        answers: [
+          { questionId: String(sessionQIds[0]), selectedIndex: 0 },
+          { questionId: String(sessionQIds[0]), selectedIndex: 1 },
+        ],
+      });
+    expect(duplicateAnsRes.status).toBe(400);
+    expect(duplicateAnsRes.body.message).toContain('Duplicate answers');
+
+    // Reject selectedIndex outside 0..3
+    const badIndexRes = await request(app)
+      .post('/api/skill-test/electrician/submit')
+      .set('Cookie', provCookie)
+      .send({
+        sessionId,
+        answers: [{ questionId: String(sessionQIds[0]), selectedIndex: 5 }],
+      });
+    expect(badIndexRes.status).toBe(400);
+    expect(badIndexRes.body.message).toContain('3');
+
+    // Reject answer with unknown question ID
     const badAnsRes = await request(app)
       .post('/api/skill-test/electrician/submit')
       .set('Cookie', provCookie)
@@ -1543,22 +1610,22 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     expect(badAnsRes.status).toBe(400);
     expect(badAnsRes.body.message).toContain('not assigned in this session');
 
-    // 5. Submit 8 correct answers (80% -> passes Silver badge)
+    // 6. Submit 8 correct answers (80% -> passes Silver badge)
     const validAnswers = sessionQIds.map((qId, idx) => ({
       questionId: String(qId),
       selectedIndex: idx < 8 ? 1 : 0, // 8 correct (idx 1), 2 wrong (idx 0)
     }));
 
-    const submitRes = await request(app)
-      .post('/api/skill-test/electrician/submit')
-      .set('Cookie', provCookie)
-      .send({
-        sessionId,
-        answers: validAnswers,
-        warningCount: 1, // 1 tab switch (informational)
-      });
+    // Fix 3: Concurrent submits: exactly one succeeds, the other gets 400
+    const [sub1, sub2] = await Promise.all([
+      request(app).post('/api/skill-test/electrician/submit').set('Cookie', provCookie).send({ sessionId, answers: validAnswers }),
+      request(app).post('/api/skill-test/electrician/submit').set('Cookie', provCookie).send({ sessionId, answers: validAnswers }),
+    ]);
 
-    expect(submitRes.status).toBe(200);
+    const statuses = [sub1.status, sub2.status].sort();
+    expect(statuses).toEqual([200, 400]);
+
+    const submitRes = sub1.status === 200 ? sub1 : sub2;
     expect(submitRes.body.success).toBe(true);
     expect(submitRes.body.score).toBe(80);
     expect(submitRes.body.passed).toBe(true);
@@ -1572,29 +1639,38 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     expect(updatedProv.skills[0].passed).toBe(true);
     expect(updatedProv.skills[0].badge).toBe('Silver');
 
-    // 6. Cannot submit session twice
-    const doubleSubmitRes = await request(app)
-      .post('/api/skill-test/electrician/submit')
-      .set('Cookie', provCookie)
-      .send({ sessionId, answers: validAnswers });
-    expect(doubleSubmitRes.status).toBe(400);
-    expect(doubleSubmitRes.body.message).toContain('already been submitted');
+    // 7. Test Fix 2: Unsubmitted expired session starts 24h cooldown
+    const p2User = await request(app).post('/api/auth/register').send({
+      name: 'Anup Kumar',
+      email: 'anup.kumar@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543168',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const p2Cookie = p2User.headers['set-cookie'];
 
-    // 7. Test cooldown logic: Simulate failing another category
-    const failAttempt = await TestAttempt.create({
-      providerId: updatedProv._id,
-      userId: updatedProv.userId,
-      categoryId: 'carpentry',
-      categoryName: 'Carpentry',
-      score: 40,
-      passed: false,
-      totalQuestions: 10,
-      correctAnswers: 4,
-      weakTopics: ['Wood Joinery'],
-      cooldownUntil: new Date(Date.now() + 24 * 3600 * 1000), // 24h in future
+    // Start session
+    const p2Start = await request(app).get('/api/skill-test/electrician').set('Cookie', p2Cookie);
+    expect(p2Start.status).toBe(200);
+
+    // Simulate session expired (started 20 mins ago)
+    await SkillTestSession.findByIdAndUpdate(p2Start.body.sessionId, {
+      startedAt: new Date(Date.now() - 20 * 60 * 1000),
     });
 
-    const cooldownStartRes = await request(app).get('/api/skill-test/carpentry').set('Cookie', provCookie);
+    // Calling start again detects expired unsubmitted session -> 403 inCooldown!
+    const p2ExpiredStart = await request(app).get('/api/skill-test/electrician').set('Cookie', p2Cookie);
+    expect(p2ExpiredStart.status).toBe(403);
+    expect(p2ExpiredStart.body.inCooldown).toBe(true);
+    expect(p2ExpiredStart.body.message.toLowerCase()).toContain('expired');
+
+    const expiredAttempt = await TestAttempt.findOne({ userId: p2User.body.user.id });
+    expect(expiredAttempt).toBeDefined();
+    expect(expiredAttempt.weakTopics).toContain('Time limit expired');
+    expect(expiredAttempt.passed).toBe(false);
+
+    const cooldownStartRes = await request(app).get('/api/skill-test/electrician').set('Cookie', p2Cookie);
     expect(cooldownStartRes.status).toBe(403);
     expect(cooldownStartRes.body.inCooldown).toBe(true);
     expect(cooldownStartRes.body.message.toLowerCase()).toContain('cooldown');

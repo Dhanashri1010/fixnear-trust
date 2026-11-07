@@ -7,6 +7,7 @@ import {
   registerProviderProfile,
   updateProviderStatus,
   getPrivateDocumentSignedUrl,
+  servePrivateDocumentFile,
 } from '../controllers/providerController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -25,8 +26,10 @@ const registerProviderSchema = z.object({
     experienceYears: z.number().min(0).max(50).optional(),
     idProofUrl: z.string().optional(),
     idProofPublicId: z.string().optional(),
+    idProofResourceType: z.enum(['image', 'raw', '']).optional(),
     certificateUrl: z.string().optional(),
     certificatePublicId: z.string().optional(),
+    certificateResourceType: z.enum(['image', 'raw', '']).optional(),
   }),
 });
 
@@ -43,6 +46,7 @@ router.get('/providers', getProviders);
 router.get('/providers/me', authenticate, authorize('provider'), getMyProviderProfile);
 router.patch('/providers/me/status', authenticate, authorize('provider'), validate(statusSchema), updateProviderStatus);
 router.post('/providers/register', authenticate, authorize('provider'), validate(registerProviderSchema), registerProviderProfile);
+router.get('/providers/documents/:type/file', authenticate, authorize('provider', 'admin'), servePrivateDocumentFile);
 router.get('/providers/documents/:type', authenticate, authorize('provider', 'admin'), getPrivateDocumentSignedUrl);
 
 // Public provider profile by ID

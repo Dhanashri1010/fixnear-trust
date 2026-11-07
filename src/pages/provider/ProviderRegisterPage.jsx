@@ -1,9 +1,10 @@
 // ===================================================================
 // FixNear Trust - Service Provider 3-Step Registration Page
-// Step 1: Personal Details | Step 2: Skills & Area | Step 3: Documents
+// Step 1: Personal Details | Step 2: Skills & Area | Step 3: Identity Verification
+// Direct REST API Migration (MongoDB & Private KYC Uploads)
 // ===================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   User, 
@@ -19,34 +20,41 @@ import {
   ArrowLeft,
   Info,
   Clock,
-  Sparkles
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useStore } from '../../context/StoreContext';
 import { useToast } from '../../context/ToastContext';
-import { storage, ref, uploadBytes, getDownloadURL, isLiveFirebaseConfigured } from '../../services/firebase/firebase';
+import { servicesAPI, providersAPI, uploadAPI } from '../../services/api';
 
 export default function ProviderRegisterPage() {
   const navigate = useNavigate();
-  const { currentUser, userProfile, updateProviderProfile } = useAuth();
-  const { categories, registerProviderProfile } = useStore();
+  const { user, profile } = useAuth();
   const { showToast } = useToast();
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [categories, setCategories] = useState([]);
+  const [existingProvider, setExistingProvider] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
-    name: userProfile?.name || currentUser?.displayName || '',
-    phone: userProfile?.phone || '+91 98200 ',
-    city: userProfile?.city || 'Mumbai',
-    serviceArea: 'Bandra West, Khar, Santacruz',
-    category: 'ac-cooling',
-    experienceYears: 4,
-    bio: 'Dedicated technician with extensive hands-on experience in domestic diagnostics, safety adherence, and fast repairs.',
+    name: profile?.name || user?.name || '',
+    phone: profile?.phone || user?.phone || '',
+    city: profile?.city || user?.city || 'Mumbai',
+    serviceArea: '',
+    categoryId: 'ac-cooling',
+    categoryName: 'Air Conditioner',
+    specialty: 'AC Installation, Repair & Servicing',
+    experienceYears: 3,
     idProofUrl: '',
+    idProofPublicId: '',
+    idProofResourceType: 'image',
     certificateUrl: '',
-    agreeTerms: true
+    certificatePublicId: '',
+    certificateResourceType: 'image',
+    agreeTerms: true,
   });
 
   const [idFileName, setIdFileName] = useState('');
@@ -55,11 +63,76 @@ export default function ProviderRegisterPage() {
   const [certPreviewUrl, setCertPreviewUrl] = useState('');
   const [uploadingField, setUploadingField] = useState(null);
 
+  // Fetch categories and existing provider profile
+  useEffect(() => {
+    let isMounted = true;
+    const fetchInitData = async () => {
+      try {
+        const [catsRes, provRes] = await Promise.allSettled([
+          servicesAPI.getCategories(),
+          providersAPI.getMyProfile(),
+        ]);
+
+        if (isMounted && catsRes.status === 'fulfilled' && catsRes.value?.categories) {
+          setCategories(catsRes.value.categories);
+        }
+
+        if (isMounted && provRes.status === 'fulfilled' && provRes.value?.provider) {
+          const prov = provRes.value.provider;
+          setExistingProvider(prov);
+          setFormData((prev) => ({
+            ...prev,
+            name: prov.name || prev.name,
+            phone: prov.phone || prev.phone,
+            city: prov.city || prev.city,
+            serviceArea: prov.serviceArea || prev.serviceArea,
+            specialty: prov.specialty || prev.specialty,
+            categoryId: prov.skills?.[0]?.categoryId || prev.categoryId,
+            categoryName: prov.skills?.[0]?.categoryName || prev.categoryName,
+            experienceYears: prov.experienceYears || prev.experienceYears,
+            idProofUrl: prov.idProofUrl || '',
+            idProofPublicId: prov.idProofPublicId || '',
+            idProofResourceType: prov.idProofResourceType || 'image',
+            certificateUrl: prov.certificateUrl || '',
+            certificatePublicId: prov.certificatePublicId || '',
+            certificateResourceType: prov.certificateResourceType || 'image',
+          }));
+
+          if (prov.idProofPublicId) {
+            setIdFileName('Uploaded ID Document');
+            setIdPreviewUrl(prov.idProofUrl || 'document-preview');
+          }
+          if (prov.certificatePublicId) {
+            setCertFileName('Uploaded Certificate');
+            setCertPreviewUrl(prov.certificateUrl || 'document-preview');
+          }
+        }
+      } catch (err) {
+        console.warn('Initialization notice:', err.message);
+      } finally {
+        if (isMounted) setInitialLoading(false);
+      }
+    };
+
+    fetchInitData();
+    return () => { isMounted = false; };
+  }, [user, profile]);
+
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Real File Upload to Firebase Storage with Fallback Data URL Preview
+  const handleCategoryChange = (e) => {
+    const catId = e.target.value;
+    const matched = categories.find((c) => c.categoryId === catId || c.id === catId);
+    setFormData((prev) => ({
+      ...prev,
+      categoryId: catId,
+      categoryName: matched ? matched.name : catId,
+    }));
+  };
+
+  // Real Private KYC File Upload
   const handleRealFileUpload = async (e, field, setFileName, setPreviewUrl) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -72,10 +145,10 @@ export default function ProviderRegisterPage() {
       return;
     }
 
-    // 2. Enforce JPG, PNG, and PDF formats
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    // 2. Enforce JPG, PNG, WebP, and PDF formats
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'application/pdf'];
     if (!allowedTypes.includes(file.type)) {
-      showToast('Invalid format. Please upload JPG, PNG, or PDF files only.', 'error');
+      showToast('Invalid format. Please upload JPG, PNG, WebP, or PDF files only.', 'error');
       e.target.value = '';
       return;
     }
@@ -84,7 +157,7 @@ export default function ProviderRegisterPage() {
     setFileName(file.name);
 
     try {
-      // Create local preview immediately
+      // Local immediate preview
       if (file.type.startsWith('image/')) {
         const localUrl = URL.createObjectURL(file);
         setPreviewUrl(localUrl);
@@ -92,103 +165,131 @@ export default function ProviderRegisterPage() {
         setPreviewUrl('pdf-document');
       }
 
-      // If Firebase Live Storage is available, upload directly
-      if (isLiveFirebaseConfigured && storage) {
-        const ext = file.name.split('.').pop() || 'jpg';
-        const userId = currentUser?.uid || `prov-${Date.now()}`;
-        const fileRef = ref(storage, `kyc/${userId}/${field}_${Date.now()}.${ext}`);
-        await uploadBytes(fileRef, file);
-        const remoteUrl = await getDownloadURL(fileRef);
-        handleInputChange(field, remoteUrl);
-        showToast(`${file.name} uploaded to secure storage!`, 'success');
+      const res = await uploadAPI.uploadPrivateDoc(file);
+      if (res.success && res.publicId) {
+        const urlKey = field === 'idProof' ? 'idProofUrl' : 'certificateUrl';
+        const publicIdKey = field === 'idProof' ? 'idProofPublicId' : 'certificatePublicId';
+        const resourceTypeKey = field === 'idProof' ? 'idProofResourceType' : 'certificateResourceType';
+
+        setFormData((prev) => ({
+          ...prev,
+          [urlKey]: res.url || `/api/providers/documents/${field}/file`,
+          [publicIdKey]: res.publicId,
+          [resourceTypeKey]: res.resourceType || (file.type === 'application/pdf' ? 'raw' : 'image'),
+        }));
+        showToast(`${field === 'idProof' ? 'ID Proof' : 'Certificate'} uploaded securely.`, 'success');
       } else {
-        // Fallback: convert to base64 Data URL so Admin can inspect it directly
-        const reader = new FileReader();
-        reader.onload = (loadEvt) => {
-          const dataUrl = loadEvt.target.result;
-          handleInputChange(field, dataUrl);
-          if (file.type.startsWith('image/')) {
-            setPreviewUrl(dataUrl);
-          }
-          showToast(`${file.name} attached successfully!`, 'success');
-        };
-        reader.readAsDataURL(file);
+        throw new Error(res.message || 'Upload failed');
       }
     } catch (err) {
-      console.warn('Storage upload error, using local reference:', err);
-      showToast(`Attached ${file.name} locally.`, 'info');
+      showToast(err.message || 'Failed to upload document. Please try again.', 'error');
+      setPreviewUrl('');
+      setFileName('');
     } finally {
       setUploadingField(null);
     }
   };
 
-  const handleNext = (e) => {
-    e.preventDefault();
-    if (step === 1) {
-      if (!formData.name.trim() || !formData.phone.trim() || !formData.city.trim()) {
-        showToast('Please fill out all personal details.', 'error');
-        return;
-      }
-      setStep(2);
-    } else if (step === 2) {
-      if (!formData.serviceArea.trim() || !formData.category) {
-        showToast('Please specify your service area and skills.', 'error');
-        return;
-      }
-      setStep(3);
+  // Step 1 Validation
+  const validateStep1 = () => {
+    if (!formData.name.trim()) {
+      showToast('Please enter your full name.', 'error');
+      return false;
     }
+    if (!formData.phone.trim() || formData.phone.trim().length < 10) {
+      showToast('Please enter a valid 10-digit mobile number.', 'error');
+      return false;
+    }
+    if (!formData.city.trim()) {
+      showToast('Please specify your working city.', 'error');
+      return false;
+    }
+    if (!formData.serviceArea.trim()) {
+      showToast('Please specify the local areas/neighborhoods you can serve.', 'error');
+      return false;
+    }
+    return true;
   };
 
-  const handleSubmit = async (e) => {
+  // Step 2 Validation
+  const validateStep2 = () => {
+    if (!formData.categoryId) {
+      showToast('Please select your primary trade category.', 'error');
+      return false;
+    }
+    if (!formData.specialty.trim()) {
+      showToast('Please describe your specific technical skills.', 'error');
+      return false;
+    }
+    if (formData.experienceYears < 0 || formData.experienceYears > 50) {
+      showToast('Please enter realistic years of experience (0 - 50).', 'error');
+      return false;
+    }
+    return true;
+  };
+
+  // Step 3 Validation & Submit
+  const handleFinalSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.agreeTerms) {
-      showToast('Please agree to FixNear Safety & Quality Code.', 'warning');
+
+    if (!formData.idProofPublicId && !formData.idProofUrl) {
+      showToast('Please upload your Government Identity Proof (Aadhaar or Voter ID).', 'error');
       return;
     }
-    if (!formData.idProofUrl) {
-      showToast('Please attach a valid Government ID proof to continue.', 'error');
+    if (!formData.agreeTerms) {
+      showToast('You must agree to the FixNear Trust safety code of conduct.', 'error');
       return;
     }
 
     setLoading(true);
     try {
-      const providerPayload = {
-        userId: currentUser?.uid || `prov-${Date.now()}`,
-        name: formData.name,
-        phone: formData.phone,
-        city: formData.city,
-        serviceArea: formData.serviceArea,
-        category: formData.category,
-        skills: [formData.category],
-        experienceYears: Number(formData.experienceYears),
-        bio: formData.bio,
+      const payload = {
+        name: formData.name.trim(),
+        phone: formData.phone.trim(),
+        city: formData.city.trim(),
+        serviceArea: formData.serviceArea.trim(),
+        specialty: formData.specialty.trim(),
+        categoryId: formData.categoryId,
+        categoryName: formData.categoryName,
+        experienceYears: Number(formData.experienceYears) || 1,
         idProofUrl: formData.idProofUrl,
-        certificateUrl: formData.certificateUrl || null,
-        status: 'pending_test'
+        idProofPublicId: formData.idProofPublicId,
+        idProofResourceType: formData.idProofResourceType,
+        certificateUrl: formData.certificateUrl,
+        certificatePublicId: formData.certificatePublicId,
+        certificateResourceType: formData.certificateResourceType,
       };
 
-      await registerProviderProfile(providerPayload);
-      if (updateProviderProfile) {
-        await updateProviderProfile(providerPayload);
+      const res = await providersAPI.registerProfile(payload);
+      if (res.success) {
+        showToast('Registration details saved! Proceeding to practical skill test.', 'success');
+        navigate(`/provider/test/${formData.categoryId}`);
+      } else {
+        throw new Error(res.message || 'Registration failed');
       }
-
-      showToast('Profile registered! Now proceeding to the mandatory skill test.', 'success');
-      navigate(`/provider/test/${formData.category}`);
     } catch (err) {
-      console.error('Registration error:', err);
-      showToast('Registration failed. Please try again.', 'error');
+      showToast(err.message || 'Failed to submit registration. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const currentCategoryObj = categories.find(c => c.id === formData.category) || categories[0];
+  if (initialLoading) {
+    return (
+      <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="spinner" style={{ margin: '0 auto 16px' }} />
+          <p style={{ color: 'var(--text-muted)' }}>Loading technician registration...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '85vh', padding: '36px 16px 80px 16px' }}>
-      <div className="container" style={{ maxWidth: '860px' }}>
+    <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '85vh', padding: '40px 16px 80px' }}>
+      <div className="container" style={{ maxWidth: '780px' }}>
         
-        {/* Header */}
+        {/* Header Banner */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
             display: 'inline-flex',
@@ -197,613 +298,535 @@ export default function ProviderRegisterPage() {
             backgroundColor: 'var(--forest-100)',
             color: 'var(--forest-800)',
             padding: '6px 16px',
-            borderRadius: 'var(--radius-full)',
+            borderRadius: '999px',
             fontSize: '13px',
             fontWeight: 700,
             marginBottom: '12px'
           }}>
             <ShieldCheck size={16} />
-            <span>Join 2,400+ Certified FixNear Partners</span>
+            <span>FIXNEAR PARTNER NETWORK</span>
           </div>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--forest-900)' }}>
-            Service Provider Registration
+          <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--forest-900)', margin: '0 0 8px' }}>
+            Technician Partner Registration
           </h1>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '520px', margin: '8px auto 0 auto' }}>
-            Earn ₹35,000 - ₹65,000/month with zero upfront investment. Complete 3 simple steps to get certified.
+          <p style={{ color: 'var(--text-secondary)', fontSize: '15px', maxWidth: '520px', margin: '0 auto' }}>
+            Join our verified marketplace. Complete your profile, verify your identity, and pass the safety skill test.
           </p>
         </div>
 
-        {/* 3-Step Stepper Header */}
+        {/* Existing Application Status Alert */}
+        {existingProvider && existingProvider.status !== 'approved' && (
+          <div style={{
+            backgroundColor: existingProvider.status === 'rejected' ? '#FEF2F2' : '#FFFBEB',
+            border: `1.5px solid ${existingProvider.status === 'rejected' ? '#FCA5A5' : '#FCD34D'}`,
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px'
+          }}>
+            <AlertCircle size={20} color={existingProvider.status === 'rejected' ? '#DC2626' : '#D97706'} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div>
+              <div style={{ fontWeight: 700, color: existingProvider.status === 'rejected' ? '#991B1B' : '#92400E', fontSize: '14px' }}>
+                {existingProvider.status === 'rejected' ? 'Application Needs Correction' : 'Application In Progress'}
+              </div>
+              <div style={{ fontSize: '13px', color: existingProvider.status === 'rejected' ? '#7F1D1D' : '#78350F', marginTop: '4px' }}>
+                {existingProvider.rejectionReason || 'Please review your details, update your documents, and complete your verification.'}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3-Step Progress Indicator */}
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr',
-          gap: '12px',
-          marginBottom: '32px'
+          backgroundColor: '#FFFFFF',
+          borderRadius: 'var(--radius-xl)',
+          padding: '20px 28px',
+          boxShadow: 'var(--shadow-sm)',
+          border: '1.5px solid var(--border-light)',
+          marginBottom: '24px'
         }}>
-          <div style={{
-            padding: '14px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: step >= 1 ? '#FFFFFF' : 'rgba(255,255,255,0.5)',
-            border: step === 1 ? '2px solid var(--forest-700)' : '1px solid var(--border-light)',
-            boxShadow: step === 1 ? 'var(--shadow-sm)' : 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+            
+            {/* Connecting line */}
             <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              backgroundColor: step > 1 ? 'var(--forest-700)' : step === 1 ? 'var(--forest-100)' : 'var(--border-light)',
-              color: step > 1 ? '#FFFFFF' : step === 1 ? 'var(--forest-800)' : 'var(--text-muted)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: '13px'
+              position: 'absolute',
+              top: '18px',
+              left: '40px',
+              right: '40px',
+              height: '3px',
+              backgroundColor: 'var(--border-light)',
+              zIndex: 0
             }}>
-              {step > 1 ? <CheckCircle2 size={16} /> : '1'}
+              <div style={{
+                height: '100%',
+                backgroundColor: 'var(--forest-600)',
+                width: step === 1 ? '0%' : step === 2 ? '50%' : '100%',
+                transition: 'width 0.3s ease'
+              }} />
             </div>
-            <div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Step 1</div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>Personal Info</div>
-            </div>
-          </div>
 
-          <div style={{
-            padding: '14px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: step >= 2 ? '#FFFFFF' : 'rgba(255,255,255,0.5)',
-            border: step === 2 ? '2px solid var(--forest-700)' : '1px solid var(--border-light)',
-            boxShadow: step === 2 ? 'var(--shadow-sm)' : 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              backgroundColor: step > 2 ? 'var(--forest-700)' : step === 2 ? 'var(--forest-100)' : 'var(--border-light)',
-              color: step > 2 ? '#FFFFFF' : step === 2 ? 'var(--forest-800)' : 'var(--text-muted)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: '13px'
-            }}>
-              {step > 2 ? <CheckCircle2 size={16} /> : '2'}
+            {/* Step 1 */}
+            <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                backgroundColor: step >= 1 ? 'var(--forest-700)' : 'var(--border-light)',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize: '14px',
+                margin: '0 auto 6px'
+              }}>
+                {step > 1 ? <CheckCircle2 size={20} /> : '1'}
+              </div>
+              <span style={{ fontSize: '12px', fontWeight: step === 1 ? 700 : 500, color: step >= 1 ? 'var(--forest-900)' : 'var(--text-muted)' }}>
+                Personal Details
+              </span>
             </div>
-            <div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Step 2</div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>Skills & Area</div>
-            </div>
-          </div>
 
-          <div style={{
-            padding: '14px',
-            borderRadius: 'var(--radius-md)',
-            backgroundColor: step === 3 ? '#FFFFFF' : 'rgba(255,255,255,0.5)',
-            border: step === 3 ? '2px solid var(--forest-700)' : '1px solid var(--border-light)',
-            boxShadow: step === 3 ? 'var(--shadow-sm)' : 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              backgroundColor: step === 3 ? 'var(--forest-100)' : 'var(--border-light)',
-              color: step === 3 ? 'var(--forest-800)' : 'var(--text-muted)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: '13px'
-            }}>
-              3
+            {/* Step 2 */}
+            <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                backgroundColor: step >= 2 ? 'var(--forest-700)' : 'var(--border-light)',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize: '14px',
+                margin: '0 auto 6px'
+              }}>
+                {step > 2 ? <CheckCircle2 size={20} /> : '2'}
+              </div>
+              <span style={{ fontSize: '12px', fontWeight: step === 2 ? 700 : 500, color: step >= 2 ? 'var(--forest-900)' : 'var(--text-muted)' }}>
+                Trade & Experience
+              </span>
             </div>
-            <div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Step 3</div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>KYC Documents</div>
+
+            {/* Step 3 */}
+            <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                backgroundColor: step >= 3 ? 'var(--forest-700)' : 'var(--border-light)',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize: '14px',
+                margin: '0 auto 6px'
+              }}>
+                3
+              </div>
+              <span style={{ fontSize: '12px', fontWeight: step === 3 ? 700 : 500, color: step >= 3 ? 'var(--forest-900)' : 'var(--text-muted)' }}>
+                ID Verification
+              </span>
             </div>
+
           </div>
         </div>
 
-        {/* Step 1: Personal Details */}
-        {step === 1 && (
-          <form onSubmit={handleNext} className="card" style={{ padding: '32px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
-              Step 1: Your Personal Information
-            </h2>
-            <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-              Customers will see your name and contact once a service request is assigned.
-            </p>
+        {/* Form Container */}
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: 'var(--radius-xl)',
+          padding: '32px',
+          boxShadow: 'var(--shadow-sm)',
+          border: '1.5px solid var(--border-light)'
+        }}>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '6px' }}>
-                  Full Name (as per Aadhaar / PAN card) *
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <User size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+          {/* STEP 1: Personal Details */}
+          {step === 1 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                <User size={22} color="var(--forest-700)" />
+                <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--forest-900)' }}>
+                  Step 1: Technician Identity & Service Area
+                </h2>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Full Legal Name *</label>
                   <input
                     type="text"
-                    required
+                    className="form-control"
+                    placeholder="e.g. Ramesh Sharma"
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
-                    placeholder="e.g. Ramesh Sharma"
-                    style={{
-                      width: '100%',
-                      padding: '12px 14px 12px 42px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1.5px solid var(--border-light)',
-                      fontSize: '14px'
-                    }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Direct Mobile Number *</label>
+                  <input
+                    type="tel"
+                    className="form-control"
+                    placeholder="e.g. 9820012345"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    required
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '6px' }}>
-                    Mobile Number (for SMS & OTP alerts) *
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Phone size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
-                    <input
-                      type="tel"
-                      required
-                      value={formData.phone}
-                      onChange={(e) => handleInputChange('phone', e.target.value)}
-                      placeholder="+91 98200 11223"
-                      style={{
-                        width: '100%',
-                        padding: '12px 14px 12px 42px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1.5px solid var(--border-light)',
-                        fontSize: '14px'
-                      }}
-                    />
-                  </div>
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Operating City *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. Mumbai, Pune, Thane"
+                    value={formData.city}
+                    onChange={(e) => handleInputChange('city', e.target.value)}
+                    required
+                  />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '6px' }}>
-                    Primary Operating City *
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <MapPin size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
-                    <select
-                      value={formData.city}
-                      onChange={(e) => handleInputChange('city', e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '12px 14px 12px 42px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1.5px solid var(--border-light)',
-                        fontSize: '14px',
-                        backgroundColor: '#FFFFFF'
-                      }}
-                    >
-                      <option value="Mumbai">Mumbai (All Zones)</option>
-                      <option value="Navi Mumbai">Navi Mumbai</option>
-                      <option value="Thane">Thane</option>
-                      <option value="Pune">Pune</option>
-                      <option value="Bengaluru">Bengaluru</option>
-                    </select>
-                  </div>
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Service Area / Localities *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. Andheri, Bandra, Juhu"
+                    value={formData.serviceArea}
+                    onChange={(e) => handleInputChange('serviceArea', e.target.value)}
+                    required
+                  />
                 </div>
               </div>
 
               <div style={{
-                padding: '16px',
-                borderRadius: 'var(--radius-md)',
                 backgroundColor: 'var(--forest-50)',
                 border: '1px solid var(--forest-100)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 16px',
                 display: 'flex',
+                gap: '10px',
                 alignItems: 'center',
-                gap: '12px',
+                marginTop: '20px',
                 fontSize: '13px',
-                color: 'var(--forest-900)'
+                color: 'var(--forest-800)'
               }}>
-                <Info size={20} color="var(--forest-700)" style={{ flexShrink: 0 }} />
-                <span>
-                  <strong>FixNear Privacy Guarantee:</strong> Your contact number is masked during initial discovery and only shared once you accept a dispatched booking.
-                </span>
+                <Info size={18} style={{ flexShrink: 0 }} />
+                <span>Your direct contact number is kept private and will only be shared with customers after you accept their job request.</span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-                <button type="submit" className="btn btn-primary" style={{ padding: '12px 28px' }}>
-                  <span>Continue to Skills & Area</span>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '28px' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    if (validateStep1()) setStep(2);
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <span>Continue to Skills</span>
                   <ArrowRight size={16} />
                 </button>
               </div>
             </div>
-          </form>
-        )}
+          )}
 
-        {/* Step 2: Trade Skills & Experience */}
-        {step === 2 && (
-          <form onSubmit={handleNext} className="card" style={{ padding: '32px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
-              Step 2: Skills, Experience & Service Coverage
-            </h2>
-            <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-              Select the primary craft in which you wish to take the certification skill test.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
-              
-              {/* Category Grid */}
-              <div>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '10px' }}>
-                  Select Your Primary Trade Craft *
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                  {categories.map(cat => {
-                    const isSelected = formData.category === cat.id;
-                    return (
-                      <div
-                        key={cat.id}
-                        onClick={() => handleInputChange('category', cat.id)}
-                        style={{
-                          padding: '16px',
-                          borderRadius: 'var(--radius-md)',
-                          border: isSelected ? '2px solid var(--forest-700)' : '1.5px solid var(--border-light)',
-                          backgroundColor: isSelected ? 'var(--forest-50)' : '#FFFFFF',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px'
-                        }}
-                      >
-                        <div style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: 'var(--radius-sm)',
-                          backgroundColor: isSelected ? 'var(--forest-700)' : 'var(--bg-warm)',
-                          color: isSelected ? '#FFFFFF' : 'var(--forest-800)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 800,
-                          fontSize: '18px'
-                        }}>
-                          {cat.name.charAt(0)}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--forest-900)' }}>
-                            {cat.name}
-                          </div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                            {cat.servicesCount || '6'} services available
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+          {/* STEP 2: Trade Skills & Experience */}
+          {step === 2 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                <Briefcase size={22} color="var(--forest-700)" />
+                <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--forest-900)' }}>
+                  Step 2: Practical Trade & Experience
+                </h2>
               </div>
 
-              {/* Experience and Service Area */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '6px' }}>
-                    Years of Field Experience *
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <Briefcase size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
-                    <select
-                      value={formData.experienceYears}
-                      onChange={(e) => handleInputChange('experienceYears', e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '12px 14px 12px 42px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1.5px solid var(--border-light)',
-                        fontSize: '14px',
-                        backgroundColor: '#FFFFFF'
-                      }}
-                    >
-                      <option value={1}>1 Year (Junior Technician)</option>
-                      <option value={2}>2 Years</option>
-                      <option value={3}>3 Years (Senior Technician)</option>
-                      <option value={5}>5+ Years (Specialist)</option>
-                      <option value={8}>8+ Years (Master Technician)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '6px' }}>
-                    Preferred Service Localities / Pin Codes *
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <MapPin size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
-                    <input
-                      type="text"
-                      required
-                      value={formData.serviceArea}
-                      onChange={(e) => handleInputChange('serviceArea', e.target.value)}
-                      placeholder="e.g. Bandra West, Khar, Santacruz"
-                      style={{
-                        width: '100%',
-                        padding: '12px 14px 12px 42px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1.5px solid var(--border-light)',
-                        fontSize: '14px'
-                      }}
-                    />
-                  </div>
-                </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Primary Service Category *</label>
+                <select
+                  className="form-control"
+                  value={formData.categoryId}
+                  onChange={handleCategoryChange}
+                  style={{ fontWeight: 600 }}
+                >
+                  {categories.map((c) => (
+                    <option key={c.categoryId || c.id} value={c.categoryId || c.id}>
+                      {c.name} {c.startingPrice ? `(from ₹${c.startingPrice})` : ''}
+                    </option>
+                  ))}
+                  {categories.length === 0 && (
+                    <>
+                      <option value="ac-cooling">Air Conditioner & Cooling</option>
+                      <option value="electrical">Electrician & Wiring</option>
+                      <option value="plumbing">Plumbing & Sanitary</option>
+                      <option value="appliances">Appliance Repair</option>
+                    </>
+                  )}
+                </select>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '6px' }}>
-                  Professional Bio / Experience Summary
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.bio}
-                  onChange={(e) => handleInputChange('bio', e.target.value)}
-                  placeholder="Share details about your background, brands you service, and customer commitment..."
-                  style={{
-                    width: '100%',
-                    padding: '12px 14px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1.5px solid var(--border-light)',
-                    fontSize: '13.5px',
-                    lineHeight: 1.5
-                  }}
+              <div style={{ marginBottom: '16px' }}>
+                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Specialty & Scope of Work *</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="e.g. Deep clean, compressor servicing, PCB diagnostics"
+                  value={formData.specialty}
+                  onChange={(e) => handleInputChange('specialty', e.target.value)}
+                  required
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>
+                  Years of Practical Field Experience: <strong>{formData.experienceYears} Years</strong>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="30"
+                  value={formData.experienceYears}
+                  onChange={(e) => handleInputChange('experienceYears', parseInt(e.target.value, 10))}
+                  style={{ width: '100%', accentColor: 'var(--forest-700)', cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  <span>Beginner (0 yrs)</span>
+                  <span>Skilled (5 yrs)</span>
+                  <span>Master (15+ yrs)</span>
+                </div>
+              </div>
+
+              <div style={{
+                backgroundColor: '#EFF6FF',
+                border: '1px solid #BFDBFE',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 16px',
+                display: 'flex',
+                gap: '10px',
+                alignItems: 'center',
+                fontSize: '13px',
+                color: '#1E40AF'
+              }}>
+                <Award size={18} style={{ flexShrink: 0 }} />
+                <span>You will need to complete a 10-question practical safety exam for your selected category with at least 70% to receive verified status.</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '28px' }}>
                 <button
                   type="button"
                   className="btn btn-outline"
                   onClick={() => setStep(1)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
                   <ArrowLeft size={16} />
                   <span>Back</span>
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ padding: '12px 28px' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    if (validateStep2()) setStep(3);
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
                   <span>Continue to Documents</span>
                   <ArrowRight size={16} />
                 </button>
               </div>
-
             </div>
-          </form>
-        )}
+          )}
 
-        {/* Step 3: KYC & Document Verification */}
-        {step === 3 && (
-          <form onSubmit={handleSubmit} className="card" style={{ padding: '32px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
-              Step 3: Identity Verification & Certificates
-            </h2>
-            <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-              FixNear requires verified Aadhaar/Govt ID proof to prevent doorstep fraud and earn customer trust.
-            </p>
+          {/* STEP 3: Identity Verification & Documents */}
+          {step === 3 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                <ShieldCheck size={22} color="var(--forest-700)" />
+                <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--forest-900)' }}>
+                  Step 3: Identity Verification (KYC)
+                </h2>
+              </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
-              
-              {/* ID Proof Box with Real File Upload & Preview */}
-              <div style={{
-                padding: '20px',
-                borderRadius: 'var(--radius-lg)',
-                border: '1.5px dashed var(--forest-600)',
-                backgroundColor: 'var(--forest-50)'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-                  <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                    {idPreviewUrl && idPreviewUrl !== 'pdf-document' ? (
-                      <img 
-                        src={idPreviewUrl} 
-                        alt="ID Preview" 
-                        style={{ 
-                          width: '54px', 
-                          height: '54px', 
-                          borderRadius: 'var(--radius-md)', 
-                          objectFit: 'cover', 
-                          border: '2px solid var(--forest-600)',
-                          boxShadow: 'var(--shadow-sm)'
-                        }} 
-                      />
-                    ) : (
-                      <div style={{
-                        width: '54px',
-                        height: '54px',
-                        borderRadius: 'var(--radius-md)',
-                        backgroundColor: '#FFFFFF',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--forest-800)',
-                        boxShadow: 'var(--shadow-sm)'
-                      }}>
-                        <FileText size={26} />
-                      </div>
-                    )}
+              {/* ID Proof Upload */}
+              <div style={{ marginBottom: '24px' }}>
+                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>
+                  Government Photo ID (Aadhaar / Voter ID / PAN) *
+                </label>
+                <div style={{
+                  border: '2px dashed var(--border-light)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: '24px',
+                  textAlign: 'center',
+                  backgroundColor: idPreviewUrl ? 'var(--forest-50)' : 'transparent',
+                  position: 'relative'
+                }}>
+                  {uploadingField === 'idProof' ? (
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--forest-900)' }}>
-                        Government ID Proof (Aadhaar / Driving License / PAN) *
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                        {idFileName ? (
-                          <span>File: <strong>{idFileName}</strong> • Verified Format</span>
-                        ) : (
-                          <span style={{ color: '#DC2626' }}>Required (Max 5 MB • JPG, PNG, PDF)</span>
-                        )}
+                      <div className="spinner" style={{ margin: '0 auto 12px' }} />
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--forest-800)' }}>
+                        Uploading private document securely...
                       </div>
                     </div>
-                  </div>
-
-                  <div>
-                    <label 
-                      htmlFor="real-id-upload"
-                      className="btn btn-outline btn-sm"
-                      style={{ 
-                        cursor: 'pointer', 
-                        backgroundColor: '#FFFFFF', 
-                        borderColor: 'var(--forest-700)', 
-                        color: 'var(--forest-800)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <Upload size={14} />
-                      <span>{uploadingField === 'idProofUrl' ? 'Uploading...' : idFileName ? 'Change File' : 'Upload ID Proof'}</span>
-                    </label>
-                    <input 
-                      id="real-id-upload"
-                      type="file"
-                      accept=".jpg,.jpeg,.png,.pdf"
-                      style={{ display: 'none' }}
-                      onChange={(e) => handleRealFileUpload(e, 'idProofUrl', setIdFileName, setIdPreviewUrl)}
-                    />
-                  </div>
+                  ) : idPreviewUrl ? (
+                    <div>
+                      <CheckCircle2 size={32} color="var(--forest-700)" style={{ margin: '0 auto 8px' }} />
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)' }}>
+                        {idFileName || 'ID Proof Uploaded'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--forest-700)', marginTop: '4px' }}>
+                        Stored securely in your private KYC vault.
+                      </div>
+                      <label className="btn btn-outline btn-sm" style={{ marginTop: '12px', cursor: 'pointer' }}>
+                        <span>Change Document</span>
+                        <input
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.webp,.pdf"
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleRealFileUpload(e, 'idProof', setIdFileName, setIdPreviewUrl)}
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div>
+                      <Upload size={32} color="var(--text-muted)" style={{ margin: '0 auto 8px' }} />
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>
+                        Upload Clear Photo or PDF of Government ID
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        JPG, PNG, WebP or PDF (Max 5 MB)
+                      </div>
+                      <label className="btn btn-secondary btn-sm" style={{ marginTop: '14px', cursor: 'pointer' }}>
+                        <span>Select File</span>
+                        <input
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.webp,.pdf"
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleRealFileUpload(e, 'idProof', setIdFileName, setIdPreviewUrl)}
+                        />
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Trade Certificate (Optional) with Real Upload & Preview */}
-              <div style={{
-                padding: '20px',
-                borderRadius: 'var(--radius-lg)',
-                border: '1.5px dashed var(--border-light)',
-                backgroundColor: 'var(--bg-warm)'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
-                  <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                    {certPreviewUrl && certPreviewUrl !== 'pdf-document' ? (
-                      <img 
-                        src={certPreviewUrl} 
-                        alt="Certificate Preview" 
-                        style={{ 
-                          width: '54px', 
-                          height: '54px', 
-                          borderRadius: 'var(--radius-md)', 
-                          objectFit: 'cover', 
-                          border: '2px solid var(--forest-600)',
-                          boxShadow: 'var(--shadow-sm)'
-                        }} 
-                      />
-                    ) : (
-                      <div style={{
-                        width: '54px',
-                        height: '54px',
-                        borderRadius: 'var(--radius-md)',
-                        backgroundColor: '#FFFFFF',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--text-muted)',
-                        boxShadow: 'var(--shadow-sm)'
-                      }}>
-                        <Award size={26} />
-                      </div>
-                    )}
+              {/* Optional Trade Certificate */}
+              <div style={{ marginBottom: '24px' }}>
+                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>
+                  Trade Certificate or Diploma (Optional)
+                </label>
+                <div style={{
+                  border: '1.5px dashed var(--border-light)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: '20px',
+                  textAlign: 'center',
+                  backgroundColor: certPreviewUrl ? 'var(--forest-50)' : 'transparent'
+                }}>
+                  {uploadingField === 'certificate' ? (
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--forest-900)' }}>
-                        Trade Diploma / ITI / OEM Certificate (Optional)
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                        {certFileName ? `File: ${certFileName}` : "Upload certificate to earn 'Gold Certified' distinction (Max 5 MB)"}
-                      </div>
+                      <div className="spinner" style={{ margin: '0 auto 10px' }} />
+                      <div style={{ fontSize: '13px', color: 'var(--forest-800)' }}>Uploading certificate...</div>
                     </div>
-                  </div>
-
-                  <div>
-                    <label 
-                      htmlFor="real-cert-upload"
-                      className="btn btn-outline btn-sm"
-                      style={{ 
-                        cursor: 'pointer', 
-                        backgroundColor: '#FFFFFF', 
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <Upload size={14} />
-                      <span>{uploadingField === 'certificateUrl' ? 'Uploading...' : certFileName ? 'Replace' : 'Upload Certificate'}</span>
-                    </label>
-                    <input 
-                      id="real-cert-upload"
-                      type="file"
-                      accept=".jpg,.jpeg,.png,.pdf"
-                      style={{ display: 'none' }}
-                      onChange={(e) => handleRealFileUpload(e, 'certificateUrl', setCertFileName, setCertPreviewUrl)}
-                    />
-                  </div>
+                  ) : certPreviewUrl ? (
+                    <div>
+                      <CheckCircle2 size={26} color="var(--forest-700)" style={{ margin: '0 auto 6px' }} />
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>
+                        {certFileName || 'Certificate Uploaded'}
+                      </div>
+                      <label className="btn btn-outline btn-sm" style={{ marginTop: '10px', cursor: 'pointer' }}>
+                        <span>Change</span>
+                        <input
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.webp,.pdf"
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleRealFileUpload(e, 'certificate', setCertFileName, setCertPreviewUrl)}
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div>
+                      <Award size={26} color="var(--text-muted)" style={{ margin: '0 auto 6px' }} />
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
+                        Upload ITI, Polytechnic, or OEM Certificate
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Boosts customer confidence and profile ranking
+                      </div>
+                      <label className="btn btn-outline btn-sm" style={{ marginTop: '10px', cursor: 'pointer' }}>
+                        <span>Upload Certificate</span>
+                        <input
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.webp,.pdf"
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleRealFileUpload(e, 'certificate', setCertFileName, setCertPreviewUrl)}
+                        />
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Next Step Info Box */}
+              {/* Code of Conduct Agreement */}
               <div style={{
-                padding: '18px',
+                backgroundColor: 'var(--bg-warm)',
+                padding: '14px 16px',
                 borderRadius: 'var(--radius-md)',
-                backgroundColor: '#FEF3C7',
-                border: '1.5px solid #F59E0B',
-                display: 'flex',
-                gap: '14px',
-                alignItems: 'flex-start'
+                marginBottom: '24px'
               }}>
-                <Clock size={22} color="#B45309" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: '14px', color: '#92400E' }}>
-                    Mandatory Anti-Cheat Skill Test (Next Step)
-                  </div>
-                  <p style={{ fontSize: '13px', color: '#78350F', marginTop: '4px', lineHeight: 1.5 }}>
-                    After clicking Submit, you will begin a <strong>15-minute, 10-question practical exam</strong> on <strong>{currentCategoryObj?.name}</strong>.
-                    Passing mark is <strong>70% (7/10)</strong>. Browser tab switches and copy-paste are strictly monitored.
-                  </p>
-                </div>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.agreeTerms}
+                    onChange={(e) => handleInputChange('agreeTerms', e.target.checked)}
+                    style={{ marginTop: '3px', accentColor: 'var(--forest-700)' }}
+                  />
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    I agree to FixNear Trust safety standards, transparent rate card compliance, and identity verification. I understand that fraudulent finish codes or off-platform demands will result in permanent suspension.
+                  </span>
+                </label>
               </div>
 
-              {/* Terms Checkbox */}
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', fontSize: '13px', color: 'var(--forest-900)' }}>
-                <input
-                  type="checkbox"
-                  checked={formData.agreeTerms}
-                  onChange={(e) => handleInputChange('agreeTerms', e.target.checked)}
-                  style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: 'var(--forest-700)' }}
-                />
-                <span>
-                  I certify that all personal and technical qualifications submitted are genuine. I agree to abide by FixNear's zero-hidden-charge code and punctual doorstep safety policy.
-                </span>
-              </label>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '28px' }}>
                 <button
                   type="button"
                   className="btn btn-outline"
                   onClick={() => setStep(2)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  disabled={loading}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
                   <ArrowLeft size={16} />
                   <span>Back</span>
                 </button>
                 <button
-                  type="submit"
-                  disabled={loading}
+                  type="button"
                   className="btn btn-primary"
-                  style={{ padding: '14px 32px', fontSize: '15px', fontWeight: 800 }}
+                  onClick={handleFinalSubmit}
+                  disabled={loading || uploadingField !== null}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
-                  <Sparkles size={16} />
-                  <span>{loading ? 'Submitting...' : 'Register & Start Skill Test (15 Mins)'}</span>
+                  {loading ? (
+                    <>
+                      <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
+                      <span>Saving Profile...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Complete & Start Skill Test</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
                 </button>
               </div>
-
             </div>
-          </form>
-        )}
+          )}
+
+        </div>
 
       </div>
     </div>

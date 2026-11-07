@@ -1,10 +1,16 @@
 import mongoose from 'mongoose';
 import { v2 as cloudinary } from 'cloudinary';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Provider } from '../models/Provider.js';
 import { Review } from '../models/Review.js';
 import { Booking } from '../models/Booking.js';
 import { Setting } from '../models/Setting.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // GET /api/providers (public: verified only, filter by service, city, rating)
 export const getProviders = async (req, res, next) => {
@@ -171,11 +177,37 @@ export const registerProviderProfile = async (req, res, next) => {
       experienceYears,
       idProofUrl,
       idProofPublicId,
+      idProofResourceType,
       certificateUrl,
       certificatePublicId,
+      certificateResourceType,
     } = req.body;
 
+    // Fix 5: Validate publicIds belong to user's private folder
+    const userFolderPrefix = `fixnear_kyc_private/${req.user._id}/`;
+    if (idProofPublicId && !idProofPublicId.startsWith(userFolderPrefix)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid ID proof publicId. Document must be stored in your private folder '${userFolderPrefix}'.`,
+      });
+    }
+
+    if (certificatePublicId && !certificatePublicId.startsWith(userFolderPrefix)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid certificate publicId. Document must be stored in your private folder '${userFolderPrefix}'.`,
+      });
+    }
+
     let provider = await Provider.findOne({ userId: req.user._id });
+
+    const resolvedIdProofType =
+      idProofResourceType ||
+      (idProofUrl?.toLowerCase().includes('.pdf') || idProofPublicId?.toLowerCase().endsWith('.pdf') ? 'raw' : 'image');
+
+    const resolvedCertType =
+      certificateResourceType ||
+      (certificateUrl?.toLowerCase().includes('.pdf') || certificatePublicId?.toLowerCase().endsWith('.pdf') ? 'raw' : 'image');
 
     const updateFields = {
       name: (name || req.user.name).trim(),
@@ -186,8 +218,10 @@ export const registerProviderProfile = async (req, res, next) => {
       experienceYears: Number(experienceYears) || 3,
       idProofUrl: idProofUrl || '',
       idProofPublicId: idProofPublicId || '',
+      idProofResourceType: resolvedIdProofType,
       certificateUrl: certificateUrl || '',
       certificatePublicId: certificatePublicId || '',
+      certificateResourceType: resolvedCertType,
     };
 
     if (categoryId) {
@@ -286,9 +320,11 @@ export const getPrivateDocumentSignedUrl = async (req, res, next) => {
 
     const publicIdField = type === 'certificate' ? 'certificatePublicId' : 'idProofPublicId';
     const urlField = type === 'certificate' ? 'certificateUrl' : 'idProofUrl';
+    const resourceTypeField = type === 'certificate' ? 'certificateResourceType' : 'idProofResourceType';
 
     const publicId = provider[publicIdField];
     const rawUrl = provider[urlField];
+    const resourceType = provider[resourceTypeField] || (rawUrl?.toLowerCase().includes('.pdf') ? 'raw' : 'image');
 
     if (!publicId && !rawUrl) {
       return res.status(404).json({ success: false, message: 'Document not found.' });
@@ -300,19 +336,70 @@ export const getPrivateDocumentSignedUrl = async (req, res, next) => {
         signedUrl = cloudinary.url(publicId, {
           sign_url: true,
           type: 'authenticated',
+          resource_type: resourceType,
           expires_at: Math.floor(Date.now() / 1000) + 600, // 10 minutes expiry
         });
       } catch (signErr) {
         signedUrl = rawUrl;
       }
+    } else if (publicId && publicId.startsWith('fixnear_kyc_private/')) {
+      // Local dev/test fallback
+      signedUrl = `/api/providers/documents/${type}/file${req.user.role === 'admin' && providerId ? `?providerId=${providerId}` : ''}`;
     }
 
     res.status(200).json({
       success: true,
       type,
       signedUrl,
+      resourceType,
       expiresInSeconds: 600,
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /api/providers/documents/:type/file (Serves local private file if stored on disk)
+export const servePrivateDocumentFile = async (req, res, next) => {
+  try {
+    const { type } = req.params;
+    const providerId = req.query.providerId;
+
+    let provider;
+    if (req.user.role === 'admin' && providerId) {
+      provider = await Provider.findById(providerId);
+    } else {
+      provider = await Provider.findOne({ userId: req.user._id });
+    }
+
+    if (!provider) {
+      return res.status(404).json({ success: false, message: 'Provider profile not found.' });
+    }
+
+    const isCert = type === 'certificate';
+    const publicId = isCert ? provider.certificatePublicId : provider.idProofPublicId;
+
+    if (!publicId) {
+      return res.status(404).json({ success: false, message: 'Document not found.' });
+    }
+
+    const relativePath = publicId.replace(/^fixnear_kyc_private\//, '');
+    const localDiskPath = path.resolve(__dirname, '../uploads-private', relativePath);
+
+    if (!fs.existsSync(localDiskPath)) {
+      return res.status(404).json({ success: false, message: 'Local document file not found.' });
+    }
+
+    const ext = path.extname(localDiskPath).toLowerCase();
+    if (ext === '.pdf') {
+      res.setHeader('Content-Type', 'application/pdf');
+    } else if (ext === '.png') {
+      res.setHeader('Content-Type', 'image/png');
+    } else {
+      res.setHeader('Content-Type', 'image/jpeg');
+    }
+    res.setHeader('Content-Disposition', `inline; filename="${path.basename(localDiskPath)}"`);
+    return res.sendFile(localDiskPath);
   } catch (err) {
     next(err);
   }

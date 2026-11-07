@@ -6,7 +6,7 @@ import { Provider } from '../models/Provider.js';
 import { Setting } from '../models/Setting.js';
 import { Category } from '../models/Category.js';
 
-// GET /api/skill-test/:categoryId (starts exam session, returns 10 questions without answers)
+// GET /api/skill-test/:categoryId (starts or resumes exam session, returns 10 questions without answers)
 export const startSkillTest = async (req, res, next) => {
   try {
     const { categoryId } = req.params;
@@ -37,7 +37,73 @@ export const startSkillTest = async (req, res, next) => {
       });
     }
 
-    // 2. Fetch 10 random questions WITHOUT correctIndex or explanation
+    // 2. Fix 2: Check for an active unsubmitted session for this provider & category
+    const existingSession = await SkillTestSession.findOne({
+      providerId: provider._id,
+      categoryId,
+      isSubmitted: false,
+    }).sort({ createdAt: -1 });
+
+    if (existingSession) {
+      const elapsedSeconds = (Date.now() - new Date(existingSession.startedAt).getTime()) / 1000;
+      const maxSeconds = settings.skillTestTimeLimitMinutes * 60;
+
+      if (elapsedSeconds < maxSeconds) {
+        // Still unexpired! Return this same session and the exact same questions in original order
+        const qDocs = await Question.find({
+          _id: { $in: existingSession.questionIds },
+        }).select('-correctIndex -explanation');
+        const qMap = new Map();
+        qDocs.forEach((q) => qMap.set(String(q._id), q));
+        const questions = existingSession.questionIds.map((id) => qMap.get(String(id))).filter(Boolean);
+
+        const remainingSeconds = Math.max(0, Math.floor(maxSeconds - elapsedSeconds));
+
+        return res.status(200).json({
+          success: true,
+          sessionId: existingSession._id,
+          categoryId,
+          categoryName: existingSession.categoryName,
+          durationMinutes: settings.skillTestTimeLimitMinutes,
+          remainingSeconds,
+          passMark: settings.skillTestPassMark,
+          questions,
+          isResumed: true,
+        });
+      } else {
+        // Session expired without being submitted: mark failed and start 24h cooldown
+        existingSession.isSubmitted = true;
+        existingSession.submittedAt = new Date();
+        existingSession.score = 0;
+        existingSession.passed = false;
+        await existingSession.save();
+
+        const cooldownUntil = new Date(Date.now() + settings.skillTestCooldownHours * 3600 * 1000);
+        await TestAttempt.create({
+          providerId: provider._id,
+          userId: req.user._id,
+          categoryId,
+          categoryName: existingSession.categoryName,
+          score: 0,
+          passed: false,
+          totalQuestions: existingSession.questionIds.length,
+          correctAnswers: 0,
+          weakTopics: ['Time limit expired'],
+          warningCount: 0,
+          timeSpentSeconds: Math.round(elapsedSeconds),
+          cooldownUntil,
+        });
+
+        return res.status(403).json({
+          success: false,
+          inCooldown: true,
+          cooldownUntil,
+          message: 'Previous test session expired without submission. You must wait 24 hours before retrying.',
+        });
+      }
+    }
+
+    // 3. Fetch 10 random questions WITHOUT correctIndex or explanation
     const questions = await Question.aggregate([
       { $match: { categoryId, isActive: true } },
       { $sample: { size: 10 } },
@@ -53,7 +119,7 @@ export const startSkillTest = async (req, res, next) => {
 
     const categoryDoc = await Category.findOne({ categoryId });
 
-    // 3. Save test session on server
+    // 4. Save new test session on server
     const session = await SkillTestSession.create({
       providerId: provider._id,
       userId: req.user._id,
@@ -69,8 +135,10 @@ export const startSkillTest = async (req, res, next) => {
       categoryId,
       categoryName: session.categoryName,
       durationMinutes: settings.skillTestTimeLimitMinutes,
+      remainingSeconds: settings.skillTestTimeLimitMinutes * 60,
       passMark: settings.skillTestPassMark,
       questions,
+      isResumed: false,
     });
   } catch (err) {
     next(err);
@@ -116,9 +184,10 @@ export const submitSkillTest = async (req, res, next) => {
     const maxSeconds = settings.skillTestTimeLimitMinutes * 60 + 30;
 
     if (timeSpentSeconds > maxSeconds) {
-      session.isSubmitted = true;
-      session.submittedAt = new Date();
-      await session.save();
+      await SkillTestSession.findOneAndUpdate(
+        { _id: session._id, isSubmitted: false },
+        { $set: { isSubmitted: true, submittedAt: new Date(), score: 0, passed: false } }
+      );
 
       const cooldownUntil = new Date(Date.now() + settings.skillTestCooldownHours * 3600 * 1000);
       await TestAttempt.create({
@@ -142,34 +211,85 @@ export const submitSkillTest = async (req, res, next) => {
       });
     }
 
-    // Reject answers for questions not in the session
+    // Fix 1: Rigorous Answer Validation
     const sessionQIdStrings = session.questionIds.map((id) => String(id));
     const submittedAnswers = Array.isArray(answers) ? answers : [];
-    const hasInvalidQuestion = submittedAnswers.some((a) => !sessionQIdStrings.includes(String(a.questionId)));
 
-    if (hasInvalidQuestion) {
+    // Reject if more answers than assigned questions
+    if (submittedAnswers.length > sessionQIdStrings.length) {
       return res.status(400).json({
         success: false,
-        message: 'Submitted answers contain questions that were not assigned in this session.',
+        message: `Submitted answers count (${submittedAnswers.length}) exceeds assigned questions (${sessionQIdStrings.length}).`,
       });
     }
 
-    // Grade answers against DB questions
+    const seenQIds = new Set();
+    for (const ans of submittedAnswers) {
+      const qIdStr = String(ans.questionId);
+
+      // Reject duplicate questionIds (e.g. submitting multiple options for same question)
+      if (seenQIds.has(qIdStr)) {
+        return res.status(400).json({
+          success: false,
+          message: `Duplicate answers submitted for question '${qIdStr}'. Exactly one answer per question is allowed.`,
+        });
+      }
+      seenQIds.add(qIdStr);
+
+      // Reject unknown questionId
+      if (!sessionQIdStrings.includes(qIdStr)) {
+        return res.status(400).json({
+          success: false,
+          message: `Question '${qIdStr}' was not assigned in this session.`,
+        });
+      }
+
+      // Reject selectedIndex if not integer 0 to 3
+      if (
+        typeof ans.selectedIndex !== 'number' ||
+        !Number.isInteger(ans.selectedIndex) ||
+        ans.selectedIndex < 0 ||
+        ans.selectedIndex > 3
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid selectedIndex for question '${qIdStr}'. Must be an integer between 0 and 3.`,
+        });
+      }
+    }
+
+    // Fix 3: ATOMIC SUBMISSION (flip isSubmitted atomically)
+    const atomicSession = await SkillTestSession.findOneAndUpdate(
+      { _id: session._id, isSubmitted: false },
+      { $set: { isSubmitted: true, submittedAt: new Date() } },
+      { new: true }
+    );
+
+    if (!atomicSession) {
+      return res.status(400).json({
+        success: false,
+        message: 'This test session has already been submitted and cannot be retaken.',
+      });
+    }
+
+    // Grade answers against DB questions (missing answers count as wrong)
     const questionDocs = await Question.find({ _id: { $in: session.questionIds } }).select('+correctIndex +explanation');
     const questionMap = new Map();
     questionDocs.forEach((q) => questionMap.set(String(q._id), q));
 
+    const answerMap = new Map();
+    submittedAnswers.forEach((a) => answerMap.set(String(a.questionId), a.selectedIndex));
+
     let correctCount = 0;
     const weakTopics = [];
 
-    submittedAnswers.forEach((ans) => {
-      const q = questionMap.get(String(ans.questionId));
-      if (q) {
-        if (Number(ans.selectedIndex) === q.correctIndex) {
-          correctCount++;
-        } else {
-          weakTopics.push(q.questionText);
-        }
+    session.questionIds.forEach((qId) => {
+      const q = questionMap.get(String(qId));
+      const userSelected = answerMap.get(String(qId));
+      if (q && userSelected !== undefined && userSelected === q.correctIndex) {
+        correctCount++;
+      } else if (q) {
+        weakTopics.push(q.questionText);
       }
     });
 
@@ -231,11 +351,9 @@ export const submitSkillTest = async (req, res, next) => {
       cooldownUntil,
     });
 
-    session.isSubmitted = true;
-    session.submittedAt = new Date();
-    session.score = scorePercent;
-    session.passed = passed;
-    await session.save();
+    atomicSession.score = scorePercent;
+    atomicSession.passed = passed;
+    await atomicSession.save();
 
     res.status(200).json({
       success: true,
@@ -254,4 +372,3 @@ export const submitSkillTest = async (req, res, next) => {
     next(err);
   }
 };
-

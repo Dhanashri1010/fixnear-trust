@@ -248,6 +248,21 @@ npm run create-test-provider
 npm run load-data
 ```
 
+### 9. Private KYC Documents & PDF Uploads (Cloudinary Integration)
+FixNear Trust supports authenticated private document uploads for provider Aadhaar cards, Voter IDs, and trade certificates (supporting images and PDFs up to 5 MB):
+1. In `server/.env`, specify your Cloudinary credentials:
+   ```env
+   CLOUDINARY_CLOUD_NAME=your_cloud_name
+   CLOUDINARY_API_KEY=your_api_key
+   CLOUDINARY_API_SECRET=your_api_secret
+   ```
+2. When uploading a PDF via `POST /api/upload/private`:
+   - PDFs are stored as `resource_type: "raw"` under `fixnear_kyc_private/<userId>/` with `type: "authenticated"`.
+   - Access is restricted: files are not publicly accessible via static CDN URLs.
+   - When the technician or platform admin accesses `GET /api/providers/documents/:type`, a short-lived HMAC-signed URL with 10-minute expiry is generated, allowing seamless in-browser PDF preview.
+3. In local development/testing without Cloudinary credentials:
+   - Files are stored securely on local disk under `server/uploads-private/<userId>/` (git-ignored) and streamed safely through the authenticated route `GET /api/providers/documents/:type/file`.
+
 ---
 
 ## 🔒 Security Rules & Production Safety

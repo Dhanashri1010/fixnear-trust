@@ -1,6 +1,6 @@
 // ===================================================================
 // FixNear Trust - Modern, High-Simplicity Sign Up Page
-// Role Selection (Customer vs Service Provider) + Firebase Registration
+// Role Selection (Customer vs Service Provider) + Account Registration
 // ===================================================================
 
 import React, { useState } from 'react';

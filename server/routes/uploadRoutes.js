@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { authenticate, authorize } from '../middleware/auth.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = Router();
 
@@ -89,30 +95,51 @@ router.post('/upload', authenticate, upload.array('photos', 3), async (req, res,
   }
 });
 
-// POST /api/upload/private (ID proof / Certificate - private/authenticated)
+// POST /api/upload/private (ID proof / Certificate - private/authenticated per-user folder)
 router.post('/upload/private', authenticate, authorize('provider', 'admin'), privateDocUpload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded.' });
     }
 
+    const isPdf = req.file.mimetype === 'application/pdf';
+    const resourceType = isPdf ? 'raw' : 'image';
+    const ext = isPdf ? '.pdf' : path.extname(req.file.originalname) || '.jpg';
+    const userFolder = `fixnear_kyc_private/${req.user._id}`;
+
     if (!isCloudinaryConfigured()) {
-      // Local development / fallback simulation for private file
-      const simulatedPublicId = `private_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(503).json({
+          success: false,
+          message: 'Private document upload storage is not configured in production.',
+        });
+      }
+
+      // Development / Test local storage: store under server/uploads-private/<userId>/
+      const userDir = path.resolve(__dirname, '../uploads-private', String(req.user._id));
+      if (!fs.existsSync(userDir)) {
+        fs.mkdirSync(userDir, { recursive: true });
+      }
+      const filename = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 8)}${ext}`;
+      const filePath = path.join(userDir, filename);
+      fs.writeFileSync(filePath, req.file.buffer);
+
+      const publicId = `${userFolder}/${filename}`;
       return res.status(200).json({
         success: true,
-        publicId: simulatedPublicId,
-        url: `/api/providers/documents/${simulatedPublicId}`,
-        message: 'File securely recorded (local private simulation).',
+        publicId,
+        resourceType,
+        url: `/api/providers/documents/idProof/file`,
+        message: 'File saved securely to local private storage.',
       });
     }
 
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
-          folder: 'fixnear_kyc_private',
+          folder: userFolder,
           type: 'authenticated', // Private authenticated asset
-          resource_type: req.file.mimetype === 'application/pdf' ? 'raw' : 'image',
+          resource_type: resourceType,
         },
         (error, res) => {
           if (error) return reject(error);
@@ -125,6 +152,7 @@ router.post('/upload/private', authenticate, authorize('provider', 'admin'), pri
     res.status(200).json({
       success: true,
       publicId: result.public_id,
+      resourceType,
       url: result.secure_url,
     });
   } catch (err) {
@@ -133,4 +161,3 @@ router.post('/upload/private', authenticate, authorize('provider', 'admin'), pri
 });
 
 export default router;
-

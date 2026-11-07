@@ -56,6 +56,11 @@ const providerSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    idProofResourceType: {
+      type: String,
+      enum: ['image', 'raw', ''],
+      default: 'image',
+    },
     certificateUrl: {
       type: String,
       default: '',
@@ -63,6 +68,11 @@ const providerSchema = new mongoose.Schema(
     certificatePublicId: {
       type: String,
       default: '',
+    },
+    certificateResourceType: {
+      type: String,
+      enum: ['image', 'raw', ''],
+      default: 'image',
     },
     status: {
       type: String,

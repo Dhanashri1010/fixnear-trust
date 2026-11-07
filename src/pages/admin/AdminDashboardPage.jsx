@@ -17,12 +17,27 @@ import AdminApprovalsDesk from '../../components/admin/AdminApprovalsDesk';
 import AdminProvidersDesk from '../../components/admin/AdminProvidersDesk';
 import AdminDisputesDesk from '../../components/admin/AdminDisputesDesk';
 import AdminServicesDesk from '../../components/admin/AdminServicesDesk';
-import AdminQuestionsDesk from '../../components/admin/AdminQuestionsDesk';
 import AdminReviewsDesk from '../../components/admin/AdminReviewsDesk';
+
+function AdminQuestionsPlaceholder() {
+  return (
+    <div className="card text-center" style={{ padding: '60px 24px', backgroundColor: '#FFFFFF', borderRadius: '16px' }}>
+      <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>
+        Question Bank Management
+      </h3>
+      <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '480px', margin: '0 auto 16px' }}>
+        Skill test question curation and threshold configuration desk is coming in the next update (Phase D). Examination questions are securely managed and graded on the server.
+      </p>
+      <span className="badge badge-neutral" style={{ padding: '6px 14px', fontSize: '0.85rem' }}>
+        Coming in Phase D
+      </span>
+    </div>
+  );
+}
 
 export default function AdminDashboardPage() {
   const location = useLocation();
-  const { userProfile, logOut, isLiveFirebaseConfigured } = useAuth();
+  const { userProfile, logOut } = useAuth();
   const { isDemoMode } = useStore();
 
   const pathname = location.pathname.replace(/\/$/, '');
@@ -38,7 +53,7 @@ export default function AdminDashboardPage() {
       case '/admin/services':
         return <AdminServicesDesk />;
       case '/admin/questions':
-        return <AdminQuestionsDesk />;
+        return <AdminQuestionsPlaceholder />;
       case '/admin/reviews':
         return <AdminReviewsDesk />;
       case '/admin':
@@ -89,7 +104,7 @@ export default function AdminDashboardPage() {
                 </span>
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Central Operations & Trust Mediation Desk • {isLiveFirebaseConfigured ? 'Firebase Live Connected' : 'Local Sandbox Mode'}
+                Central Operations & Trust Mediation Desk • FixNear Trust Platform Ops
               </div>
             </div>
           </div>

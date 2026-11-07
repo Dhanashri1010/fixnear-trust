@@ -57,6 +57,11 @@ export const servicesAPI = {
 export const providersAPI = {
   getProviders: (params) => api.get('/providers', { params }),
   getProviderById: (id) => api.get(`/providers/${id}`),
+  getMyProfile: () => api.get('/providers/me'),
+  registerProfile: (data) => api.post('/providers/register', data),
+  updateOnlineStatus: (isOnline) => api.patch('/providers/me/status', { isOnline }),
+  getPrivateDocumentSignedUrl: (type, providerId) =>
+    api.get(`/providers/documents/${type}${providerId ? `?providerId=${providerId}` : ''}`),
 };
 
 // Bookings API
@@ -66,11 +71,24 @@ export const bookingsAPI = {
   getBookingById: (id) => api.get(`/bookings/${id}`),
   cancelBooking: (id, reason) => api.patch(`/bookings/${id}/cancel`, { reason }),
   rescheduleBooking: (id, data) => api.patch(`/bookings/${id}/reschedule`, data),
+  createQuotation: (id, payload) => api.post(`/bookings/${id}/quotation`, payload),
   approveQuotation: (id) => api.patch(`/bookings/${id}/quotation/approve`),
   declineQuotation: (id) => api.patch(`/bookings/${id}/quotation/decline`),
   submitReview: (id, data) => api.post(`/bookings/${id}/review`, data),
   submitComplaint: (id, data) => api.post(`/bookings/${id}/complaint`, data),
   updateStatus: (id, status, finishCode) => api.patch(`/bookings/${id}/status`, { status, finishCode }),
+  declineBooking: (id) => api.patch(`/bookings/${id}/decline`),
+};
+
+// Skill Test API
+export const skillTestAPI = {
+  startTest: (categoryId) => api.get(`/skill-test/${categoryId}`),
+  submitTest: (categoryId, payload) => api.post(`/skill-test/${categoryId}/submit`, payload),
+};
+
+// Platform Settings API
+export const settingsAPI = {
+  getSettings: () => api.get('/settings'),
 };
 
 // Notifications API

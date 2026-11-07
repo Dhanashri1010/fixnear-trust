@@ -16,7 +16,6 @@ import {
   Globe,
   Check
 } from 'lucide-react';
-import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
 import { setLanguage, getLanguage, t } from '../../i18n/translations';
 import AvatarDropdown from './AvatarDropdown';
@@ -35,7 +34,6 @@ const MAJOR_CITIES = [
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setActiveUserAction, activeBookingId } = useStore();
   const { currentUser, userProfile, role, selectedCity, setSelectedCity } = useAuth();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -274,7 +272,7 @@ export default function Navbar() {
           </Link>
 
           <Link
-            to={activeBookingId ? `/track/${activeBookingId}` : '/bookings'}
+            to="/bookings"
             style={{
               fontSize: '13.5px',
               fontWeight: location.pathname.startsWith('/track') ? 700 : 600,
@@ -414,7 +412,6 @@ export default function Navbar() {
               <AvatarDropdown
                 isOpen={isDropdownOpen}
                 onClose={() => setIsDropdownOpen(false)}
-                onSelectOption={(action) => setActiveUserAction(action)}
               />
             </div>
           ) : (

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { useToast } from '../../context/ToastContext';
+import InitialsAvatar from '../common/InitialsAvatar';
 
 export default function AdminProvidersDesk() {
   const { technicians, suspendProvider, reinstateProvider, categories } = useStore();
@@ -240,10 +241,10 @@ export default function AdminProvidersDesk() {
                       {/* Specialist Name & Phone */}
                       <td style={{ padding: '16px 20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <img
-                            src={tech.avatar || "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=120&q=80"}
-                            alt={tech.name}
-                            style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
+                          <InitialsAvatar
+                            name={tech.name}
+                            avatarUrl={tech.avatar}
+                            size={40}
                           />
                           <div>
                             <strong style={{ fontSize: '14px', color: 'var(--forest-900)' }}>
