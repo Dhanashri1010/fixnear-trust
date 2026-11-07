@@ -23,7 +23,7 @@ const createBookingSchema = z.object({
   body: z.object({
     serviceId: z.string().min(1, 'Service ID is required'),
     address: z.string().min(5, 'Address must be at least 5 characters'),
-    city: z.string().min(2, 'City is required'),
+    city: z.string().min(2, 'City is required').max(60, 'City name cannot exceed 60 characters'),
     scheduledDate: z.string().min(1, 'Scheduled date is required'),
     timeSlot: z.string().min(1, 'Time slot is required'),
     notes: z.string().optional(),

@@ -1,6 +1,7 @@
 import { Service } from '../models/Service.js';
 import { Category } from '../models/Category.js';
 import { Review } from '../models/Review.js';
+import { escapeRegex } from '../utils/escapeRegex.js';
 import mongoose from 'mongoose';
 
 export const getCategories = async (req, res, next) => {
@@ -28,7 +29,7 @@ export const getServices = async (req, res, next) => {
     }
 
     if (search) {
-      const regex = new RegExp(search, 'i');
+      const regex = new RegExp(escapeRegex(search), 'i');
       filter.$or = filter.$or
         ? [{ $and: [filter, { $or: [{ title: regex }, { category: regex }, { features: regex }] }] }]
         : [{ title: regex }, { category: regex }, { features: regex }];

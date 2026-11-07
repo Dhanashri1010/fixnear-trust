@@ -25,7 +25,7 @@ const registerSchema = z.object({
       .regex(/^(?=.*[A-Za-z])(?=.*\d)/, 'Password must contain at least one letter and one number'),
     role: z.enum(['customer', 'provider', 'admin']).optional(),
     phone: z.string().optional(),
-    city: z.string().optional(),
+    city: z.string().max(60, 'City name cannot exceed 60 characters').optional(),
   }),
 });
 

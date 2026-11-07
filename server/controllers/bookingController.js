@@ -6,6 +6,7 @@ import { Provider } from '../models/Provider.js';
 import { Review } from '../models/Review.js';
 import { Dispute } from '../models/Dispute.js';
 import { Notification } from '../models/Notification.js';
+import { escapeRegex } from '../utils/escapeRegex.js';
 import { io } from '../server.js';
 
 // Helper to create notifications and emit socket event
@@ -82,14 +83,18 @@ export const createBooking = async (req, res, next) => {
 
     // 2. Check for an approved, online provider whose skill matches the service in this city
     // (Strict: removed fallback that picks any provider in the city)
+    const escapedCity = escapeRegex(bookingCity);
+    const escapedCategory = escapeRegex(service.category);
+    const escapedSpecialty = escapeRegex(service.category || service.categoryId);
+
     const providerQuery = {
       status: 'approved',
       isOnline: true,
-      city: new RegExp(`^${bookingCity}$`, 'i'),
+      city: new RegExp(`^${escapedCity}$`, 'i'),
       $or: [
         { 'skills.categoryId': service.categoryId },
-        { 'skills.categoryName': new RegExp(service.category, 'i') },
-        { specialty: new RegExp(service.category || service.categoryId, 'i') },
+        { 'skills.categoryName': new RegExp(escapedCategory, 'i') },
+        { specialty: new RegExp(escapedSpecialty, 'i') },
       ],
     };
 
@@ -237,7 +242,7 @@ export const getMyBookings = async (req, res, next) => {
       const { status, city } = req.query;
       const filter = {};
       if (status) filter.status = status;
-      if (city) filter.city = new RegExp(`^${city}$`, 'i');
+      if (city) filter.city = new RegExp(`^${escapeRegex(city.trim())}$`, 'i');
       bookings = await Booking.find(filter).sort({ createdAt: -1 });
     }
 
@@ -877,7 +882,7 @@ export const updateBookingStatus = async (req, res, next) => {
             (s.categoryId === service?.categoryId ||
               s.categoryName?.toLowerCase() === service?.category?.toLowerCase())
         ) ||
-        (service && new RegExp(service.category || service.categoryId, 'i').test(providerDoc.specialty));
+        (service && new RegExp(escapeRegex(service.category || service.categoryId), 'i').test(providerDoc.specialty));
 
       if (!hasSkill) {
         return res.status(400).json({
@@ -1168,11 +1173,11 @@ export const offerBookingToNextProvider = async (bookingId) => {
     _id: { $nin: alreadyOfferedIds },
     status: 'approved',
     isOnline: true,
-    city: new RegExp(`^${booking.city.trim()}$`, 'i'),
+    city: new RegExp(`^${escapeRegex(booking.city.trim())}$`, 'i'),
     $or: [
       { 'skills.categoryId': service.categoryId },
-      { 'skills.categoryName': new RegExp(service.category, 'i') },
-      { specialty: new RegExp(service.category || service.categoryId, 'i') },
+      { 'skills.categoryName': new RegExp(escapeRegex(service.category), 'i') },
+      { specialty: new RegExp(escapeRegex(service.category || service.categoryId), 'i') },
     ],
   };
 
@@ -1180,10 +1185,13 @@ export const offerBookingToNextProvider = async (bookingId) => {
 
   if (nextProviders.length > 0) {
     const nextProvider = nextProviders[0];
+    // Conditional update: only add offer if status is REQUESTED, NO pending offer exists, and provider not already offered
     const updated = await Booking.findOneAndUpdate(
       {
         _id: booking._id,
         status: 'REQUESTED',
+        'offeredTo.status': { $ne: 'PENDING' },
+        'offeredTo.providerId': { $ne: nextProvider._id },
       },
       {
         $push: {
@@ -1200,37 +1208,41 @@ export const offerBookingToNextProvider = async (bookingId) => {
       { new: true }
     );
 
-    if (updated) {
-      if (io) {
-        // Send to provider's user room only with masked privacy details
-        io.to(`user_${nextProvider.userId}`).emit('new_job_offered', {
-          bookingId: updated.bookingId,
-          serviceTitle: updated.serviceTitle,
-          city: updated.city,
-          area: updated.address ? updated.address.split(',')[0].trim() : updated.city,
-          scheduledDate: updated.scheduledDate,
-          timeSlot: updated.timeSlot,
-          price: updated.basePrice,
-          expiresInSeconds: 60,
-        });
-      }
+    if (!updated) {
+      return null; // Another process already made the offer
+    }
 
-      await notifyUser({
-        userId: nextProvider.userId,
-        role: 'provider',
-        title: 'New Service Request Offered',
-        message: `A new job for ${updated.serviceTitle} in ${updated.city} is offered to you (₹${updated.basePrice}). You have 60 seconds to accept.`,
-        type: 'booking',
-        link: '/provider/dashboard',
+    if (io) {
+      // Send to provider's user room only with masked privacy details
+      io.to(`user_${nextProvider.userId}`).emit('new_job_offered', {
+        bookingId: updated.bookingId,
+        serviceTitle: updated.serviceTitle,
+        city: updated.city,
+        area: updated.address ? updated.address.split(',')[0].trim() : updated.city,
+        scheduledDate: updated.scheduledDate,
+        timeSlot: updated.timeSlot,
+        price: updated.basePrice,
+        expiresInSeconds: 60,
       });
     }
+
+    await notifyUser({
+      userId: nextProvider.userId,
+      role: 'provider',
+      title: 'New Service Request Offered',
+      message: `A new job for ${updated.serviceTitle} in ${updated.city} is offered to you (₹${updated.basePrice}). You have 60 seconds to accept.`,
+      type: 'booking',
+      link: '/provider/dashboard',
+    });
+
     return updated;
   } else {
-    // No more eligible providers exist
+    // No more eligible providers exist - conditional: never set NO_PROVIDER_FOUND while a PENDING offer exists
     const updated = await Booking.findOneAndUpdate(
       {
         _id: booking._id,
         status: 'REQUESTED',
+        'offeredTo.status': { $ne: 'PENDING' },
       },
       {
         $set: {
@@ -1241,24 +1253,27 @@ export const offerBookingToNextProvider = async (bookingId) => {
       { new: true }
     );
 
-    if (updated) {
-      if (io) {
-        io.to(`user_${updated.customerId}`).emit('booking_updated', updated);
-        io.to(`booking_${updated._id}`).emit('booking_status_updated', {
-          bookingId: updated._id,
-          status: 'NO_PROVIDER_FOUND',
-        });
-      }
+    if (!updated) {
+      return null;
+    }
 
-      await notifyUser({
-        userId: updated.customerId,
-        role: 'customer',
-        title: 'No Technician Available',
-        message: `We could not find an available technician for your booking #${updated.bookingId} right now. Please choose another date or time slot.`,
-        type: 'booking',
-        link: `/track/${updated._id}`,
+    if (io) {
+      io.to(`user_${updated.customerId}`).emit('booking_updated', updated);
+      io.to(`booking_${updated._id}`).emit('booking_status_updated', {
+        bookingId: updated._id,
+        status: 'NO_PROVIDER_FOUND',
       });
     }
+
+    await notifyUser({
+      userId: updated.customerId,
+      role: 'customer',
+      title: 'No Technician Available',
+      message: `We could not find an available technician for your booking #${updated.bookingId} right now. Please choose another date or time slot.`,
+      type: 'booking',
+      link: `/track/${updated._id}`,
+    });
+
     return updated;
   }
 };
@@ -1272,24 +1287,40 @@ export const checkExpiredOffers = async () => {
     });
 
     for (const b of expiredBookings) {
-      // Atomically mark any PENDING offer as EXPIRED
-      const updated = await Booking.findOneAndUpdate(
-        {
-          _id: b._id,
-          status: 'REQUESTED',
-          currentOfferExpiresAt: { $lte: new Date() },
-          'offeredTo.status': 'PENDING',
-        },
-        {
-          $set: {
-            'offeredTo.$.status': 'EXPIRED',
-          },
-        },
-        { new: true }
-      );
+      try {
+        const hasPendingOffer = (b.offeredTo || []).some((o) => o.status === 'PENDING');
 
-      if (updated) {
-        await offerBookingToNextProvider(updated._id);
+        if (hasPendingOffer) {
+          // Case (a): Bookings with a PENDING offer whose time is over -> mark EXPIRED and re-offer
+          const updated = await Booking.findOneAndUpdate(
+            {
+              _id: b._id,
+              status: 'REQUESTED',
+              currentOfferExpiresAt: { $lte: new Date() },
+              offeredTo: {
+                $elemMatch: {
+                  status: 'PENDING',
+                },
+              },
+            },
+            {
+              $set: {
+                'offeredTo.$.status': 'EXPIRED',
+              },
+            },
+            { new: true }
+          );
+
+          if (updated) {
+            await offerBookingToNextProvider(updated._id);
+          }
+        } else {
+          // Case (b): Bookings with status REQUESTED whose currentOfferExpiresAt is over and that have NO pending offer
+          // Call offerBookingToNextProvider directly to recover stuck bookings
+          await offerBookingToNextProvider(b._id);
+        }
+      } catch (bookingErr) {
+        console.error(`[Offer Expiry Error on Booking ${b._id}]:`, bookingErr.message);
       }
     }
   } catch (err) {

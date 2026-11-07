@@ -36,6 +36,7 @@ const providerSchema = new mongoose.Schema(
         categoryName: String,
         testScore: Number,
         passed: Boolean,
+        badge: String,
         verifiedAt: Date,
       },
     ],
@@ -43,7 +44,15 @@ const providerSchema = new mongoose.Schema(
       type: Number,
       default: 3,
     },
+    serviceArea: {
+      type: String,
+      default: '',
+    },
     idProofUrl: {
+      type: String,
+      default: '',
+    },
+    idProofPublicId: {
       type: String,
       default: '',
     },
@@ -51,10 +60,14 @@ const providerSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    certificatePublicId: {
+      type: String,
+      default: '',
+    },
     status: {
       type: String,
-      enum: ['waiting_for_approval', 'approved', 'rejected', 'more_info_needed', 'suspended'],
-      default: 'waiting_for_approval',
+      enum: ['take_skill_test', 'waiting_for_approval', 'approved', 'rejected', 'more_info_needed', 'suspended'],
+      default: 'take_skill_test',
     },
     adminNotes: {
       type: String,

@@ -38,6 +38,14 @@ const testAttemptSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    badge: {
+      type: String,
+      default: '',
+    },
+    weakTopics: {
+      type: [String],
+      default: [],
+    },
     warningCount: {
       type: Number,
       default: 0,

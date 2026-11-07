@@ -1109,4 +1109,179 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     expect(finalBooking.currentOfferExpiresAt).toBeNull();
   });
 
+  // 12. Fix 3: Special characters in city like "Mum(bai" do not crash regex, and city > 60 chars is rejected
+  it('handles regex special characters safely in city/search and rejects city length > 60 characters', async () => {
+    // Register customer
+    const custRes = await request(app).post('/api/auth/register').send({
+      name: 'Regex User',
+      email: 'regex@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543130',
+      city: 'Mum(bai',
+      role: 'customer',
+    });
+    expect(custRes.status).toBe(201);
+    const cookie = custRes.headers['set-cookie'];
+
+    // Create service
+    const service = await Service.create({
+      serviceId: 'regex-test-service',
+      categoryId: 'electrical',
+      category: 'Electrical',
+      title: 'AC Voltage Check (50Hz)',
+      startingPrice: 399,
+      isActive: true,
+    });
+
+    // Create provider in "Mum(bai"
+    const provUser = await User.create({
+      name: 'Special Char Tech',
+      email: 'special@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543131',
+      city: 'Mum(bai',
+      role: 'provider',
+    });
+    await Provider.create({
+      userId: provUser._id,
+      name: provUser.name,
+      email: provUser.email,
+      phone: provUser.phone,
+      city: 'Mum(bai',
+      specialty: 'Electrical',
+      skills: [{ categoryId: 'electrical', categoryName: 'Electrical', passed: true, testScore: 90 }],
+      status: 'approved',
+      isOnline: true,
+    });
+
+    // Query providers with city="Mum(bai" -> does not crash!
+    const provListRes = await request(app).get('/api/providers?city=Mum(bai');
+    expect(provListRes.status).toBe(200);
+    expect(provListRes.body.count).toBe(1);
+
+    // Book service in "Mum(bai" -> succeeds cleanly
+    const bookRes = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', cookie)
+      .send({
+        serviceId: service.serviceId,
+        address: 'Sector 4, Mum(bai',
+        city: 'Mum(bai',
+        scheduledDate: '2026-12-30',
+        timeSlot: 'Morning (10:00 AM - 01:00 PM)',
+        problemNote: 'Voltage fluctuation',
+      });
+    expect(bookRes.status).toBe(201);
+
+    // City longer than 60 characters is rejected by validation with 400
+    const longCity = 'A'.repeat(61);
+    const badCityRes = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', cookie)
+      .send({
+        serviceId: service.serviceId,
+        address: 'Some address',
+        city: longCity,
+        scheduledDate: '2026-12-30',
+        timeSlot: 'Morning (10:00 AM - 01:00 PM)',
+      });
+    expect(badCityRes.status).toBe(400);
+    expect(badCityRes.body.message).toContain('City name cannot exceed 60 characters');
+  });
+
+  // 13. Fix 1: Concurrent decline + expiry creates exactly one new offer
+  it('prevents double-dispatch: concurrent decline and expiry race creates exactly one new offer', async () => {
+    // Setup Provider 1 (Rating 5.0), Provider 2 (Rating 4.8), Provider 3 (Rating 4.5)
+    const u1 = await User.create({ name: 'Tech One', email: 't1@fixnear.com', password: 'SecurePass123', phone: '9876543141', city: 'Mumbai', role: 'provider' });
+    const p1 = await Provider.create({ userId: u1._id, name: u1.name, email: u1.email, phone: u1.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 95 }], status: 'approved', isOnline: true, ratingAvg: 5.0, jobsDone: 10 });
+    const log1 = await request(app).post('/api/auth/login').send({ email: 't1@fixnear.com', password: 'SecurePass123' });
+    const c1 = log1.headers['set-cookie'];
+
+    const u2 = await User.create({ name: 'Tech Two', email: 't2@fixnear.com', password: 'SecurePass123', phone: '9876543142', city: 'Mumbai', role: 'provider' });
+    const p2 = await Provider.create({ userId: u2._id, name: u2.name, email: u2.email, phone: u2.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 90 }], status: 'approved', isOnline: true, ratingAvg: 4.8, jobsDone: 8 });
+
+    const u3 = await User.create({ name: 'Tech Three', email: 't3@fixnear.com', password: 'SecurePass123', phone: '9876543143', city: 'Mumbai', role: 'provider' });
+    await Provider.create({ userId: u3._id, name: u3.name, email: u3.email, phone: u3.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 85 }], status: 'approved', isOnline: true, ratingAvg: 4.5, jobsDone: 5 });
+
+    const cust = await request(app).post('/api/auth/register').send({ name: 'Customer Race', email: 'race@fixnear.com', password: 'SecurePass123', phone: '9876543144', city: 'Mumbai', role: 'customer' });
+    const custCookie = cust.headers['set-cookie'];
+
+    const service = await Service.create({ serviceId: 'pipe-fix-race', categoryId: 'plumbing', category: 'Plumbing', title: 'Pipe Fix Race', startingPrice: 399, isActive: true });
+
+    const bookRes = await request(app).post('/api/bookings').set('Cookie', custCookie).send({
+      serviceId: service.serviceId, address: 'Andheri West, Mumbai', city: 'Mumbai', scheduledDate: '2026-12-31', timeSlot: 'Morning (10:00 AM - 01:00 PM)',
+    });
+    const bookingId = bookRes.body.booking._id;
+
+    // Simulate offer expiration time reached
+    await Booking.findByIdAndUpdate(bookingId, { currentOfferExpiresAt: new Date(Date.now() - 1000) });
+
+    // Race: Provider 1 declines while checkExpiredOffers runs simultaneously
+    await Promise.all([
+      request(app).patch(`/api/bookings/${bookingId}/decline`).set('Cookie', c1),
+      checkExpiredOffers(),
+    ]);
+
+    // Check DB: Exactly one new offer to Provider 2 was added (total offers = 2)
+    const raceBooking = await Booking.findById(bookingId);
+    expect(raceBooking.status).toBe('REQUESTED');
+    expect(raceBooking.offeredTo.length).toBe(2);
+    // Provider 2 is the ONLY pending offer
+    const pendingOffers = raceBooking.offeredTo.filter(o => o.status === 'PENDING');
+    expect(pendingOffers.length).toBe(1);
+    expect(String(pendingOffers[0].providerId)).toBe(String(p2._id));
+  });
+
+  // 14. Fix 2: Stuck expired booking with no pending offer gets re-offered
+  it('automatically recovers a stuck expired booking with no pending offer and re-offers to next provider', async () => {
+    // Setup Provider 1 (already declined) & Provider 2 (eligible)
+    const u1 = await User.create({ name: 'Stuck P1', email: 'stuck1@fixnear.com', password: 'SecurePass123', phone: '9876543151', city: 'Mumbai', role: 'provider' });
+    const p1 = await Provider.create({ userId: u1._id, name: u1.name, email: u1.email, phone: u1.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 92 }], status: 'approved', isOnline: true });
+
+    const u2 = await User.create({ name: 'Stuck P2', email: 'stuck2@fixnear.com', password: 'SecurePass123', phone: '9876543152', city: 'Mumbai', role: 'provider' });
+    const p2 = await Provider.create({ userId: u2._id, name: u2.name, email: u2.email, phone: u2.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 89 }], status: 'approved', isOnline: true });
+
+    const cust = await request(app).post('/api/auth/register').send({ name: 'Stuck Cust', email: 'stuckcust@fixnear.com', password: 'SecurePass123', phone: '9876543153', city: 'Mumbai', role: 'customer' });
+
+    const service = await Service.create({ serviceId: 'stuck-recovery-service', categoryId: 'plumbing', category: 'Plumbing', title: 'Stuck Recovery Service', startingPrice: 299, isActive: true });
+
+    // Manually create a "stuck" booking: status REQUESTED, offer expired, NO pending offer
+    const stuckBooking = await Booking.create({
+      bookingId: 'FX-STUCK1',
+      customerId: cust.body.user ? cust.body.user.id : new mongoose.Types.ObjectId(),
+      customerName: 'Stuck Cust',
+      customerPhone: '9876543153',
+      providerId: null,
+      providerName: '',
+      providerPhone: '',
+      serviceId: service.serviceId,
+      serviceTitle: service.title,
+      basePrice: service.startingPrice,
+      address: 'Dadar, Mumbai',
+      city: 'Mumbai',
+      scheduledDate: '2026-12-31',
+      timeSlot: 'Morning (10:00 AM - 01:00 PM)',
+      status: 'REQUESTED',
+      completionOtp: '4567',
+      currentOfferExpiresAt: new Date(Date.now() - 5000), // In past
+      offeredTo: [
+        {
+          providerId: p1._id,
+          offeredAt: new Date(Date.now() - 70000),
+          status: 'EXPIRED', // No PENDING offer
+        },
+      ],
+      timeline: [],
+    });
+
+    // Run checkExpiredOffers -> Case (b) detects stuck booking and re-offers to Provider 2!
+    await checkExpiredOffers();
+
+    const recoveredBooking = await Booking.findById(stuckBooking._id);
+    expect(recoveredBooking.offeredTo.length).toBe(2);
+    expect(String(recoveredBooking.offeredTo[1].providerId)).toBe(String(p2._id));
+    expect(recoveredBooking.offeredTo[1].status).toBe('PENDING');
+    expect(new Date(recoveredBooking.currentOfferExpiresAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
 });

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Provider } from '../models/Provider.js';
 import { Review } from '../models/Review.js';
+import { escapeRegex } from '../utils/escapeRegex.js';
 
 export const getProviders = async (req, res, next) => {
   try {
@@ -9,15 +10,16 @@ export const getProviders = async (req, res, next) => {
     const filter = { status: 'approved' };
 
     if (city) {
-      filter.city = new RegExp(`^${city.trim()}$`, 'i');
+      filter.city = new RegExp(`^${escapeRegex(city.trim())}$`, 'i');
     }
 
     if (category || service) {
       const catVal = category || service;
+      const catRegex = new RegExp(escapeRegex(catVal), 'i');
       filter.$or = [
         { 'skills.categoryId': catVal },
-        { 'skills.categoryName': new RegExp(catVal, 'i') },
-        { specialty: new RegExp(catVal, 'i') },
+        { 'skills.categoryName': catRegex },
+        { specialty: catRegex },
       ];
     }
 
