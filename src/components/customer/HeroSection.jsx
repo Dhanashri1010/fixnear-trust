@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   ShieldCheck, 
@@ -7,11 +7,31 @@ import {
   Star, 
   ArrowRight, 
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Wrench
 } from 'lucide-react';
+import { providersAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import InitialsAvatar from '../common/InitialsAvatar';
 
 export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingModal }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [topProvider, setTopProvider] = useState(null);
+  const { selectedCity } = useAuth();
+
+  useEffect(() => {
+    let isMounted = true;
+    providersAPI.getProviders({ city: selectedCity || 'Mumbai' })
+      .then((res) => {
+        if (isMounted && res.success && res.providers && res.providers.length > 0) {
+          setTopProvider(res.providers[0]);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCity]);
 
   const quickPills = [
     { label: "AC Jet Service", category: "ac-cooling" },
@@ -43,7 +63,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                 FixNear Trust Standard
               </span>
               <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                3-Layer Vetting & Escrow Quotations
+                3-Layer Vetting & Payment Protection
               </span>
             </div>
 
@@ -90,7 +110,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                 <Search size={22} />
               </div>
               <input 
-                type="text"
+                type="text" 
                 placeholder="What needs repair? (e.g., Split AC, Pipe leak, MCB tripping)"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -98,46 +118,37 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                 style={{
                   flex: 1,
                   border: 'none',
+                  background: 'none',
                   outline: 'none',
                   fontSize: '15px',
-                  color: 'var(--text-primary)',
-                  backgroundColor: 'transparent'
+                  color: 'var(--text-primary)'
                 }}
               />
               <button 
-                className="btn btn-primary"
+                className="btn btn-primary btn-md"
                 onClick={() => onSearch(searchTerm)}
+                style={{ borderRadius: 'var(--radius-sm)' }}
               >
-                <span>Find Service</span>
-                <ArrowRight size={16} />
+                Find Specialist
               </button>
             </div>
 
-            {/* Quick Keyword Suggestions */}
+            {/* Quick Search Shortcut Tags */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                Trending:
-              </span>
-              {quickPills.map((pill, idx) => (
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>Popular:</span>
+              {quickPills.map((pill, i) => (
                 <button
-                  key={idx}
+                  key={i}
                   onClick={() => onSelectCategory(pill.category)}
                   style={{
-                    backgroundColor: 'var(--bg-warm-secondary)',
                     border: '1px solid var(--border-light)',
                     borderRadius: 'var(--radius-full)',
                     padding: '4px 12px',
+                    backgroundColor: 'var(--bg-warm-secondary)',
                     fontSize: '12.5px',
                     color: 'var(--text-secondary)',
-                    transition: 'all 150ms ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--forest-100)';
-                    e.currentTarget.style.color = 'var(--forest-800)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--bg-warm-secondary)';
-                    e.currentTarget.style.color = 'var(--text-secondary)';
+                    transition: 'all 150ms ease',
+                    cursor: 'pointer'
                   }}
                 >
                   {pill.label}
@@ -163,7 +174,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <BadgeCheck size={18} color="var(--forest-700)" />
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Police & KYC Vetted
+                  KYC Verified
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -176,10 +187,8 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
 
           </div>
 
-          {/* Right Column: High-Trust Visual Experience Card */}
+          {/* Right Column: Visual Experience Card */}
           <div style={{ position: 'relative' }}>
-            
-            {/* Primary Visual Showcase Card */}
             <div className="card" style={{
               padding: '24px',
               borderRadius: 'var(--radius-xl)',
@@ -199,49 +208,64 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                     backgroundColor: '#10B981'
                   }} />
                   <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-800)' }}>
-                    Instant Dispatch Available
+                    Verified Specialists Available
                   </span>
                 </div>
-                <span className="badge badge-yellow">
-                  ⭐ 4.91 / 5 Average Rating
+                <span className="badge badge-forest">
+                  ⭐ 4.95 / 5 Trust Rating
                 </span>
               </div>
 
-              {/* Sample Technician Spotlight Card in Hero */}
-              <div style={{
-                backgroundColor: 'var(--forest-50)',
-                borderRadius: 'var(--radius-md)',
-                padding: '16px',
-                border: '1px solid var(--forest-100)',
-                marginBottom: '20px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <img 
-                    src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80" 
-                    alt="Ramesh S." 
-                    style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover' }}
-                  />
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '16px' }}>Ramesh Sharma</span>
-                      <ShieldCheck size={16} color="var(--forest-700)" />
-                    </div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                      Senior Cooling & HVAC Specialist
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                      <span className="badge badge-forest" style={{ fontSize: '11px', padding: '1px 6px' }}>
-                        98% Trust Index
-                      </span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        1,420+ jobs completed
-                      </span>
+              {/* Verified Provider Showcase or Neutral Illustration */}
+              {topProvider ? (
+                <div style={{
+                  backgroundColor: 'var(--forest-50)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '16px',
+                  border: '1px solid var(--forest-100)',
+                  marginBottom: '20px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <InitialsAvatar name={topProvider.name} size={56} />
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 700, fontSize: '16px' }}>{topProvider.name}</span>
+                        <ShieldCheck size={16} color="var(--forest-700)" />
+                      </div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        {topProvider.specialty || 'Certified Specialist'} · {topProvider.city}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                        <span className="badge badge-forest" style={{ fontSize: '11px', padding: '1px 6px' }}>
+                          ★ {topProvider.ratingAvg} Rating
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {topProvider.jobsDone || 42}+ jobs completed
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div style={{
+                  backgroundColor: 'var(--forest-50)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '20px',
+                  border: '1px solid var(--forest-100)',
+                  marginBottom: '20px',
+                  textAlign: 'center'
+                }}>
+                  <ShieldCheck size={36} color="var(--forest-700)" style={{ margin: '0 auto 8px auto' }} />
+                  <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)' }}>
+                    Certified Trade Specialists
+                  </h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    Air Conditioning, Plumbing, Electrical & Home Care
+                  </p>
+                </div>
+              )}
 
-              {/* Sample Quotation Preview Box */}
+              {/* Transparent Rate Card Preview */}
               <div style={{
                 backgroundColor: '#FFFFFF',
                 borderRadius: 'var(--radius-md)',
@@ -251,37 +275,25 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Sample Transparent Quotation
+                    Transparent Standard Rate Card
                   </span>
-                  <span className="badge badge-sage" style={{ fontSize: '11px' }}>
-                    Fixed Standard Tier
+                  <span className="badge badge-forest" style={{ fontSize: '11px' }}>
+                    Fixed Standard
                   </span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                    <span>Deep Foam Jet Service (Split AC)</span>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>₹599</span>
+                    <span>Standard Inspection & Repair</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Starting ₹299</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                    <span>Comprehensive Diagnostics & Pressure Test</span>
+                    <span>Doorstep Visit & Evaluation</span>
                     <span style={{ color: 'var(--forest-700)', fontWeight: 600 }}>Included (₹0)</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                    <span>30-Day Free Rework Protection</span>
+                    <span>30-Day Workmanship Warranty</span>
                     <span style={{ color: 'var(--forest-700)', fontWeight: 600 }}>Included (₹0)</span>
-                  </div>
-                  <div style={{
-                    marginTop: '6px',
-                    paddingTop: '8px',
-                    borderTop: '1px dashed var(--border-light)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontWeight: 700,
-                    fontSize: '14px'
-                  }}>
-                    <span>Total Est. Upfront</span>
-                    <span style={{ color: 'var(--forest-800)' }}>₹599</span>
                   </div>
                 </div>
               </div>
@@ -289,19 +301,22 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
               {/* Primary Call to Action on Card */}
               <button 
                 className="btn btn-primary"
-                onClick={() => onOpenBookingModal(null)}
-                style={{ width: '100%', padding: '12px', fontSize: '15px' }}
+                onClick={() => onOpenBookingModal()}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  fontWeight: 700
+                }}
               >
-                <span>Book This Service (Demo Preview)</span>
+                <span>Book a Verified Specialist</span>
                 <ArrowRight size={16} />
               </button>
 
-              <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                * Visitors can freely test the booking steps without creating an account
-              </div>
-
             </div>
-
           </div>
 
         </div>

@@ -27,7 +27,9 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState('');
 
   // Destination after login
-  const from = location.state?.from?.pathname || null;
+  const searchParams = new URLSearchParams(location.search);
+  const redirectParam = searchParams.get('redirect');
+  const from = redirectParam || location.state?.from?.pathname || null;
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();

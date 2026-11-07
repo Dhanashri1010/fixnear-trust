@@ -4,7 +4,7 @@
 // ===================================================================
 
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { 
@@ -21,8 +21,12 @@ import {
 
 export default function SignUpPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signUpWithEmail } = useAuth();
   const { showToast } = useToast();
+
+  const searchParams = new URLSearchParams(location.search);
+  const redirectParam = searchParams.get('redirect');
 
   const [desiredRole, setDesiredRole] = useState('customer'); // 'customer' | 'provider'
   const [name, setName] = useState('');
@@ -40,8 +44,13 @@ export default function SignUpPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters.');
+    if (password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (!/^(?=.*[A-Za-z])(?=.*\d)/.test(password)) {
+      setErrorMessage('Password must contain at least one letter and one number.');
       return;
     }
 
@@ -54,6 +63,8 @@ export default function SignUpPage() {
       
       if (desiredRole === 'provider') {
         navigate('/provider/register');
+      } else if (redirectParam) {
+        navigate(redirectParam, { replace: true });
       } else {
         navigate('/');
       }

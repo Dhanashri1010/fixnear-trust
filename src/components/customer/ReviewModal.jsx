@@ -1,6 +1,6 @@
 // ===================================================================
 // FixNear Trust - Post-Completion Verified Customer Review Modal
-// 1-5 Star Rating + Short Written Feedback + Optional Photo Upload
+// 1-5 Star Rating + Written Feedback
 // ===================================================================
 
 import React, { useState } from 'react';
@@ -8,60 +8,52 @@ import {
   Star, 
   ShieldCheck, 
   X, 
-  Upload, 
   CheckCircle2, 
-  Sparkles, 
-  Image as ImageIcon 
+  AlertCircle
 } from 'lucide-react';
-import { useStore } from '../../context/StoreContext';
-import { useAuth } from '../../context/AuthContext';
+import { bookingsAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
-export default function ReviewModal({ isOpen, onClose, booking }) {
-  const { submitReview } = useStore();
-  const { userProfile, currentUser } = useAuth();
+export default function ReviewModal({ isOpen, onClose, booking, onReviewSubmitted }) {
   const { showToast } = useToast();
 
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
-  const [photoUrl, setPhotoUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   if (!isOpen || !booking) return null;
 
-  const proName = booking.technicianName || booking.providerName || "Technician";
+  const proName = booking.providerName || booking.technicianName || "Specialist";
   const serviceName = booking.serviceTitle || "Home Service";
-
-  const samplePhotoUploads = [
-    { label: "Serviced AC Unit", url: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=400&q=80" },
-    { label: "Clean Work Area", url: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=400&q=80" }
-  ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMsg('');
+
     if (!comment.trim()) {
-      showToast('Please write a brief feedback sentence about your service.', 'warning');
+      setErrorMsg('Please write a brief feedback sentence about your service.');
       return;
     }
 
     setSubmitting(true);
     try {
-      await submitReview({
-        bookingId: booking.id,
-        providerId: booking.providerId || booking.technicianId || "provider-demo-1",
+      const bookingId = booking._id || booking.id || booking.bookingId;
+      await bookingsAPI.submitReview(bookingId, {
         rating,
-        comment,
-        photoUrl,
-        authorName: userProfile?.name || currentUser?.displayName || "Aarav Patel",
-        serviceTitle: serviceName
+        comment: comment.trim(),
+        photos: [],
       });
 
       showToast('Thank you! Your verified rating & review has been published.', 'success');
+      if (onReviewSubmitted) onReviewSubmitted();
       onClose();
     } catch (err) {
-      console.error(err);
-      showToast('Failed to submit review. Try again.', 'error');
+      console.error('Review submit error:', err);
+      const msg = err.message || 'Failed to submit review. Please try again.';
+      setErrorMsg(msg);
+      showToast(msg, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -79,105 +71,103 @@ export default function ReviewModal({ isOpen, onClose, booking }) {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 2000,
+      zIndex: 1000,
       padding: '16px'
     }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '520px',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 'var(--radius-xl)',
-        boxShadow: 'var(--shadow-lg)',
-        border: '1px solid var(--border-light)',
-        overflow: 'hidden',
-        animation: 'fadeInSlide 180ms ease'
-      }}>
-        
-        {/* Modal Header */}
+      <div 
+        className="card"
+        style={{
+          width: '100%',
+          maxWidth: '520px',
+          backgroundColor: '#FFFFFF',
+          borderRadius: 'var(--radius-xl)',
+          boxShadow: 'var(--shadow-lg)',
+          border: '1px solid var(--border-light)',
+          animation: 'fadeInSlide 180ms ease'
+        }}
+      >
+        {/* Header */}
         <div style={{
           padding: '20px 24px',
           borderBottom: '1px solid var(--border-light)',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
-          backgroundColor: 'var(--bg-warm)'
+          alignItems: 'center'
         }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span className="badge badge-forest" style={{ fontSize: '11px' }}>
-                Verified Escrow Completed
-              </span>
-            </div>
-            <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '4px' }}>
-              Rate Your Experience
-            </h3>
+            <span className="badge badge-forest" style={{ fontSize: '11px', marginBottom: '4px' }}>
+              <ShieldCheck size={12} />
+              Verified Service Review
+            </span>
+            <h3 style={{ fontSize: '18px', fontWeight: 800 }}>Rate Your Experience</h3>
           </div>
 
-          <button
+          <button 
             type="button"
             onClick={onClose}
             style={{
               width: '32px',
               height: '32px',
               borderRadius: '50%',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid var(--border-light)',
+              backgroundColor: 'var(--bg-warm)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              border: 'none'
             }}
           >
             <X size={16} color="var(--text-secondary)" />
           </button>
         </div>
 
-        {/* Modal Form */}
-        <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Content */}
+        <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
           
-          {/* Specialist Summary */}
           <div style={{
-            padding: '12px 16px',
             backgroundColor: 'var(--bg-warm)',
             borderRadius: 'var(--radius-md)',
+            padding: '16px',
+            marginBottom: '20px',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            alignItems: 'center'
           }}>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-                Specialist
-              </div>
-              <strong style={{ fontSize: '15px', color: 'var(--forest-900)' }}>
-                {proName}
-              </strong>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                {serviceName}
+              <div style={{ fontWeight: 700, fontSize: '15px' }}>{serviceName}</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                Technician: <strong>{proName}</strong>
               </div>
             </div>
-
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '4px 8px',
-              backgroundColor: 'var(--forest-100)',
-              color: 'var(--forest-700)',
-              borderRadius: 'var(--radius-xs)',
-              fontSize: '11.5px',
-              fontWeight: 700
-            }}>
-              <ShieldCheck size={14} />
-              <span>Skill Verified</span>
-            </div>
+            <span className="badge badge-forest" style={{ fontSize: '11px' }}>
+              Job Completed
+            </span>
           </div>
 
-          {/* 1-5 Star Interactive Selector */}
-          <div style={{ textAlign: 'center' }}>
-            <label style={{ display: 'block', fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
-              How satisfied are you with the workmanship?
+          {errorMsg && (
+            <div style={{
+              padding: '10px 14px',
+              backgroundColor: '#FEE2E2',
+              border: '1px solid #FCA5A5',
+              borderRadius: 'var(--radius-sm)',
+              color: '#991B1B',
+              fontSize: '13px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {/* Star Rating Selector */}
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '10px' }}>
+              How satisfied were you with the quality of repair?
             </label>
-            <div style={{ display: 'inline-flex', gap: '8px', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
@@ -189,124 +179,66 @@ export default function ReviewModal({ isOpen, onClose, booking }) {
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    padding: '4px',
-                    transition: 'transform 100ms ease'
+                    padding: '4px'
                   }}
-                  title={`${star} Star`}
+                  aria-label={`${star} Stars`}
                 >
                   <Star
                     size={32}
-                    color={(hoverRating || rating) >= star ? '#F59E0B' : 'var(--border-light)'}
                     fill={(hoverRating || rating) >= star ? '#F59E0B' : 'transparent'}
+                    color={(hoverRating || rating) >= star ? '#F59E0B' : 'var(--text-muted)'}
                   />
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: '#B88E07', marginTop: '4px' }}>
-              {rating === 5 ? 'Exceptional Workmanship (5/5)' :
-               rating === 4 ? 'Very Good Service (4/5)' :
-               rating === 3 ? 'Average Service (3/5)' :
-               rating === 2 ? 'Needs Improvement (2/5)' : 'Unsatisfactory (1/5)'}
+            <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              {rating === 5 ? 'Excellent Workmanship' : rating === 4 ? 'Very Good Service' : rating === 3 ? 'Average' : 'Needs Improvement'}
             </div>
           </div>
 
-          {/* Written Feedback Textarea */}
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
-              Share Your Feedback (Help fellow homeowners)
+          {/* Comment */}
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+              Written Feedback:
             </label>
             <textarea
-              rows={3}
-              placeholder="e.g. Arrived on time, tested the AC temperature thoroughly, and transparently explained the capacitor replacement."
+              rows={4}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              required
+              placeholder="Tell other customers about punctuality, transparency of pricing, and workmanship quality..."
               style={{
                 width: '100%',
                 padding: '12px',
                 borderRadius: 'var(--radius-sm)',
-                border: '1.5px solid var(--border-light)',
-                fontSize: '14px',
-                color: 'var(--text-primary)',
-                fontFamily: 'inherit',
-                outline: 'none',
+                border: '1px solid var(--border-light)',
+                fontSize: '13.5px',
                 resize: 'none'
               }}
+              required
             />
           </div>
 
-          {/* Optional Photo Upload */}
-          <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
-              Add a Service Photo (Optional)
-            </label>
-            
-            {photoUrl ? (
-              <div style={{ position: 'relative', display: 'inline-block', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                <img src={photoUrl} alt="Service verification" style={{ width: '120px', height: '80px', objectFit: 'cover' }} />
-                <button
-                  type="button"
-                  onClick={() => setPhotoUrl('')}
-                  style={{
-                    position: 'absolute',
-                    top: '4px',
-                    right: '4px',
-                    backgroundColor: 'rgba(0,0,0,0.6)',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '20px',
-                    height: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {samplePhotoUploads.map((sample, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setPhotoUrl(sample.url)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '6px 10px',
-                      borderRadius: 'var(--radius-xs)',
-                      backgroundColor: 'var(--bg-warm)',
-                      border: '1px solid var(--border-light)',
-                      fontSize: '12px',
-                      color: 'var(--text-secondary)',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <ImageIcon size={14} color="var(--forest-700)" />
-                    <span>+ {sample.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={onClose}
+              disabled={submitting}
+              style={{ flex: 1 }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={submitting}
+              style={{ flex: 1.5 }}
+            >
+              {submitting ? 'Publishing...' : 'Submit Verified Review'}
+            </button>
           </div>
 
-          {/* Submit Action */}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="btn btn-primary"
-            style={{ width: '100%', height: '46px', fontSize: '15px', justifyContent: 'center' }}
-          >
-            <span>{submitting ? 'Submitting Review...' : 'Publish Verified Review'}</span>
-            <CheckCircle2 size={16} />
-          </button>
-
         </form>
-
       </div>
     </div>
   );

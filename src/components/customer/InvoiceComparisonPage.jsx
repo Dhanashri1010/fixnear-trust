@@ -1,93 +1,110 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Receipt, 
   ShieldCheck, 
   AlertTriangle, 
   CheckCircle2, 
   KeyRound, 
-  Lock, 
   ChevronRight, 
   Home, 
   FileText, 
-  Download,
-  Upload,
-  ArrowLeft
+  Clock,
+  ShieldAlert
 } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { useStore } from '../../context/StoreContext';
+import { bookingsAPI, getSocket } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import ReviewModal from './ReviewModal';
+import DisputeModal from './DisputeModal';
 
 export default function InvoiceComparisonPage() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { 
-    bookings, 
-    activeBookingId, 
-    activeBooking, 
-    releaseInvoiceEscrow, 
-    submitInvoiceDispute
-  } = useStore();
+  const { currentUser } = useAuth();
   const { showToast } = useToast();
 
-  const booking = (id ? bookings.find(b => b.id === id) : null) || activeBooking || bookings[0];
-  const invoice = booking?.invoice;
-
-  const [enteredOtp, setEnteredOtp] = useState('');
-  const [showDisputeForm, setShowDisputeForm] = useState(false);
-  const [disputeReason, setDisputeReason] = useState('Unauthorized Doorstep Charge Discrepancy');
-  const [claimAmount, setClaimAmount] = useState('350');
-  const [disputeNotes, setDisputeNotes] = useState('Technician attempted to bill an extra miscellaneous inspection fee that was not in the approved quotation.');
-  const [actionFeedback, setActionFeedback] = useState(null);
+  const [booking, setBooking] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
 
-  if (!booking || !invoice) {
+  const fetchBooking = async () => {
+    if (!id) return;
+    try {
+      setError('');
+      const res = await bookingsAPI.getBookingById(id);
+      if (res.success && res.booking) {
+        setBooking(res.booking);
+      } else {
+        setError('Booking not found.');
+      }
+    } catch (err) {
+      setError(err.message || 'Could not fetch invoice details.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!currentUser) {
+      navigate(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+    fetchBooking();
+
+    const socket = getSocket();
+    socket.emit('join_booking', id);
+    socket.on('booking_updated', fetchBooking);
+    socket.on('booking_status_updated', fetchBooking);
+
+    return () => {
+      socket.off('booking_updated', fetchBooking);
+      socket.off('booking_status_updated', fetchBooking);
+    };
+  }, [id, currentUser, navigate]);
+
+  if (loading) {
     return (
-      <div className="section-spacing" style={{ backgroundColor: 'var(--bg-warm)', textAlign: 'center' }}>
-        <div className="container">
-          <h2>No invoice available for this booking</h2>
-          <button className="btn btn-primary" onClick={() => navigate(booking?.id ? `/track/${booking.id}` : '/bookings')}>
-            Return to Appointment
-          </button>
+      <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+          <Clock size={32} style={{ margin: '0 auto 12px auto', animation: 'spin 1.5s linear infinite' }} />
+          <div>Loading warranty receipt...</div>
         </div>
       </div>
     );
   }
 
-  const isEscrowReleased = invoice.status === 'ESCROW_RELEASED';
-  const isDisputed = invoice.status === 'DISPUTED';
-  const isUnpaid = invoice.status === 'UNPAID';
+  if (error || !booking) {
+    return (
+      <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '80vh', padding: '60px 20px', textAlign: 'center' }}>
+        <div className="container" style={{ maxWidth: '480px' }}>
+          <h2>{error || 'No invoice available for this appointment'}</h2>
+          <div style={{ marginTop: '20px' }}>
+            <Link to="/bookings" className="btn btn-primary">
+              Return to Bookings
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const handleReleasePayment = async (e) => {
-    e.preventDefault();
-    const result = await releaseInvoiceEscrow(booking.id, enteredOtp);
-    if (result.success) {
-      setActionFeedback({ type: 'success', text: result.message });
-      showToast(result.message, 'success');
-      setIsReviewModalOpen(true);
-    } else {
-      setActionFeedback({ type: 'error', text: result.message });
-      showToast(result.message, 'error');
-    }
+  const invoice = booking.invoice || {
+    invoiceNo: `INV-${booking.bookingId}`,
+    baseAmount: booking.basePrice,
+    extraAmount: booking.quotation?.total || 0,
+    totalAmount: booking.basePrice + (booking.quotation?.total || 0),
+    status: booking.status === 'COMPLETED' ? 'PAID' : 'UNPAID',
+    issuedAt: booking.createdAt,
   };
 
-  const handleDisputeSubmit = (e) => {
-    e.preventDefault();
-    submitInvoiceDispute(booking.id, {
-      reason: disputeReason,
-      claimAmount,
-      notes: disputeNotes
-    });
-    setShowDisputeForm(false);
-    setActionFeedback({
-      type: 'warning',
-      text: `Escrow Payment Frozen! Dispute ticket #${invoice.disputeTicket || 'DISP-8821'} submitted to FixNear Operations. Funds will remain locked until administrative arbitration.`
-    });
-  };
+  const isCompleted = booking.status === 'COMPLETED';
 
   return (
     <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '85vh', padding: '32px 0 72px 0' }}>
-      <div className="container" style={{ maxWidth: '980px' }}>
+      <div className="container" style={{ maxWidth: '920px' }}>
         
         {/* Breadcrumb Navigation */}
         <nav 
@@ -101,396 +118,166 @@ export default function InvoiceComparisonPage() {
             marginBottom: '24px'
           }}
         >
-          <button 
-            type="button"
-            onClick={() => navigate('/')}
-            style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, background: 'none' }}
+          <Link 
+            to="/"
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, textDecoration: 'none' }}
           >
             <Home size={14} />
             <span>Home</span>
-          </button>
+          </Link>
           <ChevronRight size={13} />
-          <button 
-            type="button"
-            onClick={() => navigate('/track/' + booking.id)}
-            style={{ color: 'var(--text-secondary)', background: 'none' }}
+          <Link 
+            to={`/track/${booking._id}`}
+            style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}
           >
-            Booking #{booking.id}
-          </button>
+            Tracking #{booking.bookingId}
+          </Link>
           <ChevronRight size={13} />
-          <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>Final Invoice & Payment Protection Audit</span>
+          <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>Warranty Receipt</span>
         </nav>
 
-        {/* Feedback Alert if action occurred */}
-        {actionFeedback && (
-          <div style={{
-            padding: '16px 20px',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: '24px',
-            backgroundColor: actionFeedback.type === 'success' ? 'var(--forest-100)' : actionFeedback.type === 'error' ? '#FEE2E2' : 'var(--yellow-100)',
-            color: actionFeedback.type === 'success' ? 'var(--forest-900)' : actionFeedback.type === 'error' ? '#991B1B' : 'var(--yellow-800)',
-            border: `1.5px solid ${actionFeedback.type === 'success' ? 'var(--forest-700)' : actionFeedback.type === 'error' ? '#F87171' : 'var(--yellow-400)'}`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            {actionFeedback.type === 'success' ? <CheckCircle2 size={20} /> : actionFeedback.type === 'error' ? <AlertTriangle size={20} /> : <Lock size={20} />}
-            <span style={{ fontSize: '13.5px', fontWeight: 600 }}>{actionFeedback.text}</span>
-          </div>
-        )}
-
-        {/* Top Header Card */}
+        {/* Invoice Header Card */}
         <div style={{
           backgroundColor: '#FFFFFF',
           borderRadius: 'var(--radius-xl)',
-          padding: '28px',
+          padding: '28px 32px',
           border: '1px solid var(--border-light)',
           boxShadow: 'var(--shadow-sm)',
-          marginBottom: '28px'
+          marginBottom: '24px'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                <span className="badge badge-forest" style={{ fontSize: '11.5px' }}>
-                  Invoice #{invoice.invoiceNo}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <span className="badge badge-forest">
+                  <ShieldCheck size={13} />
+                  30-Day Workmanship Warranty Active
                 </span>
-                <span className={`badge ${isEscrowReleased ? 'badge-forest' : isDisputed ? 'badge-demo' : 'badge-yellow'}`} style={{ fontSize: '11.5px' }}>
-                  {isEscrowReleased ? '✓ Payment Released (Warranted)' : isDisputed ? '🔒 Escrow Locked (Disputed)' : 'Pending Inspection & OTP Approval'}
+                <span className="badge badge-yellow" style={{ fontSize: '11px' }}>
+                  {invoice.status}
                 </span>
               </div>
-              <h1 style={{ fontSize: '24px', fontWeight: 800 }}>Approved Quotation vs. Actual Invoice Audit</h1>
-              <div style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Service: <strong>{booking.serviceTitle}</strong> · Specialist: <strong>{booking.technicianName}</strong>
-              </div>
+              <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--forest-900)' }}>
+                Official Service Invoice #{invoice.invoiceNo}
+              </h1>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
+                Booking Ref: <strong>#{booking.bookingId}</strong> · Specialist: <strong>{booking.providerName}</strong>
+              </p>
             </div>
 
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Final Billed Total</div>
-              <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--forest-800)' }}>
-                ₹{invoice.actualBilledTotal}
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Total Amount:</div>
+              <div style={{ fontSize: '28px', fontWeight: 900, color: 'var(--forest-900)' }}>
+                ₹{invoice.totalAmount}
               </div>
             </div>
           </div>
-
-          {/* Audit Rule Explanation */}
-          <div style={{
-            marginTop: '20px',
-            padding: '14px 18px',
-            backgroundColor: 'var(--forest-50)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--forest-100)',
-            fontSize: '13px',
-            color: 'var(--forest-800)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <ShieldCheck size={20} color="var(--forest-700)" style={{ flexShrink: 0 }} />
-            <span>
-              <strong>Zero Hidden Charges Safeguard:</strong> FixNear automatically verifies the technician's bill against your digitally approved quote. Opening this page does not approve payment.
-            </span>
-          </div>
         </div>
 
-        {/* Side-by-Side Comparison Table */}
-        <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)', marginBottom: '28px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px' }}>
-            Line-by-Line Variance Comparison
+        {/* Line Items Breakdown Card */}
+        <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)', marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '17px', fontWeight: 800, marginBottom: '16px' }}>
+            Itemized Charge Breakdown
           </h2>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13.5px' }}>
-              <thead>
-                <tr style={{ backgroundColor: 'var(--bg-warm)', borderBottom: '2px solid var(--border-light)' }}>
-                  <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 700 }}>Line Item Description</th>
-                  <th style={{ textAlign: 'right', padding: '12px 16px', fontWeight: 700 }}>Approved Quote</th>
-                  <th style={{ textAlign: 'right', padding: '12px 16px', fontWeight: 700 }}>Final Actual Billed</th>
-                  <th style={{ textAlign: 'right', padding: '12px 16px', fontWeight: 700 }}>Variance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoice.lineItemsActual.map((item, idx) => {
-                  const approvedMatch = invoice.lineItemsApproved[idx] || { amount: 0 };
-                  const variance = item.amount - approvedMatch.amount;
-
-                  return (
-                    <tr key={idx} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                      <td style={{ padding: '14px 16px', fontWeight: 500 }}>{item.desc}</td>
-                      <td style={{ textAlign: 'right', padding: '14px 16px', color: 'var(--text-secondary)' }}>₹{approvedMatch.amount}</td>
-                      <td style={{ textAlign: 'right', padding: '14px 16px', fontWeight: 700, color: 'var(--text-primary)' }}>₹{item.amount}</td>
-                      <td style={{ textAlign: 'right', padding: '14px 16px' }}>
-                        {variance === 0 ? (
-                          <span style={{ color: 'var(--forest-700)', fontWeight: 600 }}>₹0 (Exact Match)</span>
-                        ) : variance > 0 ? (
-                          <span style={{ color: '#B91C1C', fontWeight: 700 }}>+₹{variance} (Unapproved Drift)</span>
-                        ) : (
-                          <span style={{ color: 'var(--forest-700)', fontWeight: 600 }}>-₹{Math.abs(variance)} (Discount)</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {/* Total Summary Row */}
-                <tr style={{ backgroundColor: 'var(--forest-50)', fontWeight: 800, fontSize: '15px' }}>
-                  <td style={{ padding: '16px' }}>Final Total Payable</td>
-                  <td style={{ textAlign: 'right', padding: '16px' }}>₹{invoice.approvedQuotationTotal}</td>
-                  <td style={{ textAlign: 'right', padding: '16px', color: 'var(--forest-900)' }}>₹{invoice.actualBilledTotal}</td>
-                  <td style={{ textAlign: 'right', padding: '16px', color: invoice.hasVariance ? '#B91C1C' : 'var(--forest-700)' }}>
-                    {invoice.hasVariance ? `+₹${invoice.varianceAmount}` : "₹0 (Zero Drift)"}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div style={{ marginTop: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            <strong>Audit Status:</strong> {invoice.varianceExplanation}
-          </div>
-        </div>
-
-        {/* Action Panel: Escrow Payment Release OR Raise Dispute */}
-        {isUnpaid && !showDisputeForm && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)',
-            gap: '24px',
-            marginBottom: '32px'
-          }}>
-            
-            {/* Release Payment via OTP */}
-            <div className="card" style={{ padding: '24px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
-              <h3 style={{ fontSize: '17px', fontWeight: 700, marginBottom: '8px' }}>
-                Confirm Satisfaction & Release Escrow
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '18px', lineHeight: 1.5 }}>
-                Enter your 4-digit completion OTP (<strong>{booking.completionOtp}</strong>) to authorize escrow release and activate your 30-Day FixNear Workmanship Warranty.
-              </p>
-
-              <form onSubmit={handleReleasePayment} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <input
-                  type="text"
-                  maxLength={4}
-                  placeholder="Enter 4-digit OTP"
-                  value={enteredOtp}
-                  onChange={(e) => setEnteredOtp(e.target.value)}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1.5px solid var(--forest-700)',
-                    fontSize: '16px',
-                    fontWeight: 800,
-                    letterSpacing: '0.2em',
-                    width: '160px',
-                    textAlign: 'center'
-                  }}
-                  required
-                />
-
-                <button type="submit" className="btn btn-primary" style={{ padding: '12px 20px', flex: 1 }}>
-                  <CheckCircle2 size={16} />
-                  <span>Release Payment (₹{invoice.actualBilledTotal})</span>
-                </button>
-              </form>
-            </div>
-
-            {/* Dispute Shortcut */}
-            <div className="card" style={{
-              padding: '24px',
-              backgroundColor: 'var(--yellow-50)',
-              borderRadius: 'var(--radius-xl)',
-              border: '1px solid var(--yellow-200)'
+          <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginBottom: '20px' }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '12px 16px',
+              borderBottom: '1px solid var(--border-light)',
+              fontSize: '13.5px'
             }}>
-              <h3 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--yellow-800)', marginBottom: '8px' }}>
-                Have a Billing Discrepancy?
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--yellow-800)', marginBottom: '18px', lineHeight: 1.5 }}>
-                If the technician added unapproved charges or the repair was unsatisfactory, freeze escrow immediately.
-              </p>
+              <div>
+                <strong>{booking.serviceTitle}</strong>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Standard inspection & labor fee</div>
+              </div>
+              <strong>₹{invoice.baseAmount}</strong>
+            </div>
 
+            {invoice.extraAmount > 0 && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                borderBottom: '1px solid var(--border-light)',
+                fontSize: '13.5px'
+              }}>
+                <div>
+                  <strong>Approved Additional Spare Parts & Extra Work</strong>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Customer verified in-app quotation</div>
+                </div>
+                <strong>₹{invoice.extraAmount}</strong>
+              </div>
+            )}
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '12px 16px',
+              borderBottom: '1px solid var(--border-light)',
+              fontSize: '13px',
+              color: 'var(--forest-700)'
+            }}>
+              <span>30-Day Workmanship Warranty</span>
+              <strong>INCLUDED (₹0)</strong>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '14px 16px',
+              backgroundColor: 'var(--bg-warm)',
+              fontSize: '16px',
+              fontWeight: 800
+            }}>
+              <span>Total Billed</span>
+              <span style={{ color: 'var(--forest-800)' }}>₹{invoice.totalAmount}</span>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={() => setIsDisputeModalOpen(true)}
+              className="btn btn-outline btn-sm"
+              style={{ color: '#DC2626', borderColor: '#FCA5A5' }}
+            >
+              <ShieldAlert size={14} />
+              <span>Raise Dispute</span>
+            </button>
+
+            {isCompleted && (
               <button
                 type="button"
-                className="btn btn-outline"
-                onClick={() => setShowDisputeForm(true)}
-                style={{ width: '100%', borderColor: 'var(--yellow-400)', color: 'var(--yellow-800)', backgroundColor: '#FFFFFF' }}
-              >
-                <AlertTriangle size={15} color="var(--yellow-800)" />
-                <span>Raise Dispute / Freeze Escrow</span>
-              </button>
-            </div>
-
-          </div>
-        )}
-
-        {/* Dispute Submission Form (if opened) */}
-        {showDisputeForm && (
-          <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)', marginBottom: '32px', border: '2px solid #FCA5A5' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-              <AlertTriangle size={24} color="#B91C1C" />
-              <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#B91C1C' }}>
-                Escrow Dispute & Arbitration Filing
-              </h3>
-            </div>
-            <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-              Submitting this dispute locks payment release and forwards your ticket directly to the Main Admin arbitration desk.
-            </p>
-
-            <form onSubmit={handleDisputeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                  Dispute Reason:
-                </label>
-                <select
-                  value={disputeReason}
-                  onChange={(e) => setDisputeReason(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border-light)',
-                    fontSize: '13.5px'
-                  }}
-                >
-                  <option value="Unauthorized Doorstep Charge Discrepancy">Unauthorized Doorstep Charge Discrepancy</option>
-                  <option value="Incomplete Work or Substandard Repair">Incomplete Work or Substandard Repair</option>
-                  <option value="Damaged Fixtures or Missing Spare Parts">Damaged Fixtures or Missing Spare Parts</option>
-                  <option value="Technician Misconduct">Technician Misconduct</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                  Disputed Claim / Refund Amount (₹):
-                </label>
-                <input
-                  type="number"
-                  value={claimAmount}
-                  onChange={(e) => setClaimAmount(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border-light)',
-                    fontSize: '13.5px'
-                  }}
-                  required
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                  Specific Explanation of Issue:
-                </label>
-                <textarea
-                  rows={3}
-                  value={disputeNotes}
-                  onChange={(e) => setDisputeNotes(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border-light)',
-                    fontSize: '13.5px'
-                  }}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                <button type="submit" className="btn btn-primary" style={{ backgroundColor: '#B91C1C', padding: '12px 24px' }}>
-                  <Lock size={15} />
-                  <span>Lock Escrow & File Formal Dispute</span>
-                </button>
-                <button type="button" className="btn btn-outline" onClick={() => setShowDisputeForm(false)}>
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* Post-Resolution State Banners */}
-        {isEscrowReleased && (
-          <div style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 'var(--radius-xl)',
-            padding: '24px 28px',
-            border: '1.5px solid var(--forest-700)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '16px',
-            marginBottom: '32px'
-          }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--forest-800)', fontWeight: 700 }}>
-                <CheckCircle2 size={18} color="var(--forest-700)" />
-                <span>Payment Completed via Escrow Release</span>
-              </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Your 30-Day FixNear Workmanship Warranty is active until {booking.warrantyDaysLeft} days from today.
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
                 onClick={() => setIsReviewModalOpen(true)}
+                className="btn btn-primary btn-sm"
               >
-                <span>Rate & Review Specialist</span>
+                Rate Specialist Experience
               </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={() => alert(`Simulated PDF receipt for Invoice #${invoice.invoiceNo}`)}
-              >
-                <Download size={14} />
-                <span>Download Tax Invoice (PDF)</span>
-              </button>
-            </div>
+            )}
           </div>
-        )}
-
-        {isDisputed && (
-          <div style={{
-            backgroundColor: '#FFF1F2',
-            borderRadius: 'var(--radius-xl)',
-            padding: '24px 28px',
-            border: '1.5px solid #F43F5E',
-            marginBottom: '32px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#9F1239', fontWeight: 800, fontSize: '16px' }}>
-              <Lock size={18} />
-              <span>Escrow Freeze Active: Dispute Ticket #{invoice.disputeTicket || 'DISP-8821'}</span>
-            </div>
-            <p style={{ fontSize: '13.5px', color: '#9F1239', marginTop: '6px' }}>
-              Payment has been locked. The Main Admin arbitration panel is reviewing the discrepancy ({invoice.disputeReason}). A decision will be published within 2 hours.
-            </p>
-          </div>
-        )}
-
-        {/* Back Link */}
-        <div>
-          <button
-            type="button"
-            className="btn btn-outline"
-            onClick={() => navigate(`/track/${booking.id}`)}
-          >
-            <ArrowLeft size={14} />
-            <span>Return to Appointment Tracker</span>
-          </button>
         </div>
 
       </div>
 
-      {/* Review Modal */}
-      <ReviewModal 
-        isOpen={isReviewModalOpen}
-        onClose={() => setIsReviewModalOpen(false)}
-        booking={booking}
-      />
+      {isReviewModalOpen && (
+        <ReviewModal
+          isOpen={isReviewModalOpen}
+          booking={booking}
+          onClose={() => setIsReviewModalOpen(false)}
+          onReviewSubmitted={fetchBooking}
+        />
+      )}
+
+      {isDisputeModalOpen && (
+        <DisputeModal
+          isOpen={isDisputeModalOpen}
+          booking={booking}
+          onClose={() => setIsDisputeModalOpen(false)}
+          onDisputeCreated={fetchBooking}
+        />
+      )}
     </div>
   );
 }

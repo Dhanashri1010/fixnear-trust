@@ -1,6 +1,6 @@
 // ===================================================================
 // FixNear Trust - Seed Data & Database Seeder
-// Moves categories, services, demo users, providers & question bank to Firestore
+// TODO: Phase C/D - Kept strictly for legacy Provider and Admin components. Remove once Phase C/D are migrated.
 // ===================================================================
 
 import { QUESTION_BANK_SEED } from './questionBankSeed.js';

@@ -35,7 +35,7 @@ export const getSocket = () => {
   return socketInstance;
 };
 
-// Auth API Calls
+// Auth API
 export const authAPI = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   register: (userData) => api.post('/auth/register', userData),
@@ -43,4 +43,60 @@ export const authAPI = {
   getMe: () => api.get('/auth/me'),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
+};
+
+// Services & Categories API
+export const servicesAPI = {
+  getCategories: () => api.get('/categories'),
+  getServices: (params) => api.get('/services', { params }),
+  getServiceById: (id) => api.get(`/services/${id}`),
+  getReviews: () => api.get('/reviews'),
+};
+
+// Providers API
+export const providersAPI = {
+  getProviders: (params) => api.get('/providers', { params }),
+  getProviderById: (id) => api.get(`/providers/${id}`),
+};
+
+// Bookings API
+export const bookingsAPI = {
+  createBooking: (payload) => api.post('/bookings', payload),
+  getMyBookings: (params) => api.get('/bookings/mine', { params }),
+  getBookingById: (id) => api.get(`/bookings/${id}`),
+  cancelBooking: (id, reason) => api.patch(`/bookings/${id}/cancel`, { reason }),
+  rescheduleBooking: (id, data) => api.patch(`/bookings/${id}/reschedule`, data),
+  approveQuotation: (id) => api.patch(`/bookings/${id}/quotation/approve`),
+  declineQuotation: (id) => api.patch(`/bookings/${id}/quotation/decline`),
+  submitReview: (id, data) => api.post(`/bookings/${id}/review`, data),
+  submitComplaint: (id, data) => api.post(`/bookings/${id}/complaint`, data),
+  updateStatus: (id, status, finishCode) => api.patch(`/bookings/${id}/status`, { status, finishCode }),
+};
+
+// Notifications API
+export const notificationsAPI = {
+  getNotifications: () => api.get('/notifications'),
+  markAsRead: (id) => api.patch(`/notifications/${id}/read`),
+  markAllAsRead: () => api.patch('/notifications/read-all'),
+};
+
+// Support Tickets API
+export const supportAPI = {
+  createTicket: (payload) => api.post('/support', payload),
+  getMyTickets: () => api.get('/support/mine'),
+};
+
+// Uploads API (Multer + Cloudinary)
+export const uploadAPI = {
+  uploadPhotos: (files) => {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('photos', file);
+    });
+    return api.post('/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };

@@ -1,6 +1,8 @@
 // ===================================================================
-// FixNear Trust - Reactive Store Context with Firestore Sync
-// Phase 2: Live Bookings, Quotation Approval, OTP Verification, Ratings & Reviews
+// FixNear Trust - Reactive Store Context
+// NOTE: Customer-side data and mutations have been fully migrated to MongoDB & REST API in Phase B.
+// The remaining state and methods in this file are strictly kept for Provider (Phase C) and Admin (Phase D) portals.
+// TODO: Phase C/D - Migrate Provider and Admin state to REST API and remove Firebase dependencies.
 // ===================================================================
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';

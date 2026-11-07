@@ -1,10 +1,11 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 import { User } from '../models/User.js';
 import { Provider } from '../models/Provider.js';
 
 const signToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'fixnear_super_secure_jwt_secret_dev_key_2026_xyz', {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 };
@@ -24,7 +25,6 @@ const sendTokenResponse = (user, statusCode, res, message = 'Success') => {
   res.status(statusCode).json({
     success: true,
     message,
-    token, // Also return in body for client token storage if cookies are blocked
     user: {
       id: user._id,
       name: user.name,
@@ -194,17 +194,56 @@ export const forgotPassword = async (req, res) => {
     user.passwordResetExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
     await user.save({ validateBeforeSave: false });
 
-    console.log(`[Password Reset] Generated reset token for ${user.email}: ${resetToken}`);
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const resetUrl = `${clientUrl}/reset-password?token=${resetToken}`;
+
+    // Send email using Nodemailer if SMTP is configured
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: Number(process.env.SMTP_PORT) || 587,
+          secure: Number(process.env.SMTP_PORT) === 465,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        });
+
+        const mailOptions = {
+          from: process.env.EMAIL_FROM || '"FixNear Trust" <noreply@fixnear.com>',
+          to: user.email,
+          subject: 'FixNear Trust - Password Reset Request',
+          text: `Hello ${user.name},\n\nYou requested a password reset. Please click or open the following link to choose a new password (valid for 30 minutes):\n\n${resetUrl}\n\nIf you did not request this, please ignore this email. Your account remains safe.\n\nBest regards,\nFixNear Trust Team`,
+          html: `<div style="font-family:sans-serif;max-width:560px;margin:auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px;">
+            <h2 style="color:#1b4332;">FixNear Trust Password Reset</h2>
+            <p>Hello <strong>${user.name}</strong>,</p>
+            <p>You requested a password reset for your account. Click the button below to set a new password (valid for 30 minutes):</p>
+            <div style="margin:24px 0;">
+              <a href="${resetUrl}" style="background-color:#2d6a4f;color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:bold;display:inline-block;">Reset Password</a>
+            </div>
+            <p style="color:#64748b;font-size:13px;">Or copy and paste this URL into your browser:<br/><a href="${resetUrl}">${resetUrl}</a></p>
+            <p style="color:#64748b;font-size:13px;">If you did not make this request, please safely ignore this email.</p>
+          </div>`,
+        };
+
+        await transporter.sendMail(mailOptions);
+      } catch (mailErr) {
+        console.warn('[Nodemailer Warning] Failed to dispatch password reset email:', mailErr.message);
+      }
+    } else {
+      console.warn('[Nodemailer Warning] SMTP credentials (SMTP_USER/SMTP_PASS) are not configured in server/.env. Password reset email was not dispatched.');
+    }
 
     res.status(200).json({
       success: true,
-      message: 'Password reset link sent to your registered email address.',
+      message: 'If an account with that email exists, password reset instructions have been dispatched.',
     });
   } catch (err) {
     console.error('Forgot password error:', err);
     res.status(500).json({
       success: false,
-      message: 'Error sending password reset email.',
+      message: 'Error processing password reset request.',
     });
   }
 };

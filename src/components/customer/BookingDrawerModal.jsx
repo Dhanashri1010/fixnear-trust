@@ -1,61 +1,63 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  X, 
-  ShieldCheck, 
-  Clock, 
-  MapPin, 
-  Calendar, 
-  CheckCircle2, 
+import {
+  X,
+  ShieldCheck,
+  Clock,
+  MapPin,
+  Calendar,
+  CheckCircle2,
   ArrowRight,
   AlertCircle
 } from 'lucide-react';
-import { useStore } from '../../context/StoreContext';
+import { bookingsAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export default function BookingDrawerModal({ isOpen, service, onClose }) {
-  // CRITICAL FIX: All hooks MUST be called unconditionally at the top of the component
   const navigate = useNavigate();
-  const { createBooking, services } = useStore();
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, selectedCity } = useAuth();
   const { showToast } = useToast();
 
   const [step, setStep] = useState(1);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState('');
-  const [address, setAddress] = useState(userProfile?.currentAddress || '');
+  const [address, setAddress] = useState(userProfile?.savedAddresses?.[0]?.address || userProfile?.currentAddress || '');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
-  const [confirmedId, setConfirmedId] = useState('');
+  const [confirmedBooking, setConfirmedBooking] = useState(null);
 
-  // Fallback to first service if opened generally
-  const currentService = service || services[0] || {
+  const currentService = service || {
     id: 'srv-general',
+    serviceId: 'srv-general',
     name: 'Home Service',
     title: 'Home Service',
     startingPrice: 499,
     duration: '60 mins'
   };
 
-  const serviceTitle = currentService.name || currentService.title || 'Home Service';
-  const servicePrice = currentService.basePrice || currentService.startingPrice || 499;
+  const serviceTitle = currentService.title || currentService.name || 'Home Service';
+  const servicePrice = currentService.startingPrice || currentService.basePrice || 499;
 
-  // Standard time slots
   const slots = [
     "Morning (09:00 AM - 12:00 PM)",
     "Afternoon (12:00 PM - 03:00 PM)",
     "Evening (03:00 PM - 06:00 PM)"
   ];
 
-  // Calculate today's date for minimum date picker
   const todayStr = new Date().toISOString().split('T')[0];
 
   const handleConfirm = async (e) => {
     if (e) e.preventDefault();
     setSubmitError('');
+
+    if (!currentUser) {
+      onClose();
+      navigate('/login?redirect=/book');
+      return;
+    }
 
     if (!selectedDate) {
       setSubmitError('Please select a preferred service date.');
@@ -77,26 +79,27 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
 
     setIsSubmitting(true);
     try {
-      const newId = await createBooking({
-        serviceTitle,
-        serviceId: currentService.id,
-        basePrice: servicePrice,
+      const payload = {
+        serviceId: currentService.serviceId || currentService._id || currentService.id,
+        address: address.trim(),
+        city: selectedCity || userProfile?.city || 'Mumbai',
         scheduledDate: selectedDate,
         timeSlot: selectedSlot,
-        address: address.trim(),
-        notes: notes.trim()
-      });
+        notes: notes.trim(),
+      };
 
-      if (!newId) {
-        throw new Error('Server did not return a valid booking ID');
+      const res = await bookingsAPI.createBooking(payload);
+
+      if (!res.success || !res.booking) {
+        throw new Error(res.message || 'Server did not return a valid booking');
       }
 
-      setConfirmedId(newId);
+      setConfirmedBooking(res.booking);
       setIsSuccess(true);
-      showToast('Booking request submitted successfully!', 'success');
+      showToast('Booking placed successfully! Your technician will be confirmed shortly.', 'success');
     } catch (err) {
       console.error('Booking creation error:', err);
-      const msg = 'We could not place your booking. Please try again.';
+      const msg = err.message || 'We could not place your booking. Please try again.';
       setSubmitError(msg);
       showToast(msg, 'error');
     } finally {
@@ -107,11 +110,11 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
   const resetAndClose = () => {
     setIsSuccess(false);
     setSubmitError('');
+    setConfirmedBooking(null);
     setStep(1);
     onClose();
   };
 
-  // Safe early return AFTER all hooks
   if (!isOpen) return null;
 
   return (
@@ -129,318 +132,386 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
       zIndex: 1000,
       padding: '16px'
     }}>
-      <div 
+      <div
         className="card"
         style={{
           width: '100%',
-          maxWidth: '560px',
+          maxWidth: '520px',
           maxHeight: '90vh',
           overflowY: 'auto',
           backgroundColor: '#FFFFFF',
           borderRadius: 'var(--radius-xl)',
           boxShadow: 'var(--shadow-lg)',
           border: '1px solid var(--border-light)',
-          animation: 'fadeInSlide 200ms ease'
+          animation: 'fadeInSlide 180ms ease'
         }}
       >
-        {/* Header */}
+        {/* Modal Header */}
         <div style={{
-          padding: '20px 24px',
+          padding: '18px 24px',
           borderBottom: '1px solid var(--border-light)',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          backgroundColor: '#FFFFFF',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10
         }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="badge badge-forest" style={{ fontSize: '11.5px' }}>
-                FixNear Verified Service
-              </span>
-            </div>
-            <h3 style={{ fontSize: '19px', fontWeight: 800, marginTop: '4px', color: 'var(--forest-900)' }}>
-              {isSuccess ? 'Booking Placed' : serviceTitle}
-            </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="badge badge-forest" style={{ fontSize: '11px' }}>
+              <ShieldCheck size={12} />
+              Verified Booking
+            </span>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+              Step {step} of 2
+            </span>
           </div>
 
-          <button 
+          <button
             type="button"
             onClick={resetAndClose}
-            aria-label="Close booking modal"
             style={{
-              width: '36px',
-              height: '36px',
+              width: '32px',
+              height: '32px',
               borderRadius: '50%',
               backgroundColor: 'var(--bg-warm)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              border: 'none'
             }}
           >
-            <X size={18} color="var(--text-secondary)" />
+            <X size={16} color="var(--text-secondary)" />
           </button>
         </div>
 
-        {/* Content Body */}
+        {/* Modal Content */}
         <div style={{ padding: '24px' }}>
-          
-          {isSuccess ? (
-            /* Success State */
+
+          {isSuccess && confirmedBooking ? (
+            /* Booking Confirmed Screen */
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
               <div style={{
-                width: '64px',
-                height: '64px',
+                width: '60px',
+                height: '60px',
                 borderRadius: '50%',
                 backgroundColor: 'var(--forest-100)',
-                color: 'var(--forest-700)',
+                color: 'var(--forest-800)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto 16px auto'
               }}>
-                <CheckCircle2 size={36} />
+                <CheckCircle2 size={34} />
               </div>
 
-              <h4 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '8px', color: 'var(--forest-900)' }}>
-                Booking Placed Successfully!
-              </h4>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '14.5px', marginBottom: '24px', maxWidth: '420px', margin: '0 auto 24px auto' }}>
-                Booking Reference: <strong style={{ color: 'var(--forest-800)' }}>{confirmedId}</strong>
-                <br />
-                Scheduled for: <strong>{selectedDate} • {selectedSlot}</strong>
+              <span className="badge badge-forest" style={{ marginBottom: '8px' }}>
+                Booking Placed
+              </span>
+
+              <h3 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '6px' }}>
+                Appointment Confirmed!
+              </h3>
+
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                Booking Reference: <strong style={{ color: 'var(--forest-900)' }}>#{confirmedBooking.bookingId}</strong>
               </p>
 
-              {/* Confirmation Notice */}
               <div style={{
-                backgroundColor: 'var(--forest-50)',
-                border: '1px solid var(--forest-100)',
+                backgroundColor: 'var(--bg-warm)',
                 borderRadius: 'var(--radius-md)',
-                padding: '14px 18px',
+                padding: '16px',
                 textAlign: 'left',
-                fontSize: '13px',
-                color: 'var(--forest-900)',
-                marginBottom: '24px'
+                marginBottom: '20px',
+                fontSize: '13.5px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
               }}>
-                <div style={{ fontWeight: 700, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <ShieldCheck size={16} color="var(--forest-700)" />
-                  <span>Payment Protection Activated:</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Service:</span>
+                  <strong>{confirmedBooking.serviceTitle}</strong>
                 </div>
-                Your verified technician will be dispatched for your scheduled slot. You only share your 4-digit finish code once you are fully satisfied with the service.
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Arrival:</span>
+                  <strong>{confirmedBooking.scheduledDate} ({confirmedBooking.timeSlot})</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>City:</span>
+                  <strong>{confirmedBooking.city}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '8px' }}>
+                  <span style={{ fontWeight: 700 }}>Total Billed:</span>
+                  <strong style={{ color: 'var(--forest-800)' }}>₹{confirmedBooking.basePrice}</strong>
+                </div>
+                {confirmedBooking.completionOtp && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '8px 12px',
+                    backgroundColor: 'var(--forest-50)',
+                    border: '1px solid var(--forest-200)',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <span style={{ fontSize: '12.5px', color: 'var(--forest-900)', fontWeight: 600 }}>Your Finish Code:</span>
+                    <strong style={{ fontSize: '16px', color: 'var(--forest-800)', letterSpacing: '2px' }}>{confirmedBooking.completionOtp}</strong>
+                  </div>
+                )}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <button 
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={resetAndClose}
+                  style={{ flex: 1 }}
+                >
+                  Done
+                </button>
+                <button
                   type="button"
                   className="btn btn-primary"
                   onClick={() => {
                     resetAndClose();
-                    navigate(`/track/${confirmedId}`);
+                    navigate(`/track/${confirmedBooking._id}`);
                   }}
-                  style={{ width: '100%', padding: '12px', justifyContent: 'center' }}
+                  style={{ flex: 1 }}
                 >
-                  <span>Track Appointment Live</span>
-                  <ArrowRight size={16} />
-                </button>
-
-                <button 
-                  type="button"
-                  className="btn btn-outline"
-                  onClick={resetAndClose}
-                  style={{ width: '100%', padding: '10px', justifyContent: 'center' }}
-                >
-                  Close & Continue Browsing
+                  Track Live →
                 </button>
               </div>
             </div>
           ) : (
             /* Booking Form */
             <form onSubmit={handleConfirm}>
-              {/* Service Price Card */}
+
+              {/* Service Summary Card */}
               <div style={{
+                padding: '16px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-warm)',
+                border: '1px solid var(--border-light)',
+                marginBottom: '20px',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '14px 18px',
-                backgroundColor: 'var(--forest-50)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--forest-100)',
-                marginBottom: '20px'
+                alignItems: 'center'
               }}>
                 <div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Standard Visit & Inspection Fee</div>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--forest-800)' }}>
-                    ₹{servicePrice}
+                  <h4 style={{ fontSize: '15.5px', fontWeight: 700 }}>
+                    {serviceTitle}
+                  </h4>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {currentService.duration || '45 - 60 mins'} · City: {selectedCity || 'Mumbai'}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span className="badge badge-sage">30-Day Free Rework</span>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Est. {currentService.duration || '60 mins'}
-                  </div>
-                </div>
+                <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-800)' }}>
+                  ₹{servicePrice}
+                </span>
               </div>
 
               {submitError && (
                 <div style={{
-                  padding: '10px 14px',
-                  backgroundColor: '#FEF2F2',
+                  padding: '12px 14px',
+                  backgroundColor: '#FEE2E2',
                   border: '1px solid #FCA5A5',
                   borderRadius: 'var(--radius-sm)',
-                  color: '#991B1B',
-                  fontSize: '13px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
+                  color: '#991B1B',
+                  fontSize: '13px',
                   marginBottom: '16px'
                 }}>
-                  <AlertCircle size={16} />
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
                   <span>{submitError}</span>
                 </div>
               )}
 
-              {/* 1. Date Selection */}
-              <div style={{ marginBottom: '18px' }}>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, marginBottom: '6px', color: 'var(--forest-900)' }}>
-                  1. Choose Date
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', backgroundColor: '#FFFFFF' }}>
-                  <Calendar size={16} color="var(--forest-700)" />
-                  <input 
-                    type="date"
-                    min={todayStr}
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    required
-                    style={{
-                      border: 'none',
-                      outline: 'none',
-                      width: '100%',
-                      fontSize: '14px',
-                      color: 'var(--text-primary)',
-                      background: 'transparent'
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* 2. Slot Selection */}
-              <div style={{ marginBottom: '18px' }}>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, marginBottom: '6px', color: 'var(--forest-900)' }}>
-                  2. Preferred Time Slot
-                </label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {slots.map((s, i) => (
-                    <label 
-                      key={i}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: '10px 14px',
-                        borderRadius: 'var(--radius-sm)',
-                        border: selectedSlot === s ? '1.5px solid var(--forest-700)' : '1px solid var(--border-light)',
-                        backgroundColor: selectedSlot === s ? 'var(--forest-50)' : '#FFFFFF',
-                        cursor: 'pointer',
-                        fontSize: '13.5px',
-                        fontWeight: 500
-                      }}
-                    >
-                      <input 
-                        type="radio" 
-                        name="drawerTimeSlot" 
-                        checked={selectedSlot === s}
-                        onChange={() => setSelectedSlot(s)}
-                        required
-                        style={{ accentColor: 'var(--forest-700)', width: '16px', height: '16px' }}
-                      />
-                      <span>{s}</span>
+              {/* Step 1: Schedule & Address */}
+              {step === 1 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                      Preferred Service Date:
                     </label>
-                  ))}
-                </div>
-              </div>
+                    <input
+                      type="date"
+                      min={todayStr}
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--border-light)',
+                        fontSize: '14px',
+                        backgroundColor: '#FFFFFF'
+                      }}
+                      required
+                    />
+                  </div>
 
-              {/* 3. Address */}
-              <div style={{ marginBottom: '18px' }}>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, marginBottom: '6px', color: 'var(--forest-900)' }}>
-                  3. Service Address
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', backgroundColor: '#FFFFFF' }}>
-                  <MapPin size={16} color="var(--forest-700)" style={{ flexShrink: 0 }} />
-                  <input 
-                    type="text"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="House/flat no., street, landmark, city & pincode"
-                    required
-                    style={{
-                      border: 'none',
-                      outline: 'none',
-                      width: '100%',
-                      fontSize: '13.5px',
-                      color: 'var(--text-primary)',
-                      background: 'transparent'
-                    }}
-                  />
-                </div>
-              </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                      Arrival Time Window:
+                    </label>
+                    <select
+                      value={selectedSlot}
+                      onChange={(e) => setSelectedSlot(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--border-light)',
+                        fontSize: '14px',
+                        backgroundColor: '#FFFFFF'
+                      }}
+                      required
+                    >
+                      <option value="" disabled>-- Select Arrival Window --</option>
+                      {slots.map((s, idx) => (
+                        <option key={idx} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              {/* 4. Problem Notes */}
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13.5px', fontWeight: 700, marginBottom: '6px', color: 'var(--forest-900)' }}>
-                  4. Describe the Problem (Optional)
-                </label>
-                <textarea
-                  rows={2}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Describe what is wrong (e.g. water leakage, unusual sound, tripping breaker)..."
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border-light)',
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                      Complete Service Address:
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Flat/House No, Building, Landmark, Area and City..."
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--border-light)',
+                        fontSize: '13.5px',
+                        resize: 'none'
+                      }}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                      Problem Note (Optional):
+                    </label>
+                    <input
+                      type="text"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="e.g., cooling low, water leaking from pipe"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--border-light)',
+                        fontSize: '13.5px'
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={resetAndClose}
+                      style={{ flex: 1 }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        if (!selectedDate || !selectedSlot || !address.trim()) {
+                          setSubmitError('Please complete the date, time slot, and address fields.');
+                          return;
+                        }
+                        setSubmitError('');
+                        setStep(2);
+                      }}
+                      style={{ flex: 1 }}
+                    >
+                      Next: Review →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Rate Card Breakdown & Payment Protection Confirmation */}
+              {step === 2 && (
+                <div>
+                  <div style={{
+                    backgroundColor: 'var(--bg-warm)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '16px',
+                    marginBottom: '16px',
                     fontSize: '13px',
-                    color: 'var(--text-primary)',
-                    outline: 'none',
-                    resize: 'none'
-                  }}
-                />
-              </div>
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Standard Inspection & Labor</span>
+                      <span>₹{servicePrice}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--forest-700)' }}>
+                      <span>Doorstep Visit & Inspection Fee</span>
+                      <strong>FREE (₹0)</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--forest-700)' }}>
+                      <span>30-Day Workmanship Warranty</span>
+                      <strong>INCLUDED</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--border-light)', paddingTop: '8px', fontWeight: 800, fontSize: '15px' }}>
+                      <span>Total (Payment Protection)</span>
+                      <span style={{ color: 'var(--forest-800)' }}>₹{servicePrice}</span>
+                    </div>
+                  </div>
 
-              {/* Scope Confirmation Note */}
-              <div style={{
-                backgroundColor: 'var(--bg-warm)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '12px 14px',
-                fontSize: '12px',
-                color: 'var(--text-secondary)',
-                marginBottom: '20px',
-                lineHeight: 1.5
-              }}>
-                <strong style={{ color: 'var(--forest-800)' }}>Zero Doorstep Price Shock:</strong>
-                {' '}Any extra spare parts will require your digital approval on your screen before installation.
-              </div>
+                  <div style={{
+                    padding: '12px 14px',
+                    backgroundColor: 'var(--forest-50)',
+                    border: '1px solid var(--forest-100)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '12px',
+                    color: 'var(--forest-900)',
+                    marginBottom: '20px',
+                    lineHeight: 1.5
+                  }}>
+                    🛡️ <strong>Payment Protection:</strong> You only pay after the specialist completes the work and you provide your 4-digit finish code.
+                  </div>
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button 
-                  type="button"
-                  className="btn btn-outline"
-                  onClick={resetAndClose}
-                  style={{ flex: 1 }}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="btn btn-primary"
-                  style={{ flex: 2, padding: '12px' }}
-                >
-                  <span>{isSubmitting ? 'Placing Booking...' : 'Confirm Booking'}</span>
-                  <ArrowRight size={16} />
-                </button>
-              </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={() => setStep(1)}
+                      disabled={isSubmitting}
+                      style={{ flex: 1 }}
+                    >
+                      ← Edit Details
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={isSubmitting}
+                      style={{ flex: 1.5 }}
+                    >
+                      {isSubmitting ? 'Placing Booking...' : 'Confirm & Book'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
             </form>
           )}

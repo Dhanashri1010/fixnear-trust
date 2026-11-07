@@ -1,7 +1,8 @@
 import React from 'react';
 import { ShieldCheck, Heart, Lock, CheckCircle2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
-export default function Footer({ onSwitchRole }) {
+export default function Footer() {
   return (
     <footer style={{
       backgroundColor: '#FFFFFF',
@@ -9,7 +10,7 @@ export default function Footer({ onSwitchRole }) {
       padding: '56px 0 32px 0'
     }}>
       <div className="container">
-        
+
         {/* Main Footer Content */}
         <div style={{
           display: 'grid',
@@ -37,78 +38,66 @@ export default function Footer({ onSwitchRole }) {
               </span>
             </div>
             <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '16px' }}>
-              Intelligent home-service booking built upon transparent rate cards, certified specialists, and escrow protection.
+              Home service booking built on transparent itemized pricing, verified specialists, and guaranteed payment protection.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span className="badge badge-sage" style={{ fontSize: '11px' }}>
                 <CheckCircle2 size={12} />
-                30-Day Workmanship Warranty
+                30-Day Workmanship Warranty Included
               </span>
             </div>
           </div>
 
-          {/* Col 2: Customer Links */}
+          {/* Col 2: Services */}
           <div>
             <h4 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-primary)' }}>
-              Customer Journeys
+              Popular Services
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px', color: 'var(--text-secondary)' }}>
-              <a href="#services">Air Conditioning Servicing</a>
-              <a href="#services">Plumbing & Leak Triage</a>
-              <a href="#services">Electrical Safety & MCB</a>
-              <a href="#services">Appliance Repairs</a>
-              <a href="#trust-guarantee">FixNear Trust Standard</a>
+              <Link to="/services?category=air-conditioning">Air Conditioning Servicing</Link>
+              <Link to="/services?category=plumbing">Plumbing & Leak Repairs</Link>
+              <Link to="/services?category=electrical">Electrical Safety & Wiring</Link>
+              <Link to="/services?category=appliances">Appliance Repairs</Link>
+              <Link to="/services">View Complete Catalog</Link>
             </div>
           </div>
 
-          {/* Col 3: Role Previews (Stage 2-4 Roadmap) */}
+          {/* Col 3: Support & Help */}
           <div>
             <h4 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-primary)' }}>
-              Platform Roles
+              Help & Support
             </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px' }}>
-              <button 
-                onClick={() => onSwitchRole('customer')}
-                style={{ textAlign: 'left', color: 'var(--forest-700)', fontWeight: 600, background: 'none' }}
-              >
-                Customer Portal (Active Stage 1 & 2)
-              </button>
-              <button 
-                onClick={() => onSwitchRole('technician')}
-                style={{ textAlign: 'left', color: 'var(--text-secondary)', background: 'none' }}
-              >
-                Technician Dispatch Portal (Stage 3)
-              </button>
-              <button 
-                onClick={() => onSwitchRole('admin')}
-                style={{ textAlign: 'left', color: 'var(--text-secondary)', background: 'none' }}
-              >
-                Admin Operations Console (Stage 4)
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px', color: 'var(--text-secondary)' }}>
+              <Link to="/support">Support Desk & Tickets</Link>
+              <Link to="/my-bookings">Track Your Booking</Link>
+              <Link to="/refund-policy">Refund & Cancellation Policy</Link>
+              <Link to="/terms">Terms of Service</Link>
+              <Link to="/privacy">Privacy Policy</Link>
             </div>
           </div>
 
-          {/* Col 4: Academic Project Transparency */}
+          {/* Col 4: Trust Standard */}
           <div>
             <h4 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-primary)' }}>
-              Project Demonstration
+              FixNear Trust Promise
             </h4>
-            <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '12px' }}>
-              FixNear Trust is an academic final-year major project prototype. All profiles, booking steps, and technician ratings currently reflect simulated test data.
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '14px' }}>
+              Every partner is police-verified and tested for skill certification. With digital finish codes, money is released only after your personal satisfaction.
             </p>
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
               padding: '6px 12px',
-              backgroundColor: 'var(--bg-warm)',
-              border: '1px solid var(--border-light)',
+              backgroundColor: 'var(--forest-50)',
+              border: '1px solid var(--forest-100)',
               borderRadius: 'var(--radius-sm)',
               fontSize: '11.5px',
-              color: 'var(--text-secondary)'
+              color: 'var(--forest-800)',
+              fontWeight: 600
             }}>
-              <Lock size={12} color="var(--forest-700)" />
-              <span>Simulated Frontend Demo</span>
+              <ShieldCheck size={14} color="var(--forest-700)" />
+              <span>100% Verified Partners</span>
             </div>
           </div>
         </div>
@@ -126,12 +115,12 @@ export default function Footer({ onSwitchRole }) {
           color: 'var(--text-muted)'
         }}>
           <div>
-            © 2026 FixNear Trust. Final-Year Major Project UI/UX Prototype.
+            © {new Date().getFullYear()} FixNear Trust Technologies Inc. All rights reserved.
           </div>
           <div style={{ display: 'flex', gap: '16px' }}>
-            <span>Privacy Policy</span>
-            <span>Terms of Service</span>
-            <span>Trust Standard Document</span>
+            <Link to="/terms" style={{ color: 'var(--text-muted)' }}>Terms of Service</Link>
+            <Link to="/privacy" style={{ color: 'var(--text-muted)' }}>Privacy Policy</Link>
+            <Link to="/refund-policy" style={{ color: 'var(--text-muted)' }}>Refund Policy</Link>
           </div>
         </div>
 

@@ -1,7 +1,6 @@
 // ===================================================================
 // FixNear Trust - Question Bank Seed Data
-// Practical, safety-focused, simple language test questions
-// Minimum 15 questions per category (6 categories = 90 questions total)
+// TODO: Phase C/D - Kept strictly for provider exam & admin questions desk until Phase C/D migration.
 // ===================================================================
 
 export const QUESTION_BANK_SEED = [

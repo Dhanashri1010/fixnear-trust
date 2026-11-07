@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   MapPin, 
@@ -14,49 +14,88 @@ import {
   X,
   FileText
 } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useStore } from '../../context/StoreContext';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { servicesAPI, bookingsAPI, uploadAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export default function BookingFlowPage() {
   const navigate = useNavigate();
-  const { 
-    services, 
-    technicians, 
-    approvedTechnicians,
-    createBooking, 
-    bookingModalService 
-  } = useStore();
-  const { currentUser, userProfile } = useAuth();
+  const location = useLocation();
+  const { currentUser, userProfile, selectedCity } = useAuth();
   const { showToast } = useToast();
 
-  const selectableTechnicians = (approvedTechnicians && approvedTechnicians.length > 0)
-    ? approvedTechnicians
-    : (technicians || []).filter(t => t.status === 'approved' || !t.status);
+  const [services, setServices] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(true);
 
   // 3-Step Wizard: 1: Service & Problem, 2: Address & Schedule, 3: Review & Confirm
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Form State (No fake pre-filled values)
-  const [selectedServiceId, setSelectedServiceId] = useState(bookingModalService?.id || (services && services[0]?.id) || '');
+  // Form State
+  const [selectedServiceId, setSelectedServiceId] = useState('');
   const [problemNotes, setProblemNotes] = useState('');
-  const [uploadedPhotos, setUploadedPhotos] = useState([]); // Real file uploads / data URLs, max 3
+  const [uploadedPhotos, setUploadedPhotos] = useState([]); // real URLs
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [photoErrorNotice, setPhotoErrorNotice] = useState('');
   
-  const [addressLine, setAddressLine] = useState(userProfile?.currentAddress || '');
+  const [addressLine, setAddressLine] = useState('');
+  const [bookingCity, setBookingCity] = useState(selectedCity || 'Mumbai');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState('');
-  const [preferredTechId, setPreferredTechId] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [bookingConfirmed, setBookingConfirmed] = useState(null);
 
-  const selectedService = (services || []).find(s => s.id === selectedServiceId) || services?.[0] || {
-    id: 'srv-standard',
+  // 1. Redirect to login if user is not authenticated
+  useEffect(() => {
+    if (!currentUser) {
+      navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`);
+    } else {
+      if (userProfile?.savedAddresses?.[0]?.address) {
+        setAddressLine(userProfile.savedAddresses[0].address);
+      } else if (userProfile?.currentAddress) {
+        setAddressLine(userProfile.currentAddress);
+      }
+      if (selectedCity) {
+        setBookingCity(selectedCity);
+      }
+    }
+  }, [currentUser, userProfile, selectedCity, navigate, location]);
+
+  // 2. Fetch live active services from API
+  useEffect(() => {
+    let isMounted = true;
+    servicesAPI.getServices()
+      .then((res) => {
+        if (isMounted && res.success && res.services) {
+          setServices(res.services);
+          if (res.services.length > 0) {
+            // Check query param for pre-selected service
+            const queryParams = new URLSearchParams(location.search);
+            const preSelect = queryParams.get('service') || queryParams.get('id');
+            const match = res.services.find(s => s.serviceId === preSelect || s._id === preSelect);
+            setSelectedServiceId(match ? match.serviceId : res.services[0].serviceId);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load services:', err.message);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingServices(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [location.search]);
+
+  const selectedService = services.find(s => s.serviceId === selectedServiceId || s._id === selectedServiceId) || services[0] || {
+    serviceId: 'srv-standard',
     title: 'Standard Home Service',
     startingPrice: 499,
-    category: 'General'
+    category: 'General Maintenance'
   };
 
   const slotOptions = [
@@ -66,11 +105,10 @@ export default function BookingFlowPage() {
     "Night (06:00 PM - 09:00 PM)"
   ];
 
-  // Minimum date today
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Real photo upload handler (max 3 photos, file validation)
-  const handlePhotoUpload = (e) => {
+  // Photo upload using uploadAPI (multer + Cloudinary / graceful fallback)
+  const handlePhotoUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
@@ -79,7 +117,7 @@ export default function BookingFlowPage() {
       return;
     }
 
-    files.forEach(file => {
+    for (const file of files) {
       if (!file.type.startsWith('image/')) {
         showToast('Only image files (JPG, PNG, WebP) are allowed.', 'error');
         return;
@@ -88,26 +126,30 @@ export default function BookingFlowPage() {
         showToast('Image file size must be less than 5 MB.', 'error');
         return;
       }
+    }
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setUploadedPhotos(prev => {
-          if (prev.length >= 3) return prev;
-          return [...prev, event.target.result];
-        });
-      };
-      reader.readAsDataURL(file);
-    });
+    setUploadingPhotos(true);
+    setPhotoErrorNotice('');
+
+    try {
+      const res = await uploadAPI.uploadPhotos(files);
+      if (res.success && res.urls) {
+        setUploadedPhotos(prev => [...prev, ...res.urls].slice(0, 3));
+        showToast('Photos uploaded successfully.', 'success');
+      }
+    } catch (err) {
+      console.warn('Upload API message:', err.message);
+      setPhotoErrorNotice('Photo upload is not available right now. You may proceed with your booking without photos.');
+      showToast('Photo upload is not available right now. You can continue without photos.', 'info');
+    } finally {
+      setUploadingPhotos(false);
+    }
   };
 
   const removePhoto = (index) => {
     setUploadedPhotos(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Availability check
-  const hasAvailableTech = selectableTechnicians.length > 0;
-
-  // Step Validations
   const handleNextStep = () => {
     setSubmitError('');
     if (currentStep === 1) {
@@ -142,47 +184,47 @@ export default function BookingFlowPage() {
     setIsSubmitting(true);
 
     try {
-      const assignedTech = selectableTechnicians.find(t => t.id === preferredTechId) || selectableTechnicians[0];
-
-      const newBookingId = await createBooking({
-        serviceTitle: selectedService.title || selectedService.name,
-        serviceId: selectedService.id,
-        basePrice: selectedService.startingPrice || selectedService.basePrice || 499,
-        customerId: currentUser?.id || currentUser?.uid || '',
-        customerName: userProfile?.name || currentUser?.name || currentUser?.displayName || '',
-        customerPhone: userProfile?.phone || currentUser?.phone || '',
-        technicianId: assignedTech?.id || '',
-        technicianName: assignedTech?.name || 'Assigned Certified Technician',
+      const payload = {
+        serviceId: selectedService.serviceId || selectedService._id,
+        address: addressLine.trim(),
+        city: bookingCity,
         scheduledDate: selectedDate,
         timeSlot: selectedSlot,
-        address: addressLine.trim(),
         notes: problemNotes.trim(),
-        photos: uploadedPhotos
-      });
+        photos: uploadedPhotos,
+      };
 
-      if (!newBookingId) {
-        throw new Error('Booking could not be created');
+      const res = await bookingsAPI.createBooking(payload);
+
+      if (!res.success || !res.booking) {
+        throw new Error(res.message || 'We could not place your booking. Please try again.');
       }
 
       setBookingConfirmed({
-        id: newBookingId,
-        service: selectedService.title || selectedService.name,
-        date: selectedDate,
-        slot: selectedSlot,
-        address: addressLine.trim(),
-        price: selectedService.startingPrice || 499
+        id: res.booking._id,
+        bookingNumber: res.booking.bookingId,
+        service: res.booking.serviceTitle,
+        date: res.booking.scheduledDate,
+        slot: res.booking.timeSlot,
+        address: res.booking.address,
+        city: res.booking.city,
+        price: res.booking.basePrice,
+        finishCode: res.booking.completionOtp,
       });
+
       showToast('Booking placed successfully! Your technician will be confirmed shortly.', 'success');
     } catch (err) {
-      console.error(err);
-      setSubmitError("We could not place your booking. Please try again.");
-      showToast("We could not place your booking. Please try again.", 'error');
+      console.error('Booking placement error:', err);
+      const msg = err.message || 'We could not place your booking. Please try again.';
+      setSubmitError(msg);
+      showToast(msg, 'error');
+      // Keep what the user typed in the form!
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // SUCCESS SCREEN: Clear "Booking placed" screen
+  // SUCCESS SCREEN
   if (bookingConfirmed) {
     return (
       <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '85vh', padding: '48px 0 72px 0' }}>
@@ -209,7 +251,7 @@ export default function BookingFlowPage() {
               Your Booking is Confirmed!
             </h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '15px', marginBottom: '24px' }}>
-              Booking Reference: <strong style={{ color: 'var(--forest-900)', fontSize: '17px' }}>#{bookingConfirmed.id}</strong>
+              Booking Reference: <strong style={{ color: 'var(--forest-900)', fontSize: '17px' }}>#{bookingConfirmed.bookingNumber}</strong>
             </p>
 
             <div style={{
@@ -228,8 +270,12 @@ export default function BookingFlowPage() {
                 <strong>{bookingConfirmed.service}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Scheduled Date & Time:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Scheduled Arrival:</span>
                 <strong>{bookingConfirmed.date} ({bookingConfirmed.slot})</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>City:</span>
+                <strong>{bookingConfirmed.city}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Address:</span>
@@ -239,6 +285,24 @@ export default function BookingFlowPage() {
                 <span style={{ fontWeight: 700 }}>Total (Payment Protection):</span>
                 <strong style={{ color: 'var(--forest-800)', fontSize: '16px' }}>₹{bookingConfirmed.price}</strong>
               </div>
+              {bookingConfirmed.finishCode && (
+                <div style={{
+                  marginTop: '10px',
+                  padding: '12px',
+                  backgroundColor: 'var(--forest-50)',
+                  border: '1px solid var(--forest-200)',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--forest-900)', fontWeight: 700 }}>Your 4-Digit Finish Code:</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Share with technician ONLY after job is finished</div>
+                  </div>
+                  <strong style={{ fontSize: '20px', color: 'var(--forest-800)', letterSpacing: '3px' }}>{bookingConfirmed.finishCode}</strong>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -248,7 +312,7 @@ export default function BookingFlowPage() {
                 onClick={() => navigate(`/track/${bookingConfirmed.id}`)}
                 style={{ minWidth: '180px', padding: '12px 20px' }}
               >
-                Track Appointment →
+                Track Live →
               </button>
               <button
                 type="button"
@@ -314,7 +378,7 @@ export default function BookingFlowPage() {
                 <ShieldCheck size={13} />
                 FixNear 3-Step Booking
               </span>
-              <h1 style={{ fontSize: '24px', fontWeight: 800 }}>Schedule Verified Repair</h1>
+              <h1 style={{ fontSize: '24px', fontWeight: 800 }}>Schedule Verified Service</h1>
             </div>
 
             <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
@@ -362,7 +426,7 @@ export default function BookingFlowPage() {
             marginBottom: '20px',
             fontSize: '14px'
           }}>
-            <AlertCircle size={18} />
+            <AlertCircle size={18} style={{ flexShrink: 0 }} />
             <span>{submitError}</span>
           </div>
         )}
@@ -384,25 +448,28 @@ export default function BookingFlowPage() {
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
                   Select Service:
                 </label>
-                <select
-                  value={selectedServiceId}
-                  onChange={(e) => setSelectedServiceId(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 14px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border-light)',
-                    fontSize: '14px',
-                    backgroundColor: '#FFFFFF'
-                  }}
-                >
-                  <option value="" disabled>-- Select a home service --</option>
-                  {(services || []).map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.title || s.name} — ₹{s.startingPrice || s.basePrice} ({s.category})
-                    </option>
-                  ))}
-                </select>
+                {loadingServices ? (
+                  <div style={{ padding: '12px', fontSize: '13.5px', color: 'var(--text-muted)' }}>Loading services from server...</div>
+                ) : (
+                  <select
+                    value={selectedServiceId}
+                    onChange={(e) => setSelectedServiceId(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-light)',
+                      fontSize: '14px',
+                      backgroundColor: '#FFFFFF'
+                    }}
+                  >
+                    {services.map(s => (
+                      <option key={s.serviceId || s._id} value={s.serviceId || s._id}>
+                        {s.title} — ₹{s.startingPrice} ({s.category})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div style={{ marginBottom: '20px' }}>
@@ -429,6 +496,13 @@ export default function BookingFlowPage() {
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
                   Attach Photos of the Issue (Optional, max 3):
                 </label>
+
+                {photoErrorNotice && (
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                    ℹ️ {photoErrorNotice}
+                  </div>
+                )}
+
                 <div style={{
                   border: '2px dashed var(--border-light)',
                   borderRadius: 'var(--radius-md)',
@@ -438,17 +512,17 @@ export default function BookingFlowPage() {
                   marginBottom: '16px'
                 }}>
                   <Upload size={24} color="var(--forest-700)" style={{ margin: '0 auto 8px auto' }} />
-                  <div style={{ fontSize: '13px', fontWeight: 600 }}>Click to upload photos (PNG, JPG up to 5 MB)</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600 }}>Click to attach photos (PNG, JPG up to 5 MB)</div>
                   <input
                     type="file"
                     accept="image/*"
                     multiple
                     onChange={handlePhotoUpload}
-                    disabled={uploadedPhotos.length >= 3}
+                    disabled={uploadedPhotos.length >= 3 || uploadingPhotos}
                     style={{ marginTop: '10px', fontSize: '13px' }}
                   />
                   <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    {uploadedPhotos.length} / 3 photos attached
+                    {uploadingPhotos ? 'Uploading photos...' : `${uploadedPhotos.length} / 3 photos attached`}
                   </div>
                 </div>
 
@@ -490,36 +564,62 @@ export default function BookingFlowPage() {
             </div>
           )}
 
-          {/* STEP 2: Address, Date, Time & Availability Check */}
+          {/* STEP 2: Address, City & Arrival Window */}
           {currentStep === 2 && (
             <div>
               <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '6px' }}>
-                2. Service Address, Date & Arrival Window
+                2. Service Address, City & Arrival Window
               </h2>
               <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
                 Tell us where and when the verified specialist should arrive.
               </p>
 
-              {/* Availability Notice if no verified technician */}
-              {!hasAvailableTech && (
-                <div style={{
-                  padding: '16px',
-                  backgroundColor: 'var(--yellow-100)',
-                  border: '1px solid var(--yellow-200)',
-                  borderRadius: 'var(--radius-md)',
-                  marginBottom: '20px',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '10px',
-                  fontSize: '13.5px',
-                  color: 'var(--yellow-800)'
-                }}>
-                  <AlertCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
-                  <div>
-                    <strong>No technician is currently available for this exact time and area.</strong>
-                    <div style={{ marginTop: '4px' }}>
-                      Please select an alternate date or time window, or reach out to our support team for priority scheduling.
-                    </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                  Service City:
+                </label>
+                <input
+                  type="text"
+                  value={bookingCity}
+                  onChange={(e) => setBookingCity(e.target.value)}
+                  placeholder="e.g. Mumbai, Bengaluru"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-light)',
+                    fontSize: '14px',
+                    backgroundColor: '#FFFFFF'
+                  }}
+                  required
+                />
+              </div>
+
+              {/* Saved addresses shortcut if any */}
+              {userProfile?.savedAddresses && userProfile.savedAddresses.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                    Or select from saved addresses:
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {userProfile.savedAddresses.map((addr) => (
+                      <button
+                        key={addr.id || addr.address}
+                        type="button"
+                        onClick={() => setAddressLine(addr.address)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: addressLine === addr.address ? '1.5px solid var(--forest-700)' : '1px solid var(--border-light)',
+                          backgroundColor: addressLine === addr.address ? 'var(--forest-50)' : '#FFFFFF',
+                          fontSize: '12.5px',
+                          cursor: 'pointer',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <strong>{addr.label || 'Saved'}:</strong> {addr.address.slice(0, 30)}...
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -532,7 +632,7 @@ export default function BookingFlowPage() {
                   rows={3}
                   value={addressLine}
                   onChange={(e) => setAddressLine(e.target.value)}
-                  placeholder="Enter house/flat number, apartment/building name, street, landmark, area and city..."
+                  placeholder="Enter house/flat number, apartment/building name, street, landmark, area..."
                   style={{
                     width: '100%',
                     padding: '12px 14px',
@@ -587,52 +687,6 @@ export default function BookingFlowPage() {
                   </select>
                 </div>
               </div>
-
-              {selectableTechnicians.length > 0 && (
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                    Verified Technicians in Your Area:
-                  </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
-                    {selectableTechnicians.slice(0, 3).map(tech => (
-                      <div
-                        key={tech.id}
-                        onClick={() => setPreferredTechId(tech.id)}
-                        style={{
-                          padding: '12px 14px',
-                          borderRadius: 'var(--radius-md)',
-                          border: preferredTechId === tech.id ? '2px solid var(--forest-700)' : '1px solid var(--border-light)',
-                          backgroundColor: preferredTechId === tech.id ? 'var(--forest-50)' : 'var(--bg-warm)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px'
-                        }}
-                      >
-                        <div style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '50%',
-                          backgroundColor: 'var(--forest-100)',
-                          color: 'var(--forest-800)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 700
-                        }}>
-                          {tech.name ? tech.name.charAt(0) : 'T'}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: '13.5px' }}>{tech.name}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                            ★ {tech.rating || 4.9} · Skill Verified
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -656,20 +710,20 @@ export default function BookingFlowPage() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <div>
-                    <h3 style={{ fontSize: '17px', fontWeight: 800 }}>{selectedService.title || selectedService.name}</h3>
+                    <h3 style={{ fontSize: '17px', fontWeight: 800 }}>{selectedService.title}</h3>
                     <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                      Arrival: <strong>{selectedDate} ({selectedSlot})</strong>
+                      Arrival: <strong>{selectedDate} ({selectedSlot})</strong> in <strong>{bookingCity}</strong>
                     </div>
                   </div>
                   <span style={{ fontSize: '22px', fontWeight: 800, color: 'var(--forest-800)' }}>
-                    ₹{selectedService.startingPrice || 499}
+                    ₹{selectedService.startingPrice}
                   </span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px', paddingTop: '14px', borderTop: '1px solid var(--border-light)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
                     <span>Standard Inspection & Diagnosis</span>
-                    <span>₹{selectedService.startingPrice || 499}</span>
+                    <span>₹{selectedService.startingPrice}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--forest-700)' }}>
                     <span>Doorstep Visit & Travel Fee</span>
@@ -689,7 +743,7 @@ export default function BookingFlowPage() {
                     color: 'var(--forest-900)'
                   }}>
                     <span>Total Estimated Amount</span>
-                    <span>₹{selectedService.startingPrice || 499}</span>
+                    <span>₹{selectedService.startingPrice}</span>
                   </div>
                 </div>
               </div>
@@ -703,7 +757,7 @@ export default function BookingFlowPage() {
                 marginBottom: '20px',
                 fontSize: '13.5px'
               }}>
-                <div style={{ fontWeight: 700, marginBottom: '4px' }}>Service Location:</div>
+                <div style={{ fontWeight: 700, marginBottom: '4px' }}>Service Location ({bookingCity}):</div>
                 <div style={{ color: 'var(--text-secondary)' }}>{addressLine}</div>
                 {problemNotes && (
                   <div style={{ marginTop: '8px', color: 'var(--text-secondary)' }}>

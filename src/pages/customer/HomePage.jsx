@@ -5,7 +5,6 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useStore } from '../../context/StoreContext';
 import HeroSection from '../../components/customer/HeroSection';
 import ServiceCategories from '../../components/customer/ServiceCategories';
 import FeaturedServices from '../../components/customer/FeaturedServices';
@@ -16,21 +15,21 @@ import CustomerReviews from '../../components/customer/CustomerReviews';
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const { setBookingModalService, setIsBookingModalOpen, setSelectedCategoryFilter, setSelectedTechnicianId } = useStore();
 
   const handleOpenBookingModal = (service = null) => {
-    setBookingModalService(service);
-    setIsBookingModalOpen(true);
+    if (service) {
+      navigate(`/book?serviceId=${service.serviceId || service._id}`);
+    } else {
+      navigate('/book');
+    }
   };
 
   const handleSelectCategory = (catId) => {
-    setSelectedCategoryFilter(catId);
-    navigate(`/services?category=${catId}`);
+    navigate(`/services?category=${encodeURIComponent(catId)}`);
   };
 
   const handleSelectTechnician = (techId) => {
-    setSelectedTechnicianId(techId);
-    navigate(`/technician/${techId}`);
+    navigate(`/technician/${encodeURIComponent(techId)}`);
   };
 
   const handleSearch = (term) => {

@@ -172,10 +172,10 @@ input, textarea, select {
   border: 1px solid var(--yellow-200);
 }
 
-.badge-demo {
+.badge-muted {
   background-color: #F1F3F2;
   color: #55625B;
-  border: 1px dashed #BDC9C2;
+  border: 1px solid #D1D5DB;
 }
 
 /* Button Component System */

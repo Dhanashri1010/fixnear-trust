@@ -21,7 +21,15 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, 'Please provide a password'],
-      minlength: 6,
+      minlength: [8, 'Password must be at least 8 characters long'],
+      validate: {
+        validator: function (v) {
+          // In update/already hashed cases, bcrypt hash is 60 chars
+          if (v && v.startsWith('$2a$') || v.startsWith('$2b$')) return true;
+          return /^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(v);
+        },
+        message: 'Password must be at least 8 characters long and contain at least one letter and one number',
+      },
       select: false, // Never return password in queries by default
     },
     role: {

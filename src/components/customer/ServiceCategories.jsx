@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Wind, 
   Droplets, 
@@ -6,9 +6,10 @@ import {
   Tv, 
   Hammer, 
   Sparkles, 
-  ArrowUpRight 
+  ArrowUpRight,
+  Wrench
 } from 'lucide-react';
-import { useStore } from '../../context/StoreContext';
+import { servicesAPI } from '../../services/api';
 
 const ICON_MAP = {
   Wind: Wind,
@@ -16,12 +17,34 @@ const ICON_MAP = {
   Zap: Zap,
   Tv: Tv,
   Hammer: Hammer,
-  Sparkles: Sparkles
+  Sparkles: Sparkles,
+  Wrench: Wrench,
 };
 
 export default function ServiceCategories({ selectedCategoryId, onSelectCategory }) {
-  const { categories } = useStore();
-  const displayCategories = categories && categories.length > 0 ? categories : [];
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    servicesAPI.getCategories()
+      .then((res) => {
+        if (isMounted && res.success && res.categories) {
+          setCategories(res.categories);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load categories:', err.message);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <section id="services" className="section-spacing" style={{ backgroundColor: 'var(--bg-warm)' }}>
       <div className="container">
@@ -29,7 +52,7 @@ export default function ServiceCategories({ selectedCategoryId, onSelectCategory
         {/* Section Header */}
         <div style={{ textAlign: 'center', maxWidth: '640px', margin: '0 auto 48px auto' }}>
           <div style={{ display: 'inline-flex', marginBottom: '12px' }}>
-            <span className="badge badge-sage">
+            <span className="badge badge-forest">
               Verified Service Catalog
             </span>
           </div>
@@ -42,83 +65,87 @@ export default function ServiceCategories({ selectedCategoryId, onSelectCategory
         </div>
 
         {/* Categories Grid */}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+            Loading categories from server...
+          </div>
+        )}
+
+        {!loading && categories.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+            No active categories found.
+          </div>
+        )}
+
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
           gap: '24px'
         }}>
-          {displayCategories.map((cat) => {
-            const IconComponent = ICON_MAP[cat.icon] || Sparkles;
-            const isSelected = selectedCategoryId === cat.id;
+          {categories.map((cat) => {
+            const IconComponent = ICON_MAP[cat.icon] || Wrench;
+            const isSelected = selectedCategoryId === cat.categoryId;
 
             return (
               <div 
-                key={cat.id}
-                onClick={() => onSelectCategory(cat.id)}
-                className="card card-hover"
+                key={cat.categoryId || cat._id}
+                className="card"
+                onClick={() => onSelectCategory(cat.categoryId)}
                 style={{
                   padding: '24px',
+                  borderRadius: 'var(--radius-lg)',
                   cursor: 'pointer',
                   border: isSelected ? '2px solid var(--forest-700)' : '1px solid var(--border-light)',
                   backgroundColor: '#FFFFFF',
-                  position: 'relative'
+                  position: 'relative',
+                  overflow: 'hidden'
                 }}
               >
-                {/* Top Badge & Count */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                   <div style={{
                     width: '48px',
                     height: '48px',
-                    borderRadius: '14px',
-                    backgroundColor: cat.accentBg,
-                    color: cat.accentText,
+                    borderRadius: '12px',
+                    backgroundColor: cat.accentBg || 'var(--forest-50)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    color: cat.accentText || 'var(--forest-800)'
                   }}>
                     <IconComponent size={24} />
                   </div>
-                  <span className="badge badge-forest" style={{ fontSize: '11.5px' }}>
-                    {cat.badge}
-                  </span>
+
+                  {cat.badge && (
+                    <span className="badge badge-forest" style={{ fontSize: '11px' }}>
+                      {cat.badge}
+                    </span>
+                  )}
                 </div>
 
-                {/* Title & Tagline */}
-                <h3 style={{ fontSize: '19px', fontWeight: 700, marginBottom: '6px' }}>
-                  {cat.name}
-                </h3>
-                <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '20px', minHeight: '40px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--forest-900)' }}>
+                    {cat.name}
+                  </h3>
+                  <ArrowUpRight size={18} color="var(--forest-700)" />
+                </div>
+
+                <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '16px', minHeight: '40px' }}>
                   {cat.tagline}
                 </p>
 
-                {/* Footer Pricing & CTA */}
                 <div style={{
+                  paddingTop: '14px',
+                  borderTop: '1px solid var(--border-light)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  paddingTop: '16px',
-                  borderTop: '1px solid var(--border-light)'
+                  fontSize: '13px'
                 }}>
-                  <div>
-                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', display: 'block' }}>Starts from</span>
-                    <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-800)' }}>
-                      ₹{cat.startingPrice}
-                    </span>
-                  </div>
-
-                  <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: 'var(--forest-700)'
-                  }}>
-                    <span>View Rates</span>
-                    <ArrowUpRight size={16} />
-                  </div>
+                  <span style={{ color: 'var(--text-muted)' }}>Starting from</span>
+                  <span style={{ fontWeight: 800, fontSize: '16px', color: 'var(--forest-800)' }}>
+                    ₹{cat.startingPrice}
+                  </span>
                 </div>
-
               </div>
             );
           })}

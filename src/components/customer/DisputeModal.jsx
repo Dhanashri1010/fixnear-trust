@@ -1,74 +1,49 @@
 // ===================================================================
 // FixNear Trust - Customer Dispute Resolution Modal
-// Allows raising a formal dispute with photo attachment & escrow hold
+// Creates a formal dispute record via REST API
 // ===================================================================
 
 import React, { useState } from 'react';
-import { ShieldAlert, AlertTriangle, Upload, X, CheckCircle2, FileText } from 'lucide-react';
-import { useStore } from '../../context/StoreContext';
+import { ShieldAlert, AlertTriangle, X, CheckCircle2, AlertCircle } from 'lucide-react';
+import { bookingsAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
-export default function DisputeModal({ isOpen, onClose, booking }) {
-  const { createDispute } = useStore();
+export default function DisputeModal({ isOpen, onClose, booking, onDisputeCreated }) {
   const { showToast } = useToast();
 
   const [reasonCategory, setReasonCategory] = useState("Workmanship defect / recurring fault");
   const [details, setDetails] = useState("");
-  const [photoUrl, setPhotoUrl] = useState("");
-  const [photoName, setPhotoName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   if (!isOpen || !booking) return null;
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("Photo exceeds 5 MB limit.", "error");
-      return;
-    }
-
-    setPhotoName(file.name);
-    const reader = new FileReader();
-    reader.onload = (loadEvt) => {
-      setPhotoUrl(loadEvt.target.result);
-      showToast("Evidence photo attached!", "success");
-    };
-    reader.readAsDataURL(file);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMsg("");
+
     if (!details.trim() || details.length < 15) {
-      showToast("Please provide at least 15 characters describing the issue.", "error");
+      setErrorMsg("Please provide at least 15 characters describing the issue.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await createDispute({
-        bookingId: booking.id,
-        customerId: booking.customerId || "customer-demo-1",
-        customerName: booking.customerName || "Aarav Patel",
-        customerPhone: booking.customerPhone || "+91 98201 54321",
-        providerId: booking.providerId || "provider-demo-1",
-        providerName: booking.providerName || booking.technicianName || "Ramesh Sharma",
-        providerPhone: booking.providerPhone || "+91 98200 11223",
-        serviceTitle: booking.serviceTitle,
+      const bookingId = booking._id || booking.id || booking.bookingId;
+      await bookingsAPI.submitComplaint(bookingId, {
         reason: reasonCategory,
-        details: details,
-        photoUrl: photoUrl || "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80",
-        escrowAmount: booking.invoice?.actualBilledTotal || booking.price || 599,
-        requestedResolution: "Investigation & Refund",
-        status: "OPEN"
+        notes: details.trim(),
+        claimAmount: booking.basePrice || booking.price || 499,
       });
 
-      showToast("Dispute escalated to FixNear Trust & Safety Desk! Escrow funds placed on hold.", "warning");
+      showToast("Complaint registered. Trust & Safety team will review within 24 hours.", "success");
+      if (onDisputeCreated) onDisputeCreated();
       onClose();
     } catch (err) {
-      console.error("Dispute error:", err);
-      showToast("Could not submit dispute. Please try again.", "error");
+      console.error("Dispute submission error:", err);
+      const msg = err.message || "Failed to submit complaint. Please try again.";
+      setErrorMsg(msg);
+      showToast(msg, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -81,41 +56,41 @@ export default function DisputeModal({ isOpen, onClose, booking }) {
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.6)',
+      backgroundColor: 'rgba(14, 27, 21, 0.65)',
+      backdropFilter: 'blur(4px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 10000,
+      zIndex: 1000,
       padding: '16px'
     }}>
-      <div style={{
-        backgroundColor: '#FFFFFF',
-        borderRadius: 'var(--radius-xl)',
-        maxWidth: '540px',
-        width: '100%',
-        maxHeight: '90vh',
-        overflowY: 'auto',
-        boxShadow: 'var(--shadow-xl)',
-        border: '1.5px solid var(--border-light)'
-      }}>
+      <div 
+        className="card"
+        style={{
+          width: '100%',
+          maxWidth: '540px',
+          backgroundColor: '#FFFFFF',
+          borderRadius: 'var(--radius-xl)',
+          boxShadow: 'var(--shadow-lg)',
+          border: '1px solid var(--border-light)',
+          animation: 'fadeInSlide 180ms ease'
+        }}
+      >
         {/* Header */}
         <div style={{
-          padding: '20px 24px',
+          padding: '18px 24px',
           borderBottom: '1px solid var(--border-light)',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
-          backgroundColor: '#FEF2F2',
-          borderTopLeftRadius: 'var(--radius-xl)',
-          borderTopRightRadius: 'var(--radius-xl)'
+          alignItems: 'center'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{
               width: '36px',
               height: '36px',
-              borderRadius: '50%',
+              borderRadius: '10px',
               backgroundColor: '#FEE2E2',
-              color: '#DC2626',
+              color: '#B91C1C',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -123,11 +98,9 @@ export default function DisputeModal({ isOpen, onClose, booking }) {
               <ShieldAlert size={20} />
             </div>
             <div>
-              <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#991B1B', margin: 0 }}>
-                Report an Issue / Raise Dispute
-              </h2>
-              <div style={{ fontSize: '12px', color: '#B91C1C' }}>
-                Booking #{booking.id} • FixNear Safe Escrow Guarantee
+              <h3 style={{ fontSize: '18px', fontWeight: 800 }}>File a Service Dispute</h3>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                Booking Ref: #{booking.bookingId || booking.id}
               </div>
             </div>
           </div>
@@ -135,153 +108,121 @@ export default function DisputeModal({ isOpen, onClose, booking }) {
           <button 
             type="button"
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--bg-warm)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              border: 'none'
+            }}
           >
-            <X size={20} />
+            <X size={16} color="var(--text-secondary)" />
           </button>
         </div>
 
-        {/* Form Body */}
+        {/* Content */}
         <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            
-            {/* Guarantee Note */}
+          
+          {errorMsg && (
             <div style={{
-              padding: '12px 14px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--forest-50)',
-              border: '1px solid var(--forest-200)',
-              fontSize: '12.5px',
-              color: 'var(--forest-800)',
-              lineHeight: 1.5
+              padding: '10px 14px',
+              backgroundColor: '#FEE2E2',
+              border: '1px solid #FCA5A5',
+              borderRadius: 'var(--radius-sm)',
+              color: '#991B1B',
+              fontSize: '13px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
             }}>
-              🛡️ <strong>FixNear 100% Escrow Protection:</strong> Once raised, payout is held until the Admin Mediation Desk inspects the work timeline, quotation, and photo proof.
+              <AlertCircle size={15} style={{ flexShrink: 0 }} />
+              <span>{errorMsg}</span>
             </div>
+          )}
 
-            {/* Category Select */}
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '6px' }}>
-                Dispute Reason Category *
-              </label>
-              <select
-                value={reasonCategory}
-                onChange={(e) => setReasonCategory(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--border-light)',
-                  fontSize: '13.5px',
-                  backgroundColor: '#FFFFFF'
-                }}
-              >
-                <option value="Workmanship defect / recurring fault">Workmanship defect / recurring fault</option>
-                <option value="Unauthorized part price / overcharging">Unauthorized part price / overcharging</option>
-                <option value="Incomplete job or non-functional repair">Incomplete job or non-functional repair</option>
-                <option value="Property damage during service">Property damage during service</option>
-                <option value="Technician conduct / no-show">Technician conduct / no-show</option>
-              </select>
-            </div>
-
-            {/* Detailed Description */}
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '6px' }}>
-                Describe what happened *
-              </label>
-              <textarea
-                rows={4}
-                required
-                value={details}
-                onChange={(e) => setDetails(e.target.value)}
-                placeholder="Explain the issue clearly (e.g., water leakage started 2 hours after capacitor service, or technician did not clean the drain pipe as invoiced)..."
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1.5px solid var(--border-light)',
-                  fontSize: '13px',
-                  lineHeight: 1.5
-                }}
-              />
-            </div>
-
-            {/* Photo Attachment (Optional) */}
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '6px' }}>
-                Upload Photo Evidence (Optional but recommended)
-              </label>
-              
-              <div style={{
-                padding: '16px',
-                borderRadius: 'var(--radius-md)',
-                border: '1.5px dashed var(--border-light)',
-                backgroundColor: 'var(--bg-warm)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                flexWrap: 'wrap'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  {photoUrl ? (
-                    <img 
-                      src={photoUrl} 
-                      alt="Evidence preview" 
-                      style={{ width: '44px', height: '44px', borderRadius: 'var(--radius-xs)', objectFit: 'cover' }} 
-                    />
-                  ) : (
-                    <Upload size={22} color="var(--text-muted)" />
-                  )}
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--forest-900)' }}>
-                      {photoName ? photoName : "Attach photo of equipment or damage"}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      JPG, PNG (Max 5 MB)
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="dispute-photo-upload"
-                    className="btn btn-outline btn-sm"
-                    style={{ cursor: 'pointer', backgroundColor: '#FFFFFF', fontSize: '12px' }}
-                  >
-                    <span>{photoName ? 'Replace Photo' : 'Select Photo'}</span>
-                  </label>
-                  <input
-                    id="dispute-photo-upload"
-                    type="file"
-                    accept=".jpg,.jpeg,.png"
-                    style={{ display: 'none' }}
-                    onChange={handleFileUpload}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-              <button
-                type="button"
-                onClick={onClose}
-                className="btn btn-outline"
-                style={{ padding: '10px 18px' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="btn btn-primary"
-                style={{ backgroundColor: '#DC2626', borderColor: '#B91C1C', padding: '10px 22px' }}
-              >
-                {isSubmitting ? 'Escalating...' : 'Submit Formal Dispute'}
-              </button>
-            </div>
-
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+              Reason for Dispute:
+            </label>
+            <select
+              value={reasonCategory}
+              onChange={(e) => setReasonCategory(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-light)',
+                fontSize: '13.5px',
+                backgroundColor: '#FFFFFF'
+              }}
+            >
+              <option value="Workmanship defect / recurring fault">Workmanship defect / recurring fault</option>
+              <option value="Technician did not complete agreed scope">Technician did not complete agreed scope</option>
+              <option value="Damage caused to property during repair">Damage caused to property during repair</option>
+              <option value="Disagreement on extra quotation or parts">Disagreement on extra quotation or parts</option>
+              <option value="Unprofessional conduct">Unprofessional conduct</option>
+            </select>
           </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+              Detailed Explanation:
+            </label>
+            <textarea
+              rows={4}
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder="Please provide specific details about what occurred, technician communication, and what resolution you are requesting..."
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-light)',
+                fontSize: '13.5px',
+                resize: 'none'
+              }}
+              required
+            />
+          </div>
+
+          <div style={{
+            padding: '12px 14px',
+            backgroundColor: 'var(--forest-50)',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--forest-100)',
+            fontSize: '12px',
+            color: 'var(--forest-900)',
+            marginBottom: '20px',
+            lineHeight: 1.5
+          }}>
+            🛡️ <strong>FixNear Guarantee:</strong> When a dispute is lodged, payment settlement is placed on protective hold until our mediation desk investigates and resolves the claim.
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+              style={{ flex: 1 }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isSubmitting}
+              style={{ flex: 1.5, backgroundColor: '#B91C1C' }}
+            >
+              {isSubmitting ? 'Filing Complaint...' : 'Submit Official Dispute'}
+            </button>
+          </div>
+
         </form>
       </div>
     </div>

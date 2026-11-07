@@ -1,44 +1,68 @@
 // ===================================================================
 // FixNear Trust - Main Application Entrypoint
-// React Router DOM v6 + Firebase Auth + Real-time Firestore Store
+// React Router DOM v6 + Lazy Code Splitting per Portal
 // ===================================================================
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { StoreProvider, useStore } from './context/StoreContext';
 import { ToastProvider } from './context/ToastContext';
 
-// Common Components
+// Common Components (Eager loaded for immediate structure)
 import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
 import UserActionModal from './components/common/UserActionModal';
 import BookingDrawerModal from './components/customer/BookingDrawerModal';
 import ProtectedRoute from './components/common/ProtectedRoute';
 
-// Pages
-import HomePage from './pages/customer/HomePage';
-import CatalogPage from './pages/customer/CatalogPage';
-import SearchPage from './pages/customer/SearchPage';
-import TechnicianProfilePageWrapper from './pages/customer/TechnicianProfilePageWrapper';
-import BookingPage from './pages/customer/BookingPage';
-import TrackingPage from './pages/customer/TrackingPage';
-import QuotationPage from './pages/customer/QuotationPage';
-import InvoicePage from './pages/customer/InvoicePage';
-import MyBookingsPage from './pages/customer/MyBookingsPage';
-import SupportPage from './pages/customer/SupportPage';
+// Loading Fallback Component
+const PageLoadingFallback = () => (
+  <div style={{
+    minHeight: '60vh',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '12px',
+    color: 'var(--forest-800)'
+  }}>
+    <div className="spinner" />
+    <span style={{ fontSize: '14px', fontWeight: 600 }}>Loading FixNear Trust...</span>
+  </div>
+);
 
-// Auth Pages
-import LoginPage from './pages/auth/LoginPage';
-import SignUpPage from './pages/auth/SignUpPage';
+// Customer Portal Pages (Lazy loaded)
+const HomePage = lazy(() => import('./pages/customer/HomePage'));
+const CatalogPage = lazy(() => import('./pages/customer/CatalogPage'));
+const SearchPage = lazy(() => import('./pages/customer/SearchPage'));
+const TechnicianProfilePageWrapper = lazy(() => import('./pages/customer/TechnicianProfilePageWrapper'));
+const BookingPage = lazy(() => import('./pages/customer/BookingPage'));
+const TrackingPage = lazy(() => import('./pages/customer/TrackingPage'));
+const QuotationPage = lazy(() => import('./pages/customer/QuotationPage'));
+const InvoicePage = lazy(() => import('./pages/customer/InvoicePage'));
+const MyBookingsPage = lazy(() => import('./pages/customer/MyBookingsPage'));
+const SupportPage = lazy(() => import('./pages/customer/SupportPage'));
+const TermsPage = lazy(() => import('./pages/customer/TermsPage'));
+const PrivacyPage = lazy(() => import('./pages/customer/PrivacyPage'));
+const RefundPolicyPage = lazy(() => import('./pages/customer/RefundPolicyPage'));
 
-// Portal Dashboards
-import ProviderDashboardPage from './pages/provider/ProviderDashboardPage';
-import ProviderRegisterPage from './pages/provider/ProviderRegisterPage';
-import ProviderSkillTestPage from './pages/provider/ProviderSkillTestPage';
-import AdminDashboardPage from './pages/admin/AdminDashboardPage';
-import AdminLoginPage from './pages/admin/AdminLoginPage';
-import NotFoundPage from './pages/NotFoundPage';
+// Auth Pages (Lazy loaded)
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const SignUpPage = lazy(() => import('./pages/auth/SignUpPage'));
+const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
+
+// Provider Portal Pages (Lazy loaded)
+const ProviderDashboardPage = lazy(() => import('./pages/provider/ProviderDashboardPage'));
+const ProviderRegisterPage = lazy(() => import('./pages/provider/ProviderRegisterPage'));
+const ProviderSkillTestPage = lazy(() => import('./pages/provider/ProviderSkillTestPage'));
+
+// Admin Portal Pages (Lazy loaded)
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
+const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage'));
+
+// Fallback Page
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function AppLayout() {
   const location = useLocation();
@@ -51,7 +75,7 @@ function AppLayout() {
   } = useStore();
 
   const isAdminLogin = location.pathname === '/admin/login';
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup' || isAdminLogin;
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/reset-password' || isAdminLogin;
   const isDashboard = location.pathname.startsWith('/admin') || location.pathname.startsWith('/provider');
 
   return (
@@ -60,64 +84,73 @@ function AppLayout() {
       {/* Universal Top Navigation - hidden on admin login */}
       {!isAdminLogin && <Navbar />}
 
-      {/* Main View Router */}
+      {/* Main View Router with Suspense */}
       <main style={{ flex: 1, paddingBottom: '80px' }}>
-        <Routes>
-          {/* Customer Public & In-Service Routes */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/services" element={<CatalogPage />} />
-          <Route path="/catalog" element={<Navigate to="/services" replace />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/technician/:id" element={<TechnicianProfilePageWrapper />} />
-          <Route path="/book" element={<BookingPage />} />
-          <Route path="/track" element={<TrackingPage />} />
-          <Route path="/track/:id" element={<TrackingPage />} />
-          <Route path="/quote" element={<QuotationPage />} />
-          <Route path="/quote/:id" element={<QuotationPage />} />
-          <Route path="/invoice" element={<InvoicePage />} />
-          <Route path="/invoice/:id" element={<InvoicePage />} />
-          <Route path="/bookings" element={<MyBookingsPage />} />
-          <Route path="/support" element={<SupportPage />} />
+        <Suspense fallback={<PageLoadingFallback />}>
+          <Routes>
+            {/* Customer Public & In-Service Routes */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/services" element={<CatalogPage />} />
+            <Route path="/catalog" element={<Navigate to="/services" replace />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/technician/:id" element={<TechnicianProfilePageWrapper />} />
+            <Route path="/book" element={<BookingPage />} />
+            <Route path="/track" element={<TrackingPage />} />
+            <Route path="/track/:id" element={<TrackingPage />} />
+            <Route path="/quote" element={<QuotationPage />} />
+            <Route path="/quote/:id" element={<QuotationPage />} />
+            <Route path="/invoice" element={<InvoicePage />} />
+            <Route path="/invoice/:id" element={<InvoicePage />} />
+            <Route path="/bookings" element={<MyBookingsPage />} />
+            <Route path="/my-bookings" element={<MyBookingsPage />} />
+            <Route path="/support" element={<SupportPage />} />
+            
+            {/* Legal and Policy Routes */}
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/refund-policy" element={<RefundPolicyPage />} />
 
-          {/* Authentication Routes */}
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignUpPage />} />
+            {/* Authentication Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-          {/* Service Provider Portal Routes */}
-          <Route path="/provider/register" element={<ProviderRegisterPage />} />
-          <Route path="/provider/test" element={<ProviderSkillTestPage />} />
-          <Route path="/provider/test/:categoryId" element={<ProviderSkillTestPage />} />
-          <Route 
-            path="/provider" 
-            element={
-              <ProtectedRoute allowedRoles={['provider', 'admin']}>
-                <ProviderDashboardPage />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/provider/dashboard" 
-            element={
-              <ProtectedRoute allowedRoles={['provider', 'admin']}>
-                <ProviderDashboardPage />
-              </ProtectedRoute>
-            } 
-          />
+            {/* Service Provider Portal Routes */}
+            <Route path="/provider/register" element={<ProviderRegisterPage />} />
+            <Route path="/provider/test" element={<ProviderSkillTestPage />} />
+            <Route path="/provider/test/:categoryId" element={<ProviderSkillTestPage />} />
+            <Route 
+              path="/provider" 
+              element={
+                <ProtectedRoute allowedRoles={['provider', 'admin']}>
+                  <ProviderDashboardPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/provider/dashboard" 
+              element={
+                <ProtectedRoute allowedRoles={['provider', 'admin']}>
+                  <ProviderDashboardPage />
+                </ProtectedRoute>
+              } 
+            />
 
-          {/* Admin Portal Routes (Guarded for Admin) */}
-          <Route path="/admin/login" element={<AdminLoginPage />} />
-          <Route 
-            path="/admin/*" 
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboardPage />
-              </ProtectedRoute>
-            } 
-          />
+            {/* Admin Portal Routes (Guarded for Admin) */}
+            <Route path="/admin/login" element={<AdminLoginPage />} />
+            <Route 
+              path="/admin/*" 
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboardPage />
+                </ProtectedRoute>
+              } 
+            />
 
-          {/* 404 Fallback */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+            {/* 404 Fallback */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
       </main>
 
       {/* Public Customer Footer (hidden on standalone auth screens) */}

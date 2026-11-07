@@ -1,44 +1,69 @@
 // ===================================================================
 // FixNear Trust - Universal Navigation Bar
-// React Router + Firebase Auth aware + Dynamic portal indicators
+// React Router + AuthContext aware + Real-time location selector
 // ===================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  ShieldCheck, 
-  MapPin, 
-  Search, 
-  ChevronDown, 
-  Wrench, 
-  Sparkles,
+import {
+  ShieldCheck,
+  MapPin,
+  Search,
+  ChevronDown,
+  Wrench,
   Navigation,
-  User,
   LogIn,
-  Globe
+  Globe,
+  Check
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
 import { setLanguage, getLanguage, t } from '../../i18n/translations';
 import AvatarDropdown from './AvatarDropdown';
+import InitialsAvatar from './InitialsAvatar';
+
+const MAJOR_CITIES = [
+  'Mumbai',
+  'Bengaluru',
+  'Delhi NCR',
+  'Pune',
+  'Hyderabad',
+  'Kolkata',
+  'Chennai',
+];
 
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { setActiveUserAction, activeBookingId } = useStore();
-  const { currentUser, userProfile, role } = useAuth();
+  const { currentUser, userProfile, role, selectedCity, setSelectedCity } = useAuth();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState("Bandra West, Mumbai (400050)");
+  const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
+  const [customCityInput, setCustomCityInput] = useState('');
   const [navSearch, setNavSearch] = useState('');
   const [currentLang, setCurrentLang] = useState(getLanguage());
+
+  const cityDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (cityDropdownRef.current && !cityDropdownRef.current.contains(e.target)) {
+        setIsCityDropdownOpen(false);
+      }
+    };
+    if (isCityDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isCityDropdownOpen]);
 
   const handleLanguageChange = (lang) => {
     setLanguage(lang);
     setCurrentLang(lang);
   };
-
-
 
   const handleNavSearch = (e) => {
     if (e.key === 'Enter' && navSearch.trim()) {
@@ -46,16 +71,28 @@ export default function Navbar() {
     }
   };
 
-  const displayName = userProfile?.name || currentUser?.displayName || "FixNear User";
-  const displayAvatar = userProfile?.avatar || currentUser?.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80";
+  const handleSelectCity = (city) => {
+    setSelectedCity(city);
+    setIsCityDropdownOpen(false);
+  };
+
+  const handleCustomCitySubmit = (e) => {
+    e.preventDefault();
+    if (customCityInput.trim()) {
+      setSelectedCity(customCityInput.trim());
+      setCustomCityInput('');
+      setIsCityDropdownOpen(false);
+    }
+  };
+
+  const displayName = userProfile?.name || currentUser?.name || 'Customer';
 
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 900 }} className="glass-nav">
-
       <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '72px', gap: '16px' }}>
-        
+
         {/* Brand Logo */}
-        <Link 
+        <Link
           to="/"
           style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}
           title="Return to Home"
@@ -97,40 +134,101 @@ export default function Navbar() {
           </div>
         </Link>
 
-        {/* Location Selector (Interactive Pill) */}
-        <div 
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '7px 12px',
-            borderRadius: 'var(--radius-sm)',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-light)',
-            fontSize: '13px',
-            fontWeight: 500,
-            cursor: 'pointer',
-            transition: 'border-color 150ms ease'
-          }}
-          title="Click to toggle location"
-          className="nav-desktop-links"
-          onClick={() => {
-            setSelectedLocation(prev => 
-              prev.includes("Bandra") 
-                ? "Indiranagar, Bengaluru (560038)" 
-                : "Bandra West, Mumbai (400050)"
-            );
-          }}
-        >
-          <MapPin size={16} color="var(--forest-700)" />
-          <span style={{ color: 'var(--text-primary)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {selectedLocation}
-          </span>
-          <ChevronDown size={14} color="var(--text-muted)" />
+        {/* Real Dynamic Location Selector Pill */}
+        <div style={{ position: 'relative' }} ref={cityDropdownRef}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '7px 12px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'border-color 150ms ease'
+            }}
+            title="Click to select city"
+            className="nav-desktop-links"
+            onClick={() => setIsCityDropdownOpen(!isCityDropdownOpen)}
+          >
+            <MapPin size={16} color="var(--forest-700)" />
+            <span style={{ color: 'var(--text-primary)', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {selectedCity || 'Mumbai'}
+            </span>
+            <ChevronDown size={14} color="var(--text-muted)" />
+          </div>
+
+          {/* City Picker Dropdown */}
+          {isCityDropdownOpen && (
+            <div style={{
+              position: 'absolute',
+              top: 'calc(100% + 8px)',
+              left: 0,
+              width: '240px',
+              backgroundColor: '#FFFFFF',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-lg)',
+              border: '1px solid var(--border-light)',
+              padding: '8px',
+              zIndex: 1000,
+            }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px' }}>
+                Select Your Service City
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                {MAJOR_CITIES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => handleSelectCity(c)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: selectedCity === c ? 'var(--forest-50)' : 'none',
+                      color: selectedCity === c ? 'var(--forest-800)' : 'var(--text-primary)',
+                      fontWeight: selectedCity === c ? 700 : 500,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      border: 'none',
+                      textAlign: 'left',
+                      width: '100%',
+                    }}
+                  >
+                    <span>{c}</span>
+                    {selectedCity === c && <Check size={14} color="var(--forest-700)" />}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Area / City input */}
+              <form onSubmit={handleCustomCitySubmit} style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-light)' }}>
+                <input
+                  type="text"
+                  placeholder="Or type custom city..."
+                  value={customCityInput}
+                  onChange={(e) => setCustomCityInput(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '6px 8px',
+                    fontSize: '12px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border-light)',
+                    outline: 'none',
+                  }}
+                />
+              </form>
+            </div>
+          )}
         </div>
 
         {/* Search Bar in Navbar */}
-        <div 
+        <div
           className="nav-desktop-links"
           style={{
             display: 'flex',
@@ -144,7 +242,7 @@ export default function Navbar() {
           }}
         >
           <Search size={15} color="var(--forest-700)" />
-          <input 
+          <input
             type="text"
             placeholder="Search catalog & pros..."
             value={navSearch}
@@ -163,7 +261,7 @@ export default function Navbar() {
 
         {/* Navigation Links */}
         <nav className="nav-desktop-links" style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-          <Link 
+          <Link
             to="/services"
             style={{
               fontSize: '13.5px',
@@ -175,23 +273,23 @@ export default function Navbar() {
             Catalog
           </Link>
 
-          <Link 
+          <Link
             to={activeBookingId ? `/track/${activeBookingId}` : '/bookings'}
             style={{
               fontSize: '13.5px',
               fontWeight: location.pathname.startsWith('/track') ? 700 : 600,
               color: location.pathname.startsWith('/track') ? 'var(--forest-800)' : 'var(--text-secondary)',
-              textDecoration: 'none',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '5px',
+              textDecoration: 'none'
             }}
           >
             <Navigation size={13} color="var(--forest-700)" />
             <span>Track</span>
           </Link>
 
-          <Link 
+          <Link
             to="/bookings"
             style={{
               fontSize: '13.5px',
@@ -203,7 +301,7 @@ export default function Navbar() {
             My Bookings
           </Link>
 
-          <Link 
+          <Link
             to="/provider/register"
             style={{
               fontSize: '13.5px',
@@ -215,19 +313,7 @@ export default function Navbar() {
             Join as Partner
           </Link>
 
-          <Link 
-            to="/bookings"
-            style={{
-              fontSize: '13.5px',
-              fontWeight: location.pathname === '/bookings' ? 700 : 600,
-              color: location.pathname === '/bookings' ? 'var(--forest-800)' : 'var(--text-secondary)',
-              textDecoration: 'none'
-            }}
-          >
-            My Bookings
-          </Link>
-
-          <Link 
+          <Link
             to="/support"
             style={{
               fontSize: '13.5px',
@@ -242,39 +328,41 @@ export default function Navbar() {
 
         {/* Actions & Avatar / Login Trigger */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          
+
           {/* Language Selector Dropdown */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: '4px',
-            backgroundColor: '#FFFFFF',
-            border: '1px solid var(--border-light)',
+            padding: '4px 8px',
             borderRadius: 'var(--radius-sm)',
-            padding: '4px 8px'
+            border: '1px solid var(--border-light)',
+            backgroundColor: '#FFFFFF',
+            fontSize: '12px',
+            color: 'var(--text-secondary)'
           }}>
-            <Globe size={14} color="var(--forest-700)" />
+            <Globe size={13} color="var(--forest-700)" />
             <select
               value={currentLang}
               onChange={(e) => handleLanguageChange(e.target.value)}
-              aria-label="Select Interface Language"
               style={{
                 border: 'none',
-                background: 'none',
+                background: 'transparent',
                 fontSize: '12px',
-                fontWeight: 700,
+                fontWeight: 600,
                 color: 'var(--forest-800)',
                 cursor: 'pointer',
                 outline: 'none'
               }}
+              aria-label="Select Language"
             >
               <option value="en">EN</option>
-              <option value="hi">हिंदी</option>
-              <option value="mr">मराठी</option>
+              <option value="hi">HI (हिंदी)</option>
+              <option value="mr">MR (मराठी)</option>
             </select>
           </div>
 
-          <Link 
+          <Link
             to="/book"
             className="btn btn-primary btn-sm"
             style={{ textDecoration: 'none' }}
@@ -304,10 +392,10 @@ export default function Navbar() {
                 aria-label="Account Menu"
               >
                 <div style={{ position: 'relative' }}>
-                  <img 
-                    src={displayAvatar} 
-                    alt={displayName}
-                    style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} 
+                  <InitialsAvatar
+                    name={displayName}
+                    avatarUrl={userProfile?.avatar || currentUser?.avatar}
+                    size={36}
                   />
                   <span style={{
                     position: 'absolute',
@@ -323,7 +411,7 @@ export default function Navbar() {
                 <ChevronDown size={14} color="var(--text-muted)" />
               </button>
 
-              <AvatarDropdown 
+              <AvatarDropdown
                 isOpen={isDropdownOpen}
                 onClose={() => setIsDropdownOpen(false)}
                 onSelectOption={(action) => setActiveUserAction(action)}
@@ -342,22 +430,6 @@ export default function Navbar() {
 
         </div>
 
-      </div>
-
-      {/* Mobile Scrollable Quick Navigation (<= 768px) */}
-      <div className="nav-mobile-scroll" style={{ display: 'none' }}>
-        <Link to="/services" style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--forest-100)', color: 'var(--forest-900)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-          Services
-        </Link>
-        <Link to="/bookings" style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--forest-100)', color: 'var(--forest-900)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-          My Bookings
-        </Link>
-        <Link to="/provider/register" style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--forest-100)', color: 'var(--forest-900)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-          Join as Partner
-        </Link>
-        <Link to="/support" style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--forest-100)', color: 'var(--forest-900)', fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-          Help
-        </Link>
       </div>
     </header>
   );

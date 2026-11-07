@@ -18,19 +18,16 @@ import {
   Wrench
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useStore } from '../../context/StoreContext';
+import InitialsAvatar from './InitialsAvatar';
 
 export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const { currentUser, userProfile, role, logOut } = useAuth();
-  const { bookings } = useStore();
 
-  const displayName = userProfile?.name || currentUser?.displayName || "FixNear User";
+  const displayName = userProfile?.name || currentUser?.name || "FixNear User";
   const displayEmail = userProfile?.email || currentUser?.email || "user@example.com";
-  const displayAvatar = userProfile?.avatar || currentUser?.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80";
-
-  const activeBookingsCount = bookings.filter(b => b.status !== 'COMPLETED' && b.status !== 'CANCELLED').length;
+  const displayAvatar = userProfile?.avatar || currentUser?.avatar || "";
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -79,10 +76,10 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
       {/* User Header Summary */}
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-light)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <img 
-            src={displayAvatar} 
-            alt={displayName}
-            style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover' }} 
+          <InitialsAvatar
+            name={displayName}
+            avatarUrl={displayAvatar}
+            size={42}
           />
           <div style={{ overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -160,11 +157,6 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
             <CalendarDays size={16} color="var(--forest-700)" />
             <span>My Bookings</span>
           </div>
-          {activeBookingsCount > 0 && (
-            <span className="badge badge-yellow" style={{ fontSize: '11px', padding: '1px 6px' }}>
-              {activeBookingsCount} Active
-            </span>
-          )}
         </button>
 
         <button 

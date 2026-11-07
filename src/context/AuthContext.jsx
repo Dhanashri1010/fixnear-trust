@@ -14,6 +14,14 @@ export function AuthProvider({ children }) {
   const [providerProfile, setProviderProfile] = useState(null);
   const [role, setRole] = useState('customer'); // 'customer' | 'provider' | 'admin'
   const [loading, setLoading] = useState(true);
+  const [selectedCity, setSelectedCityState] = useState(() => {
+    return localStorage.getItem('fixnear_selected_city') || 'Mumbai';
+  });
+
+  const setSelectedCity = (city) => {
+    setSelectedCityState(city);
+    localStorage.setItem('fixnear_selected_city', city);
+  };
 
   // Initialize and check active session on app mount
   useEffect(() => {
@@ -142,6 +150,8 @@ export function AuthProvider({ children }) {
         providerProfile,
         role,
         setRole,
+        selectedCity,
+        setSelectedCity,
         loading,
         signUpWithEmail,
         signInWithEmail,

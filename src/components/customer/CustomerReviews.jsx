@@ -3,13 +3,42 @@
 // Shows live verified reviews submitted post-completion with OTP
 // ===================================================================
 
-import React from 'react';
-import { Star, ShieldCheck, Quote, Camera } from 'lucide-react';
-import { useStore } from '../../context/StoreContext';
+import React, { useState, useEffect } from 'react';
+import { Star, ShieldCheck, Quote, Camera, AlertCircle } from 'lucide-react';
+import { servicesAPI } from '../../services/api';
+import InitialsAvatar from '../common/InitialsAvatar';
 
 export default function CustomerReviews() {
-  const { reviews, visibleReviews } = useStore();
-  const displayReviews = visibleReviews || reviews.filter(r => !r.isHidden);
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchReviews = async () => {
+      try {
+        setLoading(true);
+        const data = await servicesAPI.getReviews();
+        if (isMounted) {
+          setReviews(data.reviews || []);
+          setError('');
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err.message || 'Unable to load reviews.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchReviews();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <section className="section-spacing" style={{ backgroundColor: 'var(--bg-warm)' }}>
@@ -26,77 +55,111 @@ export default function CustomerReviews() {
             What Homeowners Say
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '15.5px' }}>
-            Customer ratings submitted after completion OTP and invoice inspection.
+            Customer ratings submitted only after verified job completion.
           </p>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div className="spinner" style={{ margin: '0 auto 12px auto' }} />
+            <p style={{ fontSize: '14px' }}>Loading verified customer feedback...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {!loading && error && (
+          <div style={{ padding: '24px', textAlign: 'center', backgroundColor: '#FEF2F2', borderRadius: 'var(--radius-lg)', border: '1px solid #FECACA' }}>
+            <p style={{ fontSize: '13.5px', color: '#B91C1C' }}>{error}</p>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!loading && !error && reviews.length === 0 && (
+          <div style={{ padding: '40px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border-medium)', maxWidth: '500px', margin: '0 auto' }}>
+            <ShieldCheck size={36} color="var(--forest-600)" style={{ margin: '0 auto 10px auto' }} />
+            <h4 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>No reviews submitted yet</h4>
+            <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>
+              Once you complete a service and enter the finish code, your honest review will appear here!
+            </p>
+          </div>
+        )}
+
         {/* Reviews Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: '24px'
-        }}>
-          {displayReviews.map((t) => (
-            <div 
-              key={t.id}
-              className="card"
-              style={{
-                padding: '24px',
-                backgroundColor: '#FFFFFF',
-                borderRadius: 'var(--radius-lg)',
-                border: '1.5px solid var(--border-light)',
-                boxShadow: 'var(--shadow-sm)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between'
-              }}
-            >
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <div style={{ display: 'flex', gap: '3px' }}>
-                    {[...Array(t.rating || 5)].map((_, i) => (
-                      <Star key={i} size={15} color="#F59E0B" fill="#F59E0B" />
-                    ))}
+        {!loading && !error && reviews.length > 0 && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '24px'
+          }}>
+            {reviews.map((t) => (
+              <div 
+                key={t._id || t.id}
+                className="card"
+                style={{
+                  padding: '24px',
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1.5px solid var(--border-light)',
+                  boxShadow: 'var(--shadow-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', gap: '3px' }}>
+                      {[...Array(t.rating || 5)].map((_, i) => (
+                        <Star key={i} size={15} color="#F59E0B" fill="#F59E0B" />
+                      ))}
+                    </div>
+                    <span className="badge badge-sage" style={{ fontSize: '11px' }}>
+                      {t.serviceTitle || t.service || 'Verified Service'}
+                    </span>
                   </div>
-                  <span className="badge badge-sage" style={{ fontSize: '11px' }}>
-                    {t.service}
+
+                  <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '16px', fontStyle: 'italic' }}>
+                    "{t.comment || t.content}"
+                  </p>
+
+                  {t.photos && t.photos.length > 0 && (
+                    <div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
+                      {t.photos.map((p, idx) => (
+                        <img 
+                          key={idx}
+                          src={p} 
+                          alt="Customer verification" 
+                          style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border-light)' }} 
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <InitialsAvatar name={t.authorName || t.author || 'Homeowner'} size={34} />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>{t.authorName || t.author || 'Homeowner'}</span>
+                        <ShieldCheck size={14} color="var(--forest-700)" />
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                        Verified Customer
+                      </div>
+                    </div>
+                  </div>
+
+                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                    {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'}
                   </span>
                 </div>
 
-                <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '16px', fontStyle: 'italic' }}>
-                  "{t.content}"
-                </p>
-
-                {t.photoUrl && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <img 
-                      src={t.photoUrl} 
-                      alt="Customer verification" 
-                      style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} 
-                    />
-                  </div>
-                )}
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span>{t.author}</span>
-                    <ShieldCheck size={14} color="var(--forest-700)" />
-                  </div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    {t.locality || "Mumbai"}
-                  </div>
-                </div>
-
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  {t.date || "Recent"}
-                </span>
-              </div>
-
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
       </div>
     </section>
