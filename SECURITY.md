@@ -112,3 +112,4 @@ If you discover a security vulnerability in FixNear Trust:
 2. Email the core security team at `security@fixnear.com`.
 3. Provide full reproduction steps and environment context.
 4. We acknowledge reports within 24 hours and issue patches within 72 hours.
+
