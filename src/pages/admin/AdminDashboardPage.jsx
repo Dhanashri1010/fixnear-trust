@@ -1,44 +1,26 @@
-// ===================================================================
-// FixNear Trust - Main Admin Portal Console
-// Complete Multi-Desk Console: Overview, Approvals, Providers, Disputes,
-// Services & Pricing, Question Bank, and Reviews Moderation
-// ===================================================================
-
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useStore } from '../../context/StoreContext';
 import { Shield, LogOut } from 'lucide-react';
 
-// Admin Sub-Components
+// Admin Sub-Components (12 Complete Real MongoDB Desks)
 import AdminNavbar from '../../components/admin/AdminNavbar';
 import AdminOverviewTab from '../../components/admin/AdminOverviewTab';
 import AdminApprovalsDesk from '../../components/admin/AdminApprovalsDesk';
 import AdminProvidersDesk from '../../components/admin/AdminProvidersDesk';
-import AdminDisputesDesk from '../../components/admin/AdminDisputesDesk';
+import AdminCustomersDesk from '../../components/admin/AdminCustomersDesk';
+import AdminBookingsDesk from '../../components/admin/AdminBookingsDesk';
 import AdminServicesDesk from '../../components/admin/AdminServicesDesk';
+import AdminQuestionsDesk from '../../components/admin/AdminQuestionsDesk';
+import AdminSettingsDesk from '../../components/admin/AdminSettingsDesk';
+import AdminDisputesDesk from '../../components/admin/AdminDisputesDesk';
 import AdminReviewsDesk from '../../components/admin/AdminReviewsDesk';
-
-function AdminQuestionsPlaceholder() {
-  return (
-    <div className="card text-center" style={{ padding: '60px 24px', backgroundColor: '#FFFFFF', borderRadius: '16px' }}>
-      <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>
-        Question Bank Management
-      </h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '480px', margin: '0 auto 16px' }}>
-        Skill test question curation and threshold configuration desk is coming in the next update (Phase D). Examination questions are securely managed and graded on the server.
-      </p>
-      <span className="badge badge-neutral" style={{ padding: '6px 14px', fontSize: '0.85rem' }}>
-        Coming in Phase D
-      </span>
-    </div>
-  );
-}
+import AdminUsersDesk from '../../components/admin/AdminUsersDesk';
+import AdminAuditLogDesk from '../../components/admin/AdminAuditLogDesk';
 
 export default function AdminDashboardPage() {
   const location = useLocation();
-  const { userProfile, logOut } = useAuth();
-  const { isDemoMode } = useStore();
+  const { user, logOut } = useAuth();
 
   const pathname = location.pathname.replace(/\/$/, '');
 
@@ -48,14 +30,24 @@ export default function AdminDashboardPage() {
         return <AdminApprovalsDesk />;
       case '/admin/providers':
         return <AdminProvidersDesk />;
-      case '/admin/disputes':
-        return <AdminDisputesDesk />;
+      case '/admin/customers':
+        return <AdminCustomersDesk />;
+      case '/admin/bookings':
+        return <AdminBookingsDesk />;
       case '/admin/services':
         return <AdminServicesDesk />;
       case '/admin/questions':
-        return <AdminQuestionsPlaceholder />;
+        return <AdminQuestionsDesk />;
+      case '/admin/settings':
+        return <AdminSettingsDesk />;
+      case '/admin/disputes':
+        return <AdminDisputesDesk />;
       case '/admin/reviews':
         return <AdminReviewsDesk />;
+      case '/admin/admins':
+        return <AdminUsersDesk />;
+      case '/admin/audit-logs':
+        return <AdminAuditLogDesk />;
       case '/admin':
       case '/admin/dashboard':
       default:
@@ -64,72 +56,49 @@ export default function AdminDashboardPage() {
   };
 
   return (
-    <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '85vh', padding: '32px 16px 80px 16px' }}>
-      <div className="container" style={{ maxWidth: '1060px' }}>
+    <div className="bg-slate-50 min-h-screen py-8 px-4 sm:px-6 lg:px-8 pb-24">
+      <div className="max-w-7xl mx-auto">
         
         {/* Top Header Card */}
-        <div style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: 'var(--radius-xl)',
-          padding: '24px 28px',
-          boxShadow: 'var(--shadow-sm)',
-          border: '1.5px solid var(--border-light)',
-          marginBottom: '20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '16px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--forest-100)',
-              color: 'var(--forest-700)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Shield size={30} />
+        <div className="bg-white rounded-2xl p-6 sm:p-7 shadow-sm border border-slate-200 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-sm">
+              <Shield className="w-7 h-7 text-blue-400" />
             </div>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h1 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
-                  {userProfile?.name || "FixNear Super Admin"}
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-slate-900">
+                  {user?.name || 'Administrator Console'}
                 </h1>
-                <span className="badge badge-yellow" style={{ fontSize: '11px', fontWeight: 800 }}>
-                  CENTRAL OPS
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wide">
+                  Central Ops
                 </span>
               </div>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Central Operations & Trust Mediation Desk • FixNear Trust Platform Ops
-              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Central Operations & Trust Mediation Desk • FixNear Trust Platform Governance
+              </p>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <Link to="/" className="btn btn-secondary btn-sm">
-              <span>View Customer App</span>
-            </Link>
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
             <button 
               type="button" 
               onClick={logOut} 
-              className="btn btn-outline btn-sm"
-              style={{ color: '#DC2626', borderColor: '#FCA5A5' }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold transition-colors"
             >
-              <LogOut size={14} />
+              <LogOut className="w-4 h-4" />
               <span>Sign Out</span>
             </button>
           </div>
         </div>
 
-        {/* Admin Navigation Tabs */}
+        {/* 12-Desk Sub-Navigation */}
         <AdminNavbar />
 
-        {/* Dynamic Desk View */}
-        {renderActiveDesk()}
+        {/* Dynamic Desk Workspace */}
+        <div className="mt-6">
+          {renderActiveDesk()}
+        </div>
 
       </div>
     </div>

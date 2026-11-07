@@ -11,6 +11,10 @@ const questionSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    topic: {
+      type: String,
+      default: 'General',
+    },
     questionText: {
       type: String,
       required: true,

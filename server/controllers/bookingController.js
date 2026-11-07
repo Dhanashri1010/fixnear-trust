@@ -574,6 +574,22 @@ export const createQuotation = async (req, res, next) => {
       });
     }
 
+    // Reject a new quotation while one is PENDING_CUSTOMER_APPROVAL
+    if (booking.quotation && booking.quotation.status === 'PENDING_CUSTOMER_APPROVAL') {
+      return res.status(400).json({
+        success: false,
+        message: 'A quotation is already pending customer approval. Please wait for the customer to respond.',
+      });
+    }
+
+    // Allow at most 3 approved quotations per booking
+    if ((booking.approvedQuotationsCount || 0) >= 3) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum limit of 3 approved quotations reached for this booking.',
+      });
+    }
+
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
         success: false,
@@ -654,8 +670,9 @@ export const approveQuotation = async (req, res, next) => {
 
     booking.quotation.status = 'APPROVED';
     booking.quotation.updatedAt = new Date();
-    booking.invoice.extraAmount = booking.quotation.total;
-    booking.invoice.totalAmount = booking.basePrice + (booking.quotation.total || 0);
+    booking.approvedQuotationsCount = (booking.approvedQuotationsCount || 0) + 1;
+    booking.invoice.extraAmount = (booking.invoice.extraAmount || 0) + booking.quotation.total;
+    booking.invoice.totalAmount = booking.basePrice + (booking.invoice.extraAmount || 0);
     await booking.save();
 
     if (io) {

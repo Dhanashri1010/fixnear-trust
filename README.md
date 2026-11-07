@@ -57,26 +57,15 @@ fixnear-trust/
 │   └── package.json
 ├── src/
 │   ├── components/
-│   │   ├── admin/           # Admin desk views (Approvals, Providers, Disputes, etc.)
-│   │   ├── common/          # Shared components (Navbar, Footer, RoleSwitcher, ProtectedRoute)
+│   │   ├── admin/           # 12 Admin Desks (Approvals, Providers, Disputes, Settings, etc.)
+│   │   ├── common/          # Shared components (Navbar, Footer, ProtectedRoute)
 │   │   ├── customer/        # Customer views (BookingFlow, Tracking, Quotation, DisputeModal)
 │   │   └── provider/        # Provider views (TechnicianRoadmapPreview, etc.)
 │   ├── context/
 │   │   ├── AuthContext.jsx  # Multi-role authentication & session state
-│   │   ├── StoreContext.jsx # Real-time reactive data store & action dispatchers
 │   │   └── ToastContext.jsx # Global notification toasts
-│   ├── data/
-│   │   └── sampleData.js    # Fallback catalog & customer testimonials
-│   ├── i18n/
-│   │   └── translations.js  # Internationalization matrix (English, Hindi, Marathi)
-│   ├── pages/
-│   │   ├── admin/           # AdminDashboardPage.jsx
-│   │   ├── auth/            # LoginPage.jsx, SignUpPage.jsx
-│   │   ├── customer/        # HomePage, CatalogPage, BookingPage, TrackingPage, etc.
-│   │   └── provider/        # ProviderDashboardPage, ProviderRegisterPage, ProviderSkillTestPage
 │   ├── services/
-│   │   ├── firebase/        # firebase.js, seedData.js, questionBankSeed.js
-│   │   └── skillTestService.js # Client exam security mediator
+│   │   └── api.js           # Centralized Axios API client (Customer, Provider, Admin, Socket)
 │   ├── App.jsx              # Main router & provider wrapper
 │   ├── index.css            # Tokenized design system, mobile audit & accessibility rules
 │   └── main.jsx

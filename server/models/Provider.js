@@ -76,8 +76,12 @@ const providerSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['take_skill_test', 'waiting_for_approval', 'approved', 'rejected', 'more_info_needed', 'suspended'],
+      enum: ['take_skill_test', 'waiting_for_approval', 'approved', 'rejected', 'more_info_needed', 'needs_info', 'suspended'],
       default: 'take_skill_test',
+    },
+    verifiedBadge: {
+      type: Boolean,
+      default: false,
     },
     adminNotes: {
       type: String,

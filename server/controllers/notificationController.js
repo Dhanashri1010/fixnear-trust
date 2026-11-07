@@ -1,4 +1,25 @@
 import { Notification } from '../models/Notification.js';
+import { io } from '../server.js';
+
+// Helper to create notifications and emit socket event
+export const notifyUser = async ({ userId, role, title, message, type = 'system', link = '' }) => {
+  try {
+    const notification = await Notification.create({
+      userId,
+      role,
+      title,
+      message,
+      type,
+      link,
+    });
+    if (io) {
+      io.to(`user_${userId}`).emit('notification', notification);
+    }
+    return notification;
+  } catch (err) {
+    console.warn('[Notification Error]:', err.message);
+  }
+};
 
 export const getNotifications = async (req, res, next) => {
   try {

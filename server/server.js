@@ -19,6 +19,8 @@ import supportRoutes from './routes/supportRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
 import skillTestRoutes from './routes/skillTestRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import { authenticate, authorize } from './middleware/auth.js';
 import { apiRateLimiter } from './middleware/rateLimiter.js';
 import { User } from './models/User.js';
 import { Provider } from './models/Provider.js';
@@ -195,6 +197,7 @@ app.use('/api', notificationRoutes);
 app.use('/api', supportRoutes);
 app.use('/api', uploadRoutes);
 app.use('/api', skillTestRoutes);
+app.use('/api/admin', authenticate, authorize('admin'), adminRoutes);
 
 // Root route
 app.get('/', (req, res) => {

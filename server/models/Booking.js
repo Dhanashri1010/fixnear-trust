@@ -142,6 +142,10 @@ const bookingSchema = new mongoose.Schema(
       reason: String,
       updatedAt: Date,
     },
+    approvedQuotationsCount: {
+      type: Number,
+      default: 0,
+    },
     invoice: {
       invoiceNo: String,
       status: { type: String, enum: ['UNPAID', 'PAID'], default: 'UNPAID' },

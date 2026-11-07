@@ -3,10 +3,9 @@
 // React Router DOM v6 + Lazy Code Splitting per Portal
 // ===================================================================
 
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
-import { StoreProvider, useStore } from './context/StoreContext';
 import { ToastProvider } from './context/ToastContext';
 
 // Common Components (Eager loaded for immediate structure)
@@ -66,13 +65,9 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function AppLayout() {
   const location = useLocation();
-  const { 
-    isBookingModalOpen, 
-    setIsBookingModalOpen, 
-    bookingModalService,
-    activeUserAction,
-    setActiveUserAction 
-  } = useStore();
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [bookingModalService, setBookingModalService] = useState(null);
+  const [activeUserAction, setActiveUserAction] = useState(null);
 
   const isAdminLogin = location.pathname === '/admin/login';
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/reset-password' || isAdminLogin;
@@ -122,7 +117,7 @@ function AppLayout() {
             <Route 
               path="/provider" 
               element={
-                <ProtectedRoute allowedRoles={['provider', 'admin']}>
+                <ProtectedRoute allowedRoles={['provider']}>
                   <ProviderDashboardPage />
                 </ProtectedRoute>
               } 
@@ -130,7 +125,7 @@ function AppLayout() {
             <Route 
               path="/provider/dashboard" 
               element={
-                <ProtectedRoute allowedRoles={['provider', 'admin']}>
+                <ProtectedRoute allowedRoles={['provider']}>
                   <ProviderDashboardPage />
                 </ProtectedRoute>
               } 
@@ -178,9 +173,7 @@ export default function App() {
     <BrowserRouter>
       <ToastProvider>
         <AuthProvider>
-          <StoreProvider>
-            <AppLayout />
-          </StoreProvider>
+          <AppLayout />
         </AuthProvider>
       </ToastProvider>
     </BrowserRouter>

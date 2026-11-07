@@ -118,3 +118,69 @@ export const uploadAPI = {
     });
   },
 };
+
+// Admin API (Phase D)
+export const adminAPI = {
+  // 1. Dashboard Stats
+  getStats: () => api.get('/admin/stats'),
+
+  // 2. Approvals Desk
+  getApprovals: () => api.get('/admin/approvals'),
+  getProviderDetails: (id) => api.get(`/admin/providers/${id}`),
+  approveProvider: (id) => api.post(`/admin/approvals/${id}/approve`),
+  rejectProvider: (id, reason) => api.post(`/admin/approvals/${id}/reject`, { reason }),
+  requestProviderInfo: (id, message) => api.post(`/admin/approvals/${id}/request-info`, { message }),
+
+  // 3. Providers Desk
+  getProviders: (params) => api.get('/admin/providers', { params }),
+  suspendProvider: (id, reason) => api.post(`/admin/providers/${id}/suspend`, { reason }),
+  reinstateProvider: (id, reason) => api.post(`/admin/providers/${id}/reinstate`, { reason }),
+
+  // 4. Customers Desk
+  getCustomers: (params) => api.get('/admin/customers', { params }),
+  blockCustomer: (id, reason) => api.post(`/admin/customers/${id}/block`, { reason }),
+  unblockCustomer: (id) => api.post(`/admin/customers/${id}/unblock`),
+
+  // 5. Bookings Desk
+  getBookings: (params) => api.get('/admin/bookings', { params }),
+  getBookingDetails: (id) => api.get(`/admin/bookings/${id}`),
+  cancelBooking: (id, reason) => api.post(`/admin/bookings/${id}/cancel`, { reason }),
+  reassignBooking: (id, providerId) => api.post(`/admin/bookings/${id}/reassign`, { providerId }),
+
+  // 6. Services & Categories Desk
+  getCategories: () => api.get('/admin/categories'),
+  createCategory: (data) => api.post('/admin/categories', data),
+  updateCategory: (id, data) => api.patch(`/admin/categories/${id}`, data),
+  getServices: (params) => api.get('/admin/services', { params }),
+  createService: (data) => api.post('/admin/services', data),
+  updateService: (id, data) => api.patch(`/admin/services/${id}`, data),
+  toggleServiceStatus: (id) => api.patch(`/admin/services/${id}/status`),
+
+  // 7. Question Bank Desk
+  getQuestions: (params) => api.get('/admin/questions', { params }),
+  getQuestionCounts: () => api.get('/admin/questions/counts'),
+  createQuestion: (data) => api.post('/admin/questions', data),
+  updateQuestion: (id, data) => api.patch(`/admin/questions/${id}`, data),
+  deleteQuestion: (id) => api.delete(`/admin/questions/${id}`),
+
+  // 8. Settings Desk
+  getSettings: () => api.get('/admin/settings'),
+  updateSettings: (data) => api.patch('/admin/settings', data),
+
+  // 9. Complaints / Disputes Desk
+  getDisputes: (params) => api.get('/admin/disputes', { params }),
+  getDisputeDetails: (id) => api.get(`/admin/disputes/${id}`),
+  resolveDispute: (id, data) => api.post(`/admin/disputes/${id}/resolve`, data),
+
+  // 10. Reviews Moderation Desk
+  getReviews: (params) => api.get('/admin/reviews', { params }),
+  toggleReviewVisibility: (id, data) => api.patch(`/admin/reviews/${id}/visibility`, data),
+
+  // 11. Admins Management Desk
+  getAdmins: () => api.get('/admin/admins'),
+  createAdmin: (data) => api.post('/admin/admins', data),
+  deactivateAdmin: (id) => api.post(`/admin/admins/${id}/deactivate`),
+
+  // 12. Audit Logs Desk
+  getAuditLogs: (params) => api.get('/admin/audit-logs', { params }),
+};

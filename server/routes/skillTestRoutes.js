@@ -20,7 +20,7 @@ const submitTestSchema = z.object({
 });
 
 // All skill test routes require provider authentication
-router.use(authenticate, authorize('provider'));
+router.use('/skill-test', authenticate, authorize('provider'));
 
 // GET /api/skill-test/:categoryId (starts exam session, returns 10 questions without answers)
 router.get('/skill-test/:categoryId', startSkillTest);

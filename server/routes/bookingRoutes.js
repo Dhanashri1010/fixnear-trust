@@ -46,16 +46,36 @@ const rescheduleBookingSchema = z.object({
 });
 
 const createQuotationSchema = z.object({
-  body: z.object({
-    items: z.array(
-      z.object({
-        desc: z.string().min(1, 'Item description is required'),
-        amount: z.number().positive('Amount must be positive'),
-        partNo: z.string().optional(),
-      })
-    ).min(1, 'At least one item is required in quotation'),
-    reason: z.string().optional(),
-  }),
+  body: z
+    .object({
+      items: z
+        .array(
+          z.object({
+            desc: z
+              .string()
+              .min(3, 'Item description must be between 3 and 100 characters')
+              .max(100, 'Item description must be between 3 and 100 characters'),
+            amount: z
+              .number()
+              .int('Amount must be a whole number')
+              .min(1, 'Amount must be between 1 and 50,000')
+              .max(50000, 'Amount must be between 1 and 50,000'),
+            partNo: z.string().optional(),
+          })
+        )
+        .min(1, 'Quotation must include at least 1 item')
+        .max(10, 'Quotation can include at most 10 items'),
+      reason: z.string().optional(),
+    })
+    .refine(
+      (data) => {
+        const sum = data.items.reduce((acc, curr) => acc + curr.amount, 0);
+        return sum <= 100000;
+      },
+      {
+        message: 'Total quotation amount cannot exceed 100,000',
+      }
+    ),
 });
 
 const reviewBookingSchema = z.object({

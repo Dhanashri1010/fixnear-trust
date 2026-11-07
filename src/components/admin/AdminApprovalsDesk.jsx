@@ -1,10 +1,10 @@
 // ===================================================================
-// FixNear Trust - Admin Provider Approval Desk
-// Live list of under_review candidates, KYC large document preview,
-// Test attempt metrics & tab-switch warning audit, Approve/Reject/Request Info
+// FixNear Trust - Admin Provider Approval Desk (Phase D)
+// Real MongoDB Data | Signed Document Preview | Exam Audit History
+// Approve / Reject (Reason Required) / Request Info (Message Required)
 // ===================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   UserCheck, 
   CheckCircle2, 
@@ -20,97 +20,160 @@ import {
   X, 
   MessageSquare,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react';
-import { useStore } from '../../context/StoreContext';
+import { adminAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import InitialsAvatar from '../common/InitialsAvatar';
 
 export default function AdminApprovalsDesk() {
-  const { 
-    technicians, 
-    approveProvider, 
-    rejectProvider, 
-    requestProviderInfo,
-    testAttempts
-  } = useStore();
   const { showToast } = useToast();
 
-  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [candidates, setCandidates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
+  const [candidateDetail, setCandidateDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // Document modal preview
   const [previewDocUrl, setPreviewDocUrl] = useState(null);
   const [previewDocTitle, setPreviewDocTitle] = useState('');
 
-  // Action Modals State
+  // Modals for actions
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState('Govt ID document is blurry / details unreadable. Please provide a clear color scan of Aadhaar or PAN card.');
-  
+  const [rejectReason, setRejectReason] = useState('Govt ID document details unreadable or invalid. Please re-upload clear proof.');
+
   const [infoModalOpen, setInfoModalOpen] = useState(false);
-  const [infoMessage, setInfoMessage] = useState('Please upload your ITI trade diploma or specify previous HVAC service center experience.');
+  const [infoMessage, setInfoMessage] = useState('Please upload a clear government photo ID with your name and address visible.');
 
-  const [processingId, setProcessingId] = useState(null);
+  const [processing, setProcessing] = useState(false);
 
-  // Filter candidates waiting for admin sign-off
-  const pendingCandidates = technicians.filter(t => t.status === 'under_review');
-  const activeCandidate = selectedCandidate || pendingCandidates[0] || null;
-
-  // Candidate's test attempts for audit history
-  const candidateAttempts = activeCandidate 
-    ? testAttempts.filter(a => a.providerId === activeCandidate.id || a.providerId === activeCandidate.userId)
-    : [];
-
-  const handleApprove = async (candidate) => {
-    setProcessingId(candidate.id);
+  const fetchCandidates = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      await approveProvider(candidate.id || candidate.userId);
-      showToast(`${candidate.name} approved! They now appear in the public Customer directory.`, 'success');
-      setSelectedCandidate(null);
+      const res = await adminAPI.getApprovals();
+      if (res.success) {
+        setCandidates(res.candidates || []);
+        if (res.candidates && res.candidates.length > 0) {
+          setSelectedCandidateId(res.candidates[0]._id);
+        } else {
+          setSelectedCandidateId(null);
+          setCandidateDetail(null);
+        }
+      }
     } catch (err) {
-      showToast(`Approval failed: ${err.message}`, 'error');
+      setError(err.message || 'Failed to load approvals queue.');
+      showToast('Approvals error: ' + err.message, 'error');
     } finally {
-      setProcessingId(null);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCandidates();
+  }, []);
+
+  // Fetch full details whenever selectedCandidateId changes
+  useEffect(() => {
+    if (!selectedCandidateId) {
+      setCandidateDetail(null);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchDetails = async () => {
+      setDetailLoading(true);
+      try {
+        const res = await adminAPI.getProviderDetails(selectedCandidateId);
+        if (isMounted && res.success) {
+          setCandidateDetail(res);
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.error('Failed to load candidate details:', err);
+          showToast('Could not load provider documents: ' + err.message, 'error');
+        }
+      } finally {
+        if (isMounted) setDetailLoading(false);
+      }
+    };
+
+    fetchDetails();
+    return () => { isMounted = false; };
+  }, [selectedCandidateId]);
+
+  const handleApprove = async () => {
+    if (!selectedCandidateId) return;
+    setProcessing(true);
+    try {
+      const res = await adminAPI.approveProvider(selectedCandidateId);
+      showToast(res.message || 'Provider application approved! Partner is now active.', 'success');
+      fetchCandidates();
+    } catch (err) {
+      showToast('Approval failed: ' + err.message, 'error');
+    } finally {
+      setProcessing(false);
     }
   };
 
   const handleConfirmReject = async () => {
-    if (!activeCandidate || !rejectReason.trim()) return;
-    setProcessingId(activeCandidate.id);
+    if (!selectedCandidateId || !rejectReason.trim()) return;
+    setProcessing(true);
     try {
-      await rejectProvider(activeCandidate.id || activeCandidate.userId, rejectReason);
-      showToast(`Application rejected. Reason posted to ${activeCandidate.name}'s console.`, 'info');
+      const res = await adminAPI.rejectProvider(selectedCandidateId, rejectReason.trim());
+      showToast(res.message || 'Provider rejected with notification sent.', 'info');
       setRejectModalOpen(false);
-      setSelectedCandidate(null);
+      fetchCandidates();
     } catch (err) {
-      showToast(`Error: ${err.message}`, 'error');
+      showToast('Rejection failed: ' + err.message, 'error');
     } finally {
-      setProcessingId(null);
+      setProcessing(false);
     }
   };
 
   const handleConfirmRequestInfo = async () => {
-    if (!activeCandidate || !infoMessage.trim()) return;
-    setProcessingId(activeCandidate.id);
+    if (!selectedCandidateId || !infoMessage.trim()) return;
+    setProcessing(true);
     try {
-      await requestProviderInfo(activeCandidate.id || activeCandidate.userId, infoMessage);
-      showToast(`Info request dispatched to ${activeCandidate.name}.`, 'info');
+      const res = await adminAPI.requestProviderInfo(selectedCandidateId, infoMessage.trim());
+      showToast(res.message || 'Information request dispatched to provider.', 'info');
       setInfoModalOpen(false);
-      setSelectedCandidate(null);
+      fetchCandidates();
     } catch (err) {
-      showToast(`Error: ${err.message}`, 'error');
+      showToast('Failed to request info: ' + err.message, 'error');
     } finally {
-      setProcessingId(null);
+      setProcessing(false);
     }
   };
 
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 20px', backgroundColor: '#FFFFFF', borderRadius: '16px' }}>
+        <div className="spinner" style={{ margin: '0 auto 16px auto' }} />
+        <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)' }}>Loading Approvals Queue...</h3>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Retrieving submitted partner applications awaiting verification.</p>
+      </div>
+    );
+  }
+
+  const activeProvider = candidateDetail?.provider;
+  const activeAttempts = candidateDetail?.testAttempts || [];
+  const activeDocs = candidateDetail?.documents || {};
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       
-      {/* Desk Title Header */}
+      {/* Header Bar */}
       <div style={{
         backgroundColor: '#FFFFFF',
         borderRadius: 'var(--radius-lg)',
-        padding: '24px',
+        padding: '20px 24px',
         border: '1.5px solid var(--border-light)',
-        boxShadow: 'var(--shadow-sm)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -118,95 +181,96 @@ export default function AdminApprovalsDesk() {
         gap: '12px'
       }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <UserCheck size={22} color="var(--forest-700)" />
-            <h1 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
-              Specialist KYC & Verification Approval Desk
-            </h1>
+          <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <UserCheck size={20} color="var(--forest-700)" />
+            <span>Specialist Verification & KYC Review Queue</span>
+          </h2>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+            Review skill examination scores, signed KYC identification proofs, and make binding onboarding rulings.
           </div>
-          <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Review candidate skill test scores, anti-cheat audit logs, and inspect official ID proofs before approving doorstep dispatch permissions.
-          </p>
         </div>
 
-        <span className="badge badge-forest" style={{ fontSize: '12px', padding: '6px 14px' }}>
-          {pendingCandidates.length} Application{pendingCandidates.length !== 1 ? 's' : ''} Pending Review
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span className="badge badge-primary" style={{ padding: '6px 12px', fontSize: '12.5px' }}>
+            {candidates.length} Candidate{candidates.length !== 1 ? 's' : ''} Awaiting Review
+          </span>
+          <button type="button" onClick={fetchCandidates} className="btn btn-outline btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <RefreshCw size={14} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
-      {pendingCandidates.length === 0 ? (
+      {candidates.length === 0 ? (
         <div style={{
           backgroundColor: '#FFFFFF',
           borderRadius: 'var(--radius-lg)',
-          padding: '60px 20px',
+          padding: '60px 24px',
           textAlign: 'center',
           border: '1.5px solid var(--border-light)'
         }}>
-          <CheckCircle2 size={48} color="#16A34A" style={{ margin: '0 auto 12px auto' }} />
-          <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)' }}>
-            All Clear! No Pending Approvals
-          </h2>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '440px', margin: '6px auto 0 auto' }}>
-            Every technician who passed their skill test has been audited. New candidates will automatically queue here upon scoring ≥70%.
+          <CheckCircle2 size={44} color="#16A34A" style={{ margin: '0 auto 16px auto' }} />
+          <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
+            All Verification Submissions Processed
+          </h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px', maxWidth: '440px', margin: '0 auto' }}>
+            No technicians waiting for approval. As soon as a provider completes registration and skill testing, their dossier will appear here for review.
           </p>
         </div>
       ) : (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: '320px 1fr',
+          gridTemplateColumns: 'minmax(280px, 340px) 1fr',
           gap: '20px',
           alignItems: 'start'
         }}>
           
-          {/* Candidate List Sidebar */}
+          {/* Candidates List Column */}
           <div style={{
             backgroundColor: '#FFFFFF',
             borderRadius: 'var(--radius-lg)',
             border: '1.5px solid var(--border-light)',
-            overflow: 'hidden',
-            boxShadow: 'var(--shadow-sm)'
+            overflow: 'hidden'
           }}>
             <div style={{ padding: '16px', borderBottom: '1px solid var(--border-light)', backgroundColor: 'var(--bg-warm)' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--forest-900)' }}>
-                Pending Queue ({pendingCandidates.length})
-              </div>
+              <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase' }}>
+                Pending Candidates ({candidates.length})
+              </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {pendingCandidates.map((cand) => {
-                const isSelected = activeCandidate?.id === cand.id;
+            <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+              {candidates.map((cand) => {
+                const isSelected = cand._id === selectedCandidateId;
+                const passedSkill = cand.skills?.find(s => s.passed);
+
                 return (
                   <div
-                    key={cand.id}
-                    onClick={() => setSelectedCandidate(cand)}
+                    key={cand._id}
+                    onClick={() => setSelectedCandidateId(cand._id)}
                     style={{
                       padding: '16px',
                       borderBottom: '1px solid var(--border-light)',
                       backgroundColor: isSelected ? 'var(--forest-50)' : '#FFFFFF',
-                      borderLeft: isSelected ? '4px solid var(--forest-700)' : '4px solid transparent',
                       cursor: 'pointer',
+                      borderLeft: isSelected ? '4px solid var(--forest-700)' : '4px solid transparent',
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ fontSize: '14px', color: 'var(--forest-900)' }}>
-                        {cand.name}
-                      </strong>
-                      <span className="badge badge-sage" style={{ fontSize: '11px' }}>
-                        {cand.testScore || 80}% Test
-                      </span>
-                    </div>
-
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      {cand.city} • {cand.skills?.[0] || 'Air Conditioning'}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                      <span>Experience: {cand.experienceYears || 3} yrs</span>
-                      <span>•</span>
-                      <span style={{ color: cand.tabSwitches > 0 ? '#D97706' : '#16A34A', fontWeight: 600 }}>
-                        {cand.tabSwitches > 0 ? `${cand.tabSwitches} Tab Warnings` : 'Zero Tab Switches'}
-                      </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <InitialsAvatar name={cand.name} size={40} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--forest-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {cand.name}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {cand.specialty || 'General Service'} • {cand.city}
+                        </div>
+                      </div>
+                      {passedSkill && (
+                        <span className="badge badge-success" style={{ fontSize: '11px', fontWeight: 800 }}>
+                          {passedSkill.testScore}%
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -214,260 +278,377 @@ export default function AdminApprovalsDesk() {
             </div>
           </div>
 
-          {/* Candidate Detailed Inspection Sheet */}
-          {activeCandidate && (
-            <div style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: 'var(--radius-lg)',
-              padding: '28px',
-              border: '1.5px solid var(--border-light)',
-              boxShadow: 'var(--shadow-sm)'
-            }}>
-              {/* Header Profile Info */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                flexWrap: 'wrap',
-                gap: '16px',
-                paddingBottom: '20px',
-                borderBottom: '1px solid var(--border-light)',
-                marginBottom: '20px'
-              }}>
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                  <InitialsAvatar
-                    name={activeCandidate.name}
-                    avatarUrl={activeCandidate.avatar}
-                    size={64}
-                  />
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
-                        {activeCandidate.name}
-                      </h2>
-                      <span className="badge badge-yellow" style={{ fontSize: '11px', fontWeight: 700 }}>
-                        UNDER REVIEW
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                      Phone: <strong>{activeCandidate.phone}</strong> • City: <strong>{activeCandidate.city}</strong>
-                    </div>
-                    <div style={{ fontSize: '12.5px', color: 'var(--forest-700)', marginTop: '2px' }}>
-                      Service Area: {activeCandidate.serviceArea}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Score & Badge Pill */}
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>SKILL SCORE</div>
-                  <div style={{ fontSize: '28px', fontWeight: 900, color: 'var(--forest-800)' }}>
-                    {activeCandidate.testScore || 82}%
-                  </div>
-                  <span className="badge badge-forest" style={{ fontSize: '11px', marginTop: '2px' }}>
-                    {activeCandidate.testScore >= 90 ? 'Gold Specialist' : 'Silver Verified'}
-                  </span>
-                </div>
+          {/* Dossier Detail Column */}
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 'var(--radius-lg)',
+            padding: '24px',
+            border: '1.5px solid var(--border-light)',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            {detailLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                <div className="spinner" style={{ margin: '0 auto 12px auto' }} />
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading provider dossier and signed document URLs...</span>
               </div>
-
-              {/* Bio & Details Grid */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: '14px',
-                marginBottom: '24px'
-              }}>
-                <div style={{ padding: '12px', backgroundColor: 'var(--bg-warm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
-                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Trade Category</div>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)', marginTop: '2px' }}>
-                    {activeCandidate.skills?.join(', ') || 'Air Conditioning'}
-                  </div>
-                </div>
-
-                <div style={{ padding: '12px', backgroundColor: 'var(--bg-warm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
-                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Experience</div>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)', marginTop: '2px' }}>
-                    {activeCandidate.experienceYears || 4} Years Field Work
-                  </div>
-                </div>
-
-                <div style={{ padding: '12px', backgroundColor: 'var(--bg-warm)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
-                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Anti-Cheat Integrity</div>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: (activeCandidate.tabSwitches || 0) > 0 ? '#D97706' : '#16A34A', marginTop: '2px' }}>
-                    {(activeCandidate.tabSwitches || 0) > 0 ? `${activeCandidate.tabSwitches} Tab-Switch Warnings` : '✓ 100% Focused (0 Warnings)'}
-                  </div>
-                </div>
+            ) : !activeProvider ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                Select a candidate from the left queue to inspect their dossier.
               </div>
-
-              {/* Professional Bio */}
-              <div style={{ marginBottom: '24px' }}>
-                <strong style={{ fontSize: '13px', color: 'var(--forest-900)', display: 'block', marginBottom: '6px' }}>
-                  Professional Bio & Trade Background:
-                </strong>
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, backgroundColor: 'var(--bg-warm)', padding: '12px 16px', borderRadius: 'var(--radius-md)', margin: 0 }}>
-                  {activeCandidate.bio || "Experienced field technician with specialized background in domestic repairs and diagnostic triage."}
-                </p>
-              </div>
-
-              {/* Requirement: Uploaded ID Proof & Optional Certificate (Large Preview) */}
-              <div style={{ marginBottom: '28px' }}>
-                <strong style={{ fontSize: '13.5px', color: 'var(--forest-900)', display: 'block', marginBottom: '10px' }}>
-                  Uploaded KYC Credentials & Documents (Click to Open Large Preview):
-                </strong>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
-                  
-                  {/* Document 1: Government ID Proof */}
-                  <div 
-                    onClick={() => {
-                      setPreviewDocUrl(activeCandidate.idProofUrl || "");
-                      setPreviewDocTitle(`${activeCandidate.name} - Government ID Proof (Aadhaar / DL)`);
-                    }}
-                    style={{
-                      padding: '14px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1.5px solid var(--forest-600)',
-                      backgroundColor: 'var(--forest-50)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      transition: 'transform 0.15s ease'
-                    }}
-                  >
-                    <div style={{
-                      width: '44px',
-                      height: '44px',
-                      borderRadius: 'var(--radius-sm)',
-                      backgroundColor: '#FFFFFF',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--forest-800)'
-                    }}>
-                      <FileText size={22} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--forest-900)' }}>
-                        Government ID Proof *
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                
+                {/* Dossier Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                    <InitialsAvatar name={activeProvider.name} size={56} />
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
+                          {activeProvider.name}
+                        </h3>
+                        <span className="badge badge-warning" style={{ fontSize: '11px', fontWeight: 800 }}>
+                          WAITING APPROVAL
+                        </span>
                       </div>
-                      <div style={{ fontSize: '12px', color: 'var(--forest-700)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                        <Eye size={13} />
-                        <span>Inspect Full-Size Preview</span>
+                      <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <Phone size={13} /> {activeProvider.phone || activeProvider.userId?.phone || 'No phone'}
+                        </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <MapPin size={13} /> {activeProvider.city}
+                        </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <Briefcase size={13} /> {activeProvider.experienceYears || 3} Years Exp
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Document 2: Trade Certificate (Optional) */}
-                  {activeCandidate.certificateUrl ? (
-                    <div 
-                      onClick={() => {
-                        setPreviewDocUrl(activeCandidate.certificateUrl);
-                        setPreviewDocTitle(`${activeCandidate.name} - Trade Diploma / Certificate`);
-                      }}
-                      style={{
-                        padding: '14px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1.5px solid var(--border-light)',
-                        backgroundColor: 'var(--bg-warm)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px'
-                      }}
+                  {/* Top Ruling Buttons */}
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      disabled={processing}
+                      onClick={() => setRejectModalOpen(true)}
+                      className="btn btn-outline btn-sm"
+                      style={{ color: '#DC2626', borderColor: '#FCA5A5' }}
                     >
-                      <div style={{
-                        width: '44px',
-                        height: '44px',
-                        borderRadius: 'var(--radius-sm)',
-                        backgroundColor: '#FFFFFF',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--forest-800)'
-                      }}>
-                        <Award size={22} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 800, fontSize: '13.5px', color: 'var(--forest-900)' }}>
-                          Trade Certification / Diploma
+                      <XCircle size={15} />
+                      <span>Reject</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={processing}
+                      onClick={() => setInfoModalOpen(true)}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      <MessageSquare size={15} />
+                      <span>Request Info</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={processing}
+                      onClick={handleApprove}
+                      className="btn btn-primary btn-sm"
+                      style={{ backgroundColor: '#16A34A', borderColor: '#16A34A' }}
+                    >
+                      <CheckCircle2 size={15} />
+                      <span>Approve Partner</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section 1: Skill Testing History */}
+                <div style={{
+                  backgroundColor: 'var(--bg-warm)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '16px',
+                  border: '1px solid var(--border-light)'
+                }}>
+                  <h4 style={{ fontSize: '13px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Award size={16} color="var(--forest-700)" />
+                    <span>Skill Test Certification & Integrity Audit</span>
+                  </h4>
+
+                  {activeAttempts.length === 0 ? (
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                      {activeProvider.skills && activeProvider.skills.length > 0 ? (
+                        <div>
+                          Skill verified: <strong>{activeProvider.skills[0].categoryName}</strong> with score <strong>{activeProvider.skills[0].testScore}%</strong>.
                         </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                          <Eye size={13} />
-                          <span>Inspect Full-Size Preview</span>
-                        </div>
-                      </div>
+                      ) : (
+                        'No test session records found.'
+                      )}
                     </div>
                   ) : (
-                    <div style={{
-                      padding: '14px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px dashed var(--border-light)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      color: 'var(--text-muted)',
-                      fontSize: '12.5px'
-                    }}>
-                      <AlertCircle size={18} />
-                      <span>No optional trade certificate uploaded</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {activeAttempts.map((att, idx) => (
+                        <div 
+                          key={att._id || idx}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            backgroundColor: '#FFFFFF',
+                            padding: '10px 14px',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--border-light)'
+                          }}
+                        >
+                          <div>
+                            <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--forest-900)' }}>
+                              {att.categoryName || att.categoryId} Test
+                            </span>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              Date: {new Date(att.createdAt).toLocaleDateString()} • Warnings: {att.warningCount || 0}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <span className={att.passed ? 'badge badge-success' : 'badge badge-danger'} style={{ fontSize: '12px', fontWeight: 800 }}>
+                              {att.score}% ({att.passed ? 'PASSED' : 'FAILED'})
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
-
                 </div>
+
+                {/* Section 2: Signed KYC Documents */}
+                <div>
+                  <h4 style={{ fontSize: '13px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ShieldCheck size={16} color="var(--forest-700)" />
+                    <span>Signed KYC & Identification Documents</span>
+                  </h4>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                    
+                    {/* Document 1: ID Proof */}
+                    <div style={{
+                      backgroundColor: 'var(--bg-warm)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '16px',
+                      border: '1px solid var(--border-light)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>
+                          Government Photo ID
+                        </span>
+                        <span className="badge badge-neutral" style={{ fontSize: '10.5px' }}>
+                          Confidential
+                        </span>
+                      </div>
+
+                      {activeDocs.idProof?.url ? (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewDocUrl(activeDocs.idProof.url);
+                              setPreviewDocTitle(`${activeProvider.name} - Government Photo ID`);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                          >
+                            <Eye size={13} />
+                            <span>Preview</span>
+                          </button>
+                          <a
+                            href={activeDocs.idProof.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-outline btn-sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <ExternalLink size={13} />
+                          </a>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '12px', color: '#DC2626' }}>
+                          No ID proof uploaded.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Document 2: Certificate */}
+                    <div style={{
+                      backgroundColor: 'var(--bg-warm)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '16px',
+                      border: '1px solid var(--border-light)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>
+                          Trade Certificate / ITI
+                        </span>
+                        <span className="badge badge-neutral" style={{ fontSize: '10.5px' }}>
+                          Skill Verification
+                        </span>
+                      </div>
+
+                      {activeDocs.certificate?.url ? (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewDocUrl(activeDocs.certificate.url);
+                              setPreviewDocTitle(`${activeProvider.name} - Trade Certificate`);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                          >
+                            <Eye size={13} />
+                            <span>Preview</span>
+                          </button>
+                          <a
+                            href={activeDocs.certificate.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-outline btn-sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <ExternalLink size={13} />
+                          </a>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          Optional trade certificate not submitted.
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+
               </div>
-
-              {/* Requirement: Actions (Approve, Reject with reason, Request More Info) */}
-              <div style={{
-                paddingTop: '20px',
-                borderTop: '1px solid var(--border-light)',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                alignItems: 'center',
-                gap: '12px',
-                flexWrap: 'wrap'
-              }}>
-                <button
-                  type="button"
-                  disabled={processingId === activeCandidate.id}
-                  onClick={() => setRejectModalOpen(true)}
-                  className="btn btn-outline"
-                  style={{ color: '#DC2626', borderColor: '#FCA5A5', padding: '10px 18px' }}
-                >
-                  <XCircle size={16} />
-                  <span>Reject with Reason</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={processingId === activeCandidate.id}
-                  onClick={() => setInfoModalOpen(true)}
-                  className="btn btn-outline"
-                  style={{ color: '#D97706', borderColor: '#FCD34D', padding: '10px 18px' }}
-                >
-                  <MessageSquare size={16} />
-                  <span>Request More Info</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={processingId === activeCandidate.id}
-                  onClick={() => handleApprove(activeCandidate)}
-                  className="btn btn-primary"
-                  style={{ padding: '10px 24px', backgroundColor: '#15803D', borderColor: '#166534' }}
-                >
-                  <CheckCircle2 size={16} />
-                  <span>{processingId === activeCandidate.id ? 'Approving...' : 'Approve & Activate Partner'}</span>
-                </button>
-              </div>
-
-            </div>
-          )}
+            )}
+          </div>
 
         </div>
       )}
 
-      {/* Large Document Preview Modal */}
+      {/* Reject Modal */}
+      {rejectModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            maxWidth: '500px',
+            width: '100%',
+            padding: '24px',
+            boxShadow: 'var(--shadow-xl)'
+          }}>
+            <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#DC2626', marginBottom: '8px' }}>
+              Reject Application for {activeProvider?.name}
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+              Please specify the precise reason for rejection. This explanation is saved in the audit log and delivered to the provider's console so they can correct their documents.
+            </p>
+
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={4}
+              className="form-control"
+              style={{ width: '100%', fontSize: '13px', padding: '10px', borderRadius: '8px', marginBottom: '16px' }}
+              placeholder="Explain why the documents or background check did not satisfy requirements..."
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setRejectModalOpen(false)}
+                className="btn btn-outline btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={processing || rejectReason.trim().length < 5}
+                onClick={handleConfirmReject}
+                className="btn btn-danger btn-sm"
+              >
+                {processing ? 'Processing...' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Request Info Modal */}
+      {infoModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            maxWidth: '500px',
+            width: '100%',
+            padding: '24px',
+            boxShadow: 'var(--shadow-xl)'
+          }}>
+            <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
+              Request Additional Information
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+              Send a formal message to {activeProvider?.name}. Their account status will transition to <strong>more_info_needed</strong> so they can upload fresh photos or clarifications.
+            </p>
+
+            <textarea
+              value={infoMessage}
+              onChange={(e) => setInfoMessage(e.target.value)}
+              rows={4}
+              className="form-control"
+              style={{ width: '100%', fontSize: '13px', padding: '10px', borderRadius: '8px', marginBottom: '16px' }}
+              placeholder="State exactly what additional document or clarification is required..."
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setInfoModalOpen(false)}
+                className="btn btn-outline btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={processing || infoMessage.trim().length < 5}
+                onClick={handleConfirmRequestInfo}
+                className="btn btn-primary btn-sm"
+              >
+                {processing ? 'Sending...' : 'Dispatch Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Document Preview Modal */}
       {previewDocUrl && (
         <div style={{
           position: 'fixed',
@@ -477,199 +658,51 @@ export default function AdminApprovalsDesk() {
           bottom: 0,
           backgroundColor: 'rgba(0,0,0,0.75)',
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 10001,
-          padding: '20px'
+          zIndex: 2000,
+          padding: '24px'
         }}>
           <div style={{
             backgroundColor: '#FFFFFF',
-            borderRadius: 'var(--radius-xl)',
-            maxWidth: '720px',
+            borderRadius: '16px',
+            maxWidth: '800px',
             width: '100%',
             maxHeight: '90vh',
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden',
-            boxShadow: 'var(--shadow-xl)'
+            overflow: 'hidden'
           }}>
             <div style={{
               padding: '16px 20px',
               borderBottom: '1px solid var(--border-light)',
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
-              backgroundColor: 'var(--bg-warm)'
+              alignItems: 'center'
             }}>
-              <strong style={{ fontSize: '14.5px', color: 'var(--forest-900)' }}>
+              <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--forest-900)' }}>
                 {previewDocTitle}
-              </strong>
-              <button 
+              </span>
+              <button
                 type="button"
                 onClick={() => setPreviewDocUrl(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div style={{ padding: '24px', overflowY: 'auto', textAlign: 'center', backgroundColor: '#F9FAFB' }}>
-              <img 
-                src={previewDocUrl} 
-                alt="Document Full Preview" 
-                style={{ 
-                  maxWidth: '100%', 
-                  maxHeight: '65vh', 
-                  borderRadius: 'var(--radius-md)', 
-                  objectFit: 'contain',
-                  border: '1px solid var(--border-light)',
-                  boxShadow: 'var(--shadow-md)'
-                }} 
-              />
-            </div>
-
-            <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setPreviewDocUrl(null)}
-              >
-                Close Preview
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reject with Reason Modal */}
-      {rejectModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.6)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10002,
-          padding: '16px'
-        }}>
-          <div style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 'var(--radius-lg)',
-            maxWidth: '480px',
-            width: '100%',
-            padding: '24px',
-            boxShadow: 'var(--shadow-xl)'
-          }}>
-            <h3 style={{ fontSize: '16.5px', fontWeight: 800, color: '#991B1B', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <AlertTriangle size={20} color="#DC2626" />
-              <span>Reject Application ({activeCandidate?.name})</span>
-            </h3>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              Specify the explicit reason for rejection. This reason will display directly on the provider's dashboard along with a "Fix and Resubmit" button.
-            </p>
-
-            <textarea
-              rows={4}
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="e.g. Govt ID photo is cut off or blurry. Please upload a clear photo of your Aadhaar card..."
-              style={{
-                width: '100%',
-                padding: '12px',
-                borderRadius: 'var(--radius-md)',
-                border: '1.5px solid var(--border-light)',
-                fontSize: '13px',
-                marginBottom: '16px'
-              }}
-            />
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={() => setRejectModalOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmReject}
-                className="btn btn-primary"
-                style={{ backgroundColor: '#DC2626', borderColor: '#B91C1C' }}
-              >
-                Confirm Rejection
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Request More Info Modal */}
-      {infoModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.6)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10002,
-          padding: '16px'
-        }}>
-          <div style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 'var(--radius-lg)',
-            maxWidth: '480px',
-            width: '100%',
-            padding: '24px',
-            boxShadow: 'var(--shadow-xl)'
-          }}>
-            <h3 style={{ fontSize: '16.5px', fontWeight: 800, color: '#92400E', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Clock size={20} color="#D97706" />
-              <span>Request More Info ({activeCandidate?.name})</span>
-            </h3>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              Send an actionable message to the technician. Their status will change to "Needs Info" and allow them to upload supplementary documents.
-            </p>
-
-            <textarea
-              rows={4}
-              value={infoMessage}
-              onChange={(e) => setInfoMessage(e.target.value)}
-              placeholder="e.g. Please upload your electrical supervisor license or clear copy of PAN card..."
-              style={{
-                width: '100%',
-                padding: '12px',
-                borderRadius: 'var(--radius-md)',
-                border: '1.5px solid var(--border-light)',
-                fontSize: '13px',
-                marginBottom: '16px'
-              }}
-            />
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={() => setInfoModalOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmRequestInfo}
-                className="btn btn-primary"
-                style={{ backgroundColor: '#D97706', borderColor: '#B45309' }}
-              >
-                Send Request to Technician
-              </button>
+            <div style={{ padding: '20px', overflowY: 'auto', textAlign: 'center', flex: 1, backgroundColor: 'var(--bg-warm)' }}>
+              {previewDocUrl.toLowerCase().endsWith('.pdf') ? (
+                <iframe src={previewDocUrl} style={{ width: '100%', height: '500px', border: 'none' }} title={previewDocTitle} />
+              ) : (
+                <img
+                  src={previewDocUrl}
+                  alt={previewDocTitle}
+                  style={{ maxWidth: '100%', maxHeight: '550px', borderRadius: '8px', objectFit: 'contain' }}
+                />
+              )}
             </div>
           </div>
         </div>

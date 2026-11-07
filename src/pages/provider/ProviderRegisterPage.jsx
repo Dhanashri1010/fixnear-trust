@@ -461,7 +461,7 @@ export default function ProviderRegisterPage() {
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="e.g. Ramesh Sharma"
+                    placeholder="Your full name"
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
                     required
@@ -499,7 +499,7 @@ export default function ProviderRegisterPage() {
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="e.g. Andheri, Bandra, Juhu"
+                    placeholder="Areas you can travel to"
                     value={formData.serviceArea}
                     onChange={(e) => handleInputChange('serviceArea', e.target.value)}
                     required

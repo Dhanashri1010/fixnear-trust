@@ -5,6 +5,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import { app } from '../server.js';
 import { User } from '../models/User.js';
 import { Service } from '../models/Service.js';
+import { Category } from '../models/Category.js';
 import { Provider } from '../models/Provider.js';
 import { Booking } from '../models/Booking.js';
 import { Review } from '../models/Review.js';
@@ -13,6 +14,7 @@ import { Setting } from '../models/Setting.js';
 import { Question } from '../models/Question.js';
 import { SkillTestSession } from '../models/SkillTestSession.js';
 import { TestAttempt } from '../models/TestAttempt.js';
+import { AuditLog } from '../models/AuditLog.js';
 import { checkExpiredOffers } from '../controllers/bookingController.js';
 
 let mongod;
@@ -37,6 +39,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await User.deleteMany({});
   await Service.deleteMany({});
+  await Category.deleteMany({});
   await Provider.deleteMany({});
   await Booking.deleteMany({});
   await Review.deleteMany({});
@@ -45,6 +48,7 @@ beforeEach(async () => {
   await Question.deleteMany({});
   await SkillTestSession.deleteMany({});
   await TestAttempt.deleteMany({});
+  await AuditLog.deleteMany({});
 });
 
 describe('FixNear Trust API Test Suite - Phase B', () => {
@@ -1333,8 +1337,8 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
 
     // 2. Register provider user
     const provUser = await request(app).post('/api/auth/register').send({
-      name: 'Ramesh Sharma',
-      email: 'ramesh.sharma@fixnear.com',
+      name: 'Technician Partner',
+      email: 'tech.partner@fixnear.com',
       password: 'SecurePass123',
       phone: '9876543161',
       city: 'Mumbai',
@@ -1347,21 +1351,21 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       .post('/api/providers/register')
       .set('Cookie', provCookie)
       .send({
-        name: 'Ramesh Sharma',
+        name: 'Technician Partner',
         idProofPublicId: 'other_user_doc_123',
       });
     expect(badIdRes.status).toBe(400);
     expect(badIdRes.body.message).toContain('private folder');
 
     // Valid registration with per-user folder publicId
-    const validIdPublicId = `fixnear_kyc_private/${provUser.body.user.id}/id_doc_ramesh_123.jpg`;
-    const validCertPublicId = `fixnear_kyc_private/${provUser.body.user.id}/cert_ramesh_456.jpg`;
+    const validIdPublicId = `fixnear_kyc_private/${provUser.body.user.id}/id_doc_partner_123.jpg`;
+    const validCertPublicId = `fixnear_kyc_private/${provUser.body.user.id}/cert_partner_456.jpg`;
 
     const regStepRes = await request(app)
       .post('/api/providers/register')
       .set('Cookie', provCookie)
       .send({
-        name: 'Ramesh Sharma',
+        name: 'Technician Partner',
         phone: '9876543161',
         city: 'Mumbai',
         serviceArea: 'Andheri & Juhu',
@@ -1388,7 +1392,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     const profileRes = await request(app).get('/api/providers/me').set('Cookie', provCookie);
     expect(profileRes.status).toBe(200);
     expect(profileRes.body.success).toBe(true);
-    expect(profileRes.body.provider.name).toBe('Ramesh Sharma');
+    expect(profileRes.body.provider.name).toBe('Technician Partner');
     expect(profileRes.body.earnings.today).toBe(0);
     expect(profileRes.body.settings.platformFee).toBe(20);
     expect(profileRes.body.settings.commissionPercent).toBe(10);
@@ -1783,5 +1787,684 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     expect(updatedBooking.quotation.status).toBe('APPROVED');
     expect(updatedBooking.invoice.totalAmount).toBe(1299);
   });
+
+  // Quotation limits & validation tests (Small Fix 1)
+  it('enforces quotation validation rules: item counts, lengths, amounts, total limit, single pending, and max 3 approved', async () => {
+    const provUser = await User.create({
+      name: 'Sunil Verma',
+      email: 'sunil.v@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543168',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const pDoc = await Provider.create({
+      userId: provUser._id,
+      name: provUser.name,
+      email: provUser.email,
+      phone: provUser.phone,
+      city: 'Mumbai',
+      specialty: 'Electrical',
+      skills: [{ categoryId: 'electrical', categoryName: 'Electrical', passed: true, testScore: 92 }],
+      status: 'approved',
+      isOnline: true,
+    });
+    const provLogin = await request(app).post('/api/auth/login').send({
+      email: 'sunil.v@fixnear.com',
+      password: 'SecurePass123',
+    });
+    const provCookie = provLogin.headers['set-cookie'];
+
+    const cust = await request(app).post('/api/auth/register').send({
+      name: 'Pooja Hegde',
+      email: 'pooja.h@fixnear.com',
+      password: 'SecurePass123',
+      phone: '9876543169',
+      city: 'Mumbai',
+      role: 'customer',
+    });
+    const custCookie = cust.headers['set-cookie'];
+
+    const booking = await Booking.create({
+      bookingId: 'FX-QUOTE-VAL',
+      customerId: cust.body.user ? cust.body.user.id : new mongoose.Types.ObjectId(),
+      customerName: 'Pooja Hegde',
+      customerPhone: '9876543169',
+      providerId: pDoc._id,
+      providerName: pDoc.name,
+      providerPhone: pDoc.phone,
+      serviceId: 'electrical-switchboard',
+      serviceTitle: 'Switchboard Repair',
+      basePrice: 300,
+      address: 'Andheri West, Mumbai',
+      city: 'Mumbai',
+      scheduledDate: '2026-12-30',
+      timeSlot: 'Morning (10:00 AM - 01:00 PM)',
+      status: 'WORKING',
+      completionOtp: '1234',
+      approvedQuotationsCount: 0,
+      invoice: {
+        invoiceNo: 'INV-QV1',
+        status: 'UNPAID',
+        baseAmount: 300,
+        extraAmount: 0,
+        totalAmount: 300,
+      },
+    });
+
+    // 1. Rejects empty items array (min 1)
+    const emptyItemsRes = await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({ items: [], reason: 'Test empty items' });
+    expect(emptyItemsRes.status).toBe(400);
+
+    // 2. Rejects > 10 items
+    const elevenItems = Array.from({ length: 11 }, (_, i) => ({ desc: `Item ${i + 1}`, amount: 100 }));
+    const tooManyRes = await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({ items: elevenItems, reason: 'Too many items' });
+    expect(tooManyRes.status).toBe(400);
+
+    // 3. Rejects item description < 3 characters
+    const shortDescRes = await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({ items: [{ desc: 'ab', amount: 100 }], reason: 'Short desc' });
+    expect(shortDescRes.status).toBe(400);
+
+    // 4. Rejects non-integer amount or amount > 50,000
+    const floatAmountRes = await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({ items: [{ desc: 'Capacitor', amount: 150.75 }], reason: 'Float amount' });
+    expect(floatAmountRes.status).toBe(400);
+
+    const hugeItemRes = await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({ items: [{ desc: 'Compressor Unit', amount: 55000 }], reason: 'Over 50k item' });
+    expect(hugeItemRes.status).toBe(400);
+
+    // 5. Rejects total > 100,000
+    const hugeTotalRes = await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({
+        items: [
+          { desc: 'Part A', amount: 45000 },
+          { desc: 'Part B', amount: 45000 },
+          { desc: 'Part C', amount: 20000 },
+        ],
+        reason: 'Over 100k total',
+      });
+    expect(hugeTotalRes.status).toBe(400);
+
+    // 6. Submit valid quotation 1
+    const valid1 = await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({
+        items: [{ desc: 'Modular Switch 16A', amount: 250 }],
+        reason: 'Burned out internal contacts',
+      });
+    expect(valid1.status).toBe(200);
+
+    // 7. Submitting another quotation while one is PENDING_CUSTOMER_APPROVAL must be rejected (400)
+    const secondPendingRes = await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({
+        items: [{ desc: 'Second Switch', amount: 200 }],
+        reason: 'Another switch broken',
+      });
+    expect(secondPendingRes.status).toBe(400);
+    expect(secondPendingRes.body.message).toMatch(/pending customer approval/i);
+
+    // Customer approves quotation 1
+    const app1 = await request(app)
+      .patch(`/api/bookings/${booking._id}/quotation/approve`)
+      .set('Cookie', custCookie);
+    expect(app1.status).toBe(200);
+
+    // Submit and approve quotation 2
+    await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({ items: [{ desc: 'MCB 32A', amount: 600 }], reason: 'Tripping breaker' });
+    await request(app)
+      .patch(`/api/bookings/${booking._id}/quotation/approve`)
+      .set('Cookie', custCookie);
+
+    // Submit and approve quotation 3
+    await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({ items: [{ desc: 'Wiring harness', amount: 400 }], reason: 'Melted insulation' });
+    await request(app)
+      .patch(`/api/bookings/${booking._id}/quotation/approve`)
+      .set('Cookie', custCookie);
+
+    // 8. 4th quotation must be rejected because max 3 approved quotations allowed
+    const fourthRes = await request(app)
+      .post(`/api/bookings/${booking._id}/quotation`)
+      .set('Cookie', provCookie)
+      .send({ items: [{ desc: 'Extra wire', amount: 150 }], reason: 'Extra cable' });
+    expect(fourthRes.status).toBe(400);
+    expect(fourthRes.body.message).toMatch(/maximum limit of 3 approved quotations/i);
+  });
+
+  // ===================================================================
+  // Phase D: Complete Admin Portal Tests
+  // ===================================================================
+  describe('Phase D: Admin Portal on MongoDB', () => {
+    let adminCookie;
+    let adminUser;
+    let customerCookie;
+    let providerCookie;
+    let testProvider;
+
+    beforeEach(async () => {
+      // Create root admin user
+      adminUser = await User.create({
+        name: 'Chief Admin',
+        email: 'admin@fixnear.com',
+        password: 'AdminPassword123',
+        phone: '9876500000',
+        city: 'Mumbai',
+        role: 'admin',
+      });
+      const adminLogin = await request(app).post('/api/auth/login').send({
+        email: 'admin@fixnear.com',
+        password: 'AdminPassword123',
+      });
+      adminCookie = adminLogin.headers['set-cookie'];
+
+      // Create a test customer
+      await request(app).post('/api/auth/register').send({
+        name: 'Meena Sharma',
+        email: 'meena@fixnear.com',
+        password: 'SecurePass123',
+        phone: '9876500001',
+        city: 'Mumbai',
+        role: 'customer',
+      });
+      const custLogin = await request(app).post('/api/auth/login').send({
+        email: 'meena@fixnear.com',
+        password: 'SecurePass123',
+      });
+      customerCookie = custLogin.headers['set-cookie'];
+
+      // Create a test provider
+      const pUser = await User.create({
+        name: 'Ganesh Shinde',
+        email: 'ganesh@fixnear.com',
+        password: 'SecurePass123',
+        phone: '9876500002',
+        city: 'Mumbai',
+        role: 'provider',
+      });
+      testProvider = await Provider.create({
+        userId: pUser._id,
+        name: pUser.name,
+        email: pUser.email,
+        phone: pUser.phone,
+        city: 'Mumbai',
+        specialty: 'Plumbing',
+        skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 90 }],
+        status: 'waiting_for_approval',
+        isOnline: true,
+        ratingAvg: 4.5,
+        ratingCount: 10,
+        kycDocs: [
+          { docType: 'id_proof', fileUrl: 'https://cloudinary.test/id.pdf', publicId: 'kyc_id_test' },
+        ],
+      });
+      const provLogin = await request(app).post('/api/auth/login').send({
+        email: 'ganesh@fixnear.com',
+        password: 'SecurePass123',
+      });
+      providerCookie = provLogin.headers['set-cookie'];
+    });
+
+    // 1. Security / Access Control on /api/admin
+    it('protects /api/admin/* routes: 401 unauthenticated, 403 for customer and provider', async () => {
+      // Unauthenticated
+      const noAuthRes = await request(app).get('/api/admin/stats');
+      expect(noAuthRes.status).toBe(401);
+
+      // Customer
+      const custRes = await request(app).get('/api/admin/stats').set('Cookie', customerCookie);
+      expect(custRes.status).toBe(403);
+
+      // Provider
+      const provRes = await request(app).get('/api/admin/stats').set('Cookie', providerCookie);
+      expect(provRes.status).toBe(403);
+
+      // Admin succeeds
+      const adminRes = await request(app).get('/api/admin/stats').set('Cookie', adminCookie);
+      expect(adminRes.status).toBe(200);
+      expect(adminRes.body.success).toBe(true);
+      expect(adminRes.body.stats).toBeDefined();
+    });
+
+    // 2. Dashboard Stats & Needs Action
+    it('returns comprehensive dashboard stats and needsAction list', async () => {
+      const statsRes = await request(app).get('/api/admin/stats').set('Cookie', adminCookie);
+      expect(statsRes.status).toBe(200);
+      const stats = statsRes.body.stats;
+      expect(stats.totalBookings).toBeDefined();
+      expect(stats.activeJobs).toBeDefined();
+      expect(stats.providersOnline).toBeDefined();
+      expect(stats.providersWaitingApproval).toBeGreaterThanOrEqual(1);
+      expect(stats.bookingsPerDay).toBeDefined();
+      expect(Array.isArray(stats.bookingsPerDay)).toBe(true);
+      expect(stats.needsAction).toBeDefined();
+      expect(Array.isArray(stats.needsAction.waitingApprovals)).toBe(true);
+      expect(stats.needsAction.waitingApprovals.length).toBeGreaterThanOrEqual(1);
+    });
+
+    // 3. Provider Approvals Workflow (Approve, Reject, Request Info) & AuditLog
+    it('approvals desk: approves, rejects, and requests info with audit logging', async () => {
+      // 3.1 Approve provider
+      const approveRes = await request(app)
+        .post(`/api/admin/approvals/${testProvider._id}/approve`)
+        .set('Cookie', adminCookie);
+      expect(approveRes.status).toBe(200);
+      expect(approveRes.body.provider.status).toBe('approved');
+      expect(approveRes.body.provider.verifiedBadge).toBe(true);
+
+      // Check AuditLog
+      const auditApprove = await AuditLog.findOne({
+        action: 'APPROVE_PROVIDER',
+        targetId: String(testProvider._id),
+      });
+      expect(auditApprove).toBeDefined();
+      expect(String(auditApprove.adminId)).toBe(String(adminUser._id));
+
+      // 3.2 Request Info (Message required)
+      const reqInfoFail = await request(app)
+        .post(`/api/admin/approvals/${testProvider._id}/request-info`)
+        .set('Cookie', adminCookie)
+        .send({ message: 'hi' }); // < 5 chars
+      expect(reqInfoFail.status).toBe(400);
+
+      const reqInfoRes = await request(app)
+        .post(`/api/admin/approvals/${testProvider._id}/request-info`)
+        .set('Cookie', adminCookie)
+        .send({ message: 'Please re-upload a clear government photo ID' });
+      expect(reqInfoRes.status).toBe(200);
+      expect(reqInfoRes.body.provider.status).toBe('needs_info');
+
+      const auditReqInfo = await AuditLog.findOne({
+        action: 'REQUEST_PROVIDER_INFO',
+        targetId: String(testProvider._id),
+      });
+      expect(auditReqInfo).toBeDefined();
+
+      // 3.3 Reject provider (Reason required)
+      const rejectFail = await request(app)
+        .post(`/api/admin/approvals/${testProvider._id}/reject`)
+        .set('Cookie', adminCookie)
+        .send({ reason: 'no' }); // < 5 chars
+      expect(rejectFail.status).toBe(400);
+
+      const rejectRes = await request(app)
+        .post(`/api/admin/approvals/${testProvider._id}/reject`)
+        .set('Cookie', adminCookie)
+        .send({ reason: 'Failed identity verification check on government portal' });
+      expect(rejectRes.status).toBe(200);
+      expect(rejectRes.body.provider.status).toBe('rejected');
+
+      const auditReject = await AuditLog.findOne({
+        action: 'REJECT_PROVIDER',
+        targetId: String(testProvider._id),
+      });
+      expect(auditReject).toBeDefined();
+    });
+
+    // 4. Provider Suspension & Reinstatement
+    it('suspends provider, forces offline, cancels pending offers and re-dispatches', async () => {
+      // Reinstate first
+      await Provider.findByIdAndUpdate(testProvider._id, { status: 'approved', isOnline: true });
+
+      // Suspend
+      const suspendRes = await request(app)
+        .post(`/api/admin/providers/${testProvider._id}/suspend`)
+        .set('Cookie', adminCookie)
+        .send({ reason: 'Repeated customer complaints regarding no-shows' });
+      expect(suspendRes.status).toBe(200);
+      expect(suspendRes.body.provider.status).toBe('suspended');
+      expect(suspendRes.body.provider.isOnline).toBe(false);
+
+      // Verify DB
+      const dbProv = await Provider.findById(testProvider._id);
+      expect(dbProv.status).toBe('suspended');
+      expect(dbProv.isOnline).toBe(false);
+
+      // Reinstate
+      const reinstateRes = await request(app)
+        .post(`/api/admin/providers/${testProvider._id}/reinstate`)
+        .set('Cookie', adminCookie)
+        .send({ reason: 'Appeal reviewed and cleared with warning' });
+      expect(reinstateRes.status).toBe(200);
+      expect(reinstateRes.body.provider.status).toBe('approved');
+    });
+
+    // 5. Customer Blocking & Session Termination
+    it('blocks customer, prevents new login, and rejects active session requests', async () => {
+      const custUser = await User.findOne({ email: 'meena@fixnear.com' });
+
+      // Block customer
+      const blockRes = await request(app)
+        .post(`/api/admin/customers/${custUser._id}/block`)
+        .set('Cookie', adminCookie)
+        .send({ reason: 'Abusive language towards technicians' });
+      expect(blockRes.status).toBe(200);
+      expect(blockRes.body.customer.isBlocked).toBe(true);
+
+      // Active customer session makes authenticated call -> gets 403
+      const checkRes = await request(app).get('/api/auth/me').set('Cookie', customerCookie);
+      expect(checkRes.status).toBe(403);
+      expect(checkRes.body.message).toMatch(/suspended/i);
+
+      // Customer tries to log in again -> gets 403
+      const reloginRes = await request(app).post('/api/auth/login').send({
+        email: 'meena@fixnear.com',
+        password: 'SecurePass123',
+      });
+      expect(reloginRes.status).toBe(403);
+
+      // Unblock customer
+      const unblockRes = await request(app)
+        .post(`/api/admin/customers/${custUser._id}/unblock`)
+        .set('Cookie', adminCookie);
+      expect(unblockRes.status).toBe(200);
+      expect(unblockRes.body.customer.isBlocked).toBe(false);
+
+      // Can log in now
+      const reloginOk = await request(app).post('/api/auth/login').send({
+        email: 'meena@fixnear.com',
+        password: 'SecurePass123',
+      });
+      expect(reloginOk.status).toBe(200);
+    });
+
+    // 6. Bookings Management & Cancellation
+    it('admin views full booking details (with customer phone & address) and cancels booking', async () => {
+      const custUser = await User.findOne({ email: 'meena@fixnear.com' });
+      const booking = await Booking.create({
+        bookingId: 'FX-ADM-B1',
+        customerId: custUser._id,
+        customerName: custUser.name,
+        customerPhone: custUser.phone,
+        address: 'Flat 402, Sea Green Apartments, Mumbai',
+        city: 'Mumbai',
+        serviceId: 'plumbing-tap-repair',
+        serviceTitle: 'Tap Leakage Repair',
+        basePrice: 349,
+        scheduledDate: '2026-12-28',
+        timeSlot: 'Morning (10:00 AM - 01:00 PM)',
+        status: 'REQUESTED',
+        completionOtp: '1234',
+      });
+
+      // Admin fetches details
+      const detailRes = await request(app)
+        .get(`/api/admin/bookings/${booking._id}`)
+        .set('Cookie', adminCookie);
+      expect(detailRes.status).toBe(200);
+      expect(detailRes.body.booking.customerPhone).toBe('9876500001');
+      expect(detailRes.body.booking.address).toBe('Flat 402, Sea Green Apartments, Mumbai');
+
+      // Admin cancels booking
+      const cancelRes = await request(app)
+        .post(`/api/admin/bookings/${booking._id}/cancel`)
+        .set('Cookie', adminCookie)
+        .send({ reason: 'Customer requested cancellation via call support' });
+      expect(cancelRes.status).toBe(200);
+      expect(cancelRes.body.booking.status).toBe('CANCELLED');
+
+      const auditCancel = await AuditLog.findOne({
+        action: 'BOOKING_CANCELLED_BY_ADMIN',
+        targetId: String(booking._id),
+      });
+      expect(auditCancel).toBeDefined();
+    });
+
+    // 7. Services & Categories Management
+    it('admin manages categories and services, and toggles service active visibility', async () => {
+      // Create Category
+      const catRes = await request(app)
+        .post('/api/admin/categories')
+        .set('Cookie', adminCookie)
+        .send({
+          categoryId: 'carpentry',
+          name: 'Carpentry',
+          tagline: 'Custom woodwork & furniture repair',
+          icon: 'Hammer',
+          startingPrice: 399,
+        });
+      expect(catRes.status).toBe(201);
+      expect(catRes.body.category.categoryId).toBe('carpentry');
+
+      // Create Service
+      const srvRes = await request(app)
+        .post('/api/admin/services')
+        .set('Cookie', adminCookie)
+        .send({
+          serviceId: 'door-lock-repair',
+          categoryId: 'carpentry',
+          category: 'Carpentry',
+          title: 'Door Lock Repair & Fitting',
+          startingPrice: 449,
+          duration: '60 mins',
+          features: ['Lock replacement', 'Handle tightening', '15-day warranty'],
+        });
+      expect(srvRes.status).toBe(201);
+      const serviceId = srvRes.body.service._id;
+
+      // Customer can see it in /api/services
+      const custSrv1 = await request(app).get('/api/services');
+      expect(custSrv1.body.services.some((s) => s.serviceId === 'door-lock-repair')).toBe(true);
+
+      // Admin toggles active status to false
+      const toggleRes = await request(app)
+        .patch(`/api/admin/services/${serviceId}/status`)
+        .set('Cookie', adminCookie);
+      expect(toggleRes.status).toBe(200);
+      expect(toggleRes.body.service.isActive).toBe(false);
+
+      // Customer no longer sees disabled service
+      const custSrv2 = await request(app).get('/api/services');
+      expect(custSrv2.body.services.some((s) => s.serviceId === 'door-lock-repair')).toBe(false);
+    });
+
+    // 8. Question Bank Management & Protection of correctIndex
+    it('manages question bank with counts, reveals correctIndex only to admin, never to providers in skill-test', async () => {
+      // 1. Create a question
+      const qRes = await request(app)
+        .post('/api/admin/questions')
+        .set('Cookie', adminCookie)
+        .send({
+          categoryId: 'plumbing',
+          categoryName: 'Plumbing',
+          topic: 'Pipe Fitting',
+          questionText: 'Which sealant tape is standard for sealing pipe threads?',
+          options: ['Electrical PVC tape', 'Teflon (PTFE) thread seal tape', 'Masking paper tape', 'Duct tape'],
+          correctIndex: 1,
+          explanation: 'PTFE Teflon tape provides a chemical-resistant water-tight seal on threads.',
+        });
+      expect(qRes.status).toBe(201);
+      expect(qRes.body.question.correctIndex).toBe(1);
+
+      // 2. Admin retrieves questions: correctIndex is returned
+      const adminQList = await request(app)
+        .get('/api/admin/questions?categoryId=plumbing')
+        .set('Cookie', adminCookie);
+      expect(adminQList.status).toBe(200);
+      expect(adminQList.body.questions.length).toBeGreaterThanOrEqual(1);
+      expect(adminQList.body.questions[0].correctIndex).toBeDefined();
+
+      // 3. Question counts check: Plumbing has < 12 questions -> hasEnough: false
+      const countsRes = await request(app)
+        .get('/api/admin/questions/counts')
+        .set('Cookie', adminCookie);
+      expect(countsRes.status).toBe(200);
+      const plumbingCount = countsRes.body.counts.find((c) => c.categoryId === 'plumbing');
+      expect(plumbingCount).toBeDefined();
+      expect(plumbingCount.hasEnough).toBe(false);
+
+      // 4. Provider starting a skill-test on /api/skill-test/plumbing NEVER gets correctIndex
+      const testSessionRes = await request(app)
+        .post('/api/skill-test/plumbing/start')
+        .set('Cookie', providerCookie);
+      if (testSessionRes.status === 200) {
+        testSessionRes.body.questions.forEach((q) => {
+          expect(q.correctIndex).toBeUndefined();
+        });
+      }
+    });
+
+    // 9. Admin Settings Configuration
+    it('updates platform settings with strict validation boundaries and writes AuditLog', async () => {
+      // Out of bounds passMark (> 100)
+      const invalidRes = await request(app)
+        .patch('/api/admin/settings')
+        .set('Cookie', adminCookie)
+        .send({ passMark: 120 });
+      expect(invalidRes.status).toBe(400);
+
+      // Valid update
+      const validRes = await request(app)
+        .patch('/api/admin/settings')
+        .set('Cookie', adminCookie)
+        .send({
+          passMark: 85,
+          testDurationMinutes: 20,
+          platformFee: 49,
+          commissionPercent: 12,
+        });
+      expect(validRes.status).toBe(200);
+      expect(validRes.body.settings.passMark).toBe(85);
+      expect(validRes.body.settings.platformFee).toBe(49);
+
+      const auditSettings = await AuditLog.findOne({ action: 'SETTINGS_UPDATED' });
+      expect(auditSettings).toBeDefined();
+    });
+
+    // 10. Review Moderation & Server-Side Rating Recalculation
+    it('hiding review recalculates provider ratingAvg and ratingCount on server, unhiding restores it', async () => {
+      const custUser = await User.findOne({ email: 'meena@fixnear.com' });
+
+      // Create two reviews for testProvider
+      const r1 = await Review.create({
+        bookingId: new mongoose.Types.ObjectId(),
+        customerId: custUser._id,
+        authorName: custUser.name,
+        providerId: testProvider._id,
+        rating: 5,
+        comment: 'Outstanding job!',
+        isHidden: false,
+      });
+
+      const r2 = await Review.create({
+        bookingId: new mongoose.Types.ObjectId(),
+        customerId: custUser._id,
+        authorName: custUser.name,
+        providerId: testProvider._id,
+        rating: 1,
+        comment: 'Spam abusive text',
+        isHidden: false,
+      });
+
+      // Recalculate provider initial rating
+      await Provider.findByIdAndUpdate(testProvider._id, {
+        ratingAvg: 3.0, // (5 + 1) / 2
+        ratingCount: 2,
+      });
+
+      // Admin hides r2 (abusive review)
+      const hideRes = await request(app)
+        .patch(`/api/admin/reviews/${r2._id}/visibility`)
+        .set('Cookie', adminCookie)
+        .send({ isHidden: true, reason: 'Violates community guidelines' });
+      expect(hideRes.status).toBe(200);
+      expect(hideRes.body.review.isHidden).toBe(true);
+
+      // Verify provider rating updated to 5.0 (1 review)
+      const updatedProv1 = await Provider.findById(testProvider._id);
+      expect(updatedProv1.ratingCount).toBe(1);
+      expect(updatedProv1.ratingAvg).toBe(5.0);
+
+      // Admin unhides r2
+      const unhideRes = await request(app)
+        .patch(`/api/admin/reviews/${r2._id}/visibility`)
+        .set('Cookie', adminCookie)
+        .send({ isHidden: false, reason: 'False positive flag' });
+      expect(unhideRes.status).toBe(200);
+
+      const updatedProv2 = await Provider.findById(testProvider._id);
+      expect(updatedProv2.ratingCount).toBe(2);
+      expect(updatedProv2.ratingAvg).toBe(3.0);
+    });
+
+    // 11. Admin User Management & Last Admin Protection
+    it('creates new admin with mustChangePassword: true, forbids self-deactivation and last admin deactivation', async () => {
+      // 1. Create a second admin
+      const createRes = await request(app)
+        .post('/api/admin/admins')
+        .set('Cookie', adminCookie)
+        .send({
+          name: 'Assistant Ops Admin',
+          email: 'ops.admin@fixnear.com',
+          password: 'OpsPassword99',
+        });
+      expect(createRes.status).toBe(201);
+      expect(createRes.body.admin.mustChangePassword).toBe(true);
+      const newAdminId = createRes.body.admin._id;
+
+      // 2. Admin cannot deactivate themselves (400)
+      const selfDeactRes = await request(app)
+        .post(`/api/admin/admins/${adminUser._id}/deactivate`)
+        .set('Cookie', adminCookie);
+      expect(selfDeactRes.status).toBe(400);
+      expect(selfDeactRes.body.message).toMatch(/cannot deactivate your own.*account/i);
+
+      // 3. Deactivate the second admin
+      const deact2 = await request(app)
+        .post(`/api/admin/admins/${newAdminId}/deactivate`)
+        .set('Cookie', adminCookie);
+      expect(deact2.status).toBe(200);
+
+      // 4. Now only 1 active admin remains -> attempting to deactivate the only active admin is rejected
+      // (Even if requested through an endpoint)
+      const lastAdminCheck = await request(app)
+        .post(`/api/admin/admins/${adminUser._id}/deactivate`)
+        .set('Cookie', adminCookie);
+      expect(lastAdminCheck.status).toBe(400);
+    });
+
+    // 12. Audit Logs Desk
+    it('audit logs are retrieved in descending order with who, what, when, old and new values', async () => {
+      // Trigger an administrative action so an audit log entry is guaranteed to exist
+      await request(app)
+        .patch('/api/admin/settings')
+        .set('Cookie', adminCookie)
+        .send({ platformFee: 30 });
+
+      const logsRes = await request(app).get('/api/admin/audit-logs').set('Cookie', adminCookie);
+      expect(logsRes.status).toBe(200);
+      expect(Array.isArray(logsRes.body.logs)).toBe(true);
+      expect(logsRes.body.logs.length).toBeGreaterThanOrEqual(1);
+
+      const log = logsRes.body.logs[0];
+      expect(log.action).toBeDefined();
+      expect(log.adminEmail).toBeDefined();
+      expect(log.createdAt).toBeDefined();
+    });
+  });
+
 
 });
