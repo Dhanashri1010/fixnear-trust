@@ -45,5 +45,20 @@ auditLogSchema.index({ createdAt: -1 });
 auditLogSchema.index({ action: 1 });
 auditLogSchema.index({ targetType: 1 });
 
+// Strictly append-only: reject all update and delete mutations
+const rejectAuditMutation = function () {
+  throw new Error('AuditLog is append-only and cannot be modified or deleted.');
+};
+
+auditLogSchema.pre('updateOne', rejectAuditMutation);
+auditLogSchema.pre('updateMany', rejectAuditMutation);
+auditLogSchema.pre('findOneAndUpdate', rejectAuditMutation);
+auditLogSchema.pre('replaceOne', rejectAuditMutation);
+auditLogSchema.pre('deleteOne', rejectAuditMutation);
+auditLogSchema.pre('deleteMany', rejectAuditMutation);
+auditLogSchema.pre('findOneAndDelete', rejectAuditMutation);
+auditLogSchema.pre('findOneAndRemove', rejectAuditMutation);
+
 export const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 export default AuditLog;
+

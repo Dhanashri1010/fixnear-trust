@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import { User } from '../models/User.js';
 import { Provider } from '../models/Provider.js';
+import { sendPasswordResetEmail, sendPasswordChangedEmail } from '../utils/emailHelper.js';
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -163,6 +164,7 @@ export const getMe = async (req, res) => {
         phone: user.phone,
         city: user.city,
         avatar: user.avatar,
+        mustChangePassword: Boolean(user.mustChangePassword),
         savedAddresses: user.savedAddresses,
       },
       provider,
@@ -197,43 +199,12 @@ export const forgotPassword = async (req, res) => {
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const resetUrl = `${clientUrl}/reset-password?token=${resetToken}`;
 
-    // Send email using Nodemailer if SMTP is configured
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      try {
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || 'smtp.gmail.com',
-          port: Number(process.env.SMTP_PORT) || 587,
-          secure: Number(process.env.SMTP_PORT) === 465,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
-          },
-        });
-
-        const mailOptions = {
-          from: process.env.EMAIL_FROM || '"FixNear Trust" <noreply@fixnear.com>',
-          to: user.email,
-          subject: 'FixNear Trust - Password Reset Request',
-          text: `Hello ${user.name},\n\nYou requested a password reset. Please click or open the following link to choose a new password (valid for 30 minutes):\n\n${resetUrl}\n\nIf you did not request this, please ignore this email. Your account remains safe.\n\nBest regards,\nFixNear Trust Team`,
-          html: `<div style="font-family:sans-serif;max-width:560px;margin:auto;padding:24px;border:1px solid #e2e8f0;border-radius:12px;">
-            <h2 style="color:#1b4332;">FixNear Trust Password Reset</h2>
-            <p>Hello <strong>${user.name}</strong>,</p>
-            <p>You requested a password reset for your account. Click the button below to set a new password (valid for 30 minutes):</p>
-            <div style="margin:24px 0;">
-              <a href="${resetUrl}" style="background-color:#2d6a4f;color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:8px;font-weight:bold;display:inline-block;">Reset Password</a>
-            </div>
-            <p style="color:#64748b;font-size:13px;">Or copy and paste this URL into your browser:<br/><a href="${resetUrl}">${resetUrl}</a></p>
-            <p style="color:#64748b;font-size:13px;">If you did not make this request, please safely ignore this email.</p>
-          </div>`,
-        };
-
-        await transporter.sendMail(mailOptions);
-      } catch (mailErr) {
-        console.warn('[Nodemailer Warning] Failed to dispatch password reset email:', mailErr.message);
-      }
-    } else {
-      console.warn('[Nodemailer Warning] SMTP credentials (SMTP_USER/SMTP_PASS) are not configured in server/.env. Password reset email was not dispatched.');
-    }
+    // Send email using resilient helper
+    await sendPasswordResetEmail({
+      userEmail: user.email,
+      userName: user.name,
+      resetUrl,
+    });
 
     res.status(200).json({
       success: true,
@@ -272,12 +243,51 @@ export const resetPassword = async (req, res) => {
     user.passwordResetExpires = undefined;
     await user.save();
 
+    sendPasswordChangedEmail({ userEmail: user.email, userName: user.name }).catch(() => {});
+
     sendTokenResponse(user, 200, res, 'Password updated successfully! You are now logged in.');
   } catch (err) {
     console.error('Reset password error:', err);
     res.status(500).json({
       success: false,
       message: 'Failed to reset password. Please try again.',
+    });
+  }
+};
+
+// Change Password (authenticated)
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Account not found.',
+      });
+    }
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password does not match.',
+      });
+    }
+
+    user.password = newPassword;
+    user.mustChangePassword = false;
+    await user.save();
+
+    sendPasswordChangedEmail({ userEmail: user.email, userName: user.name }).catch(() => {});
+
+    sendTokenResponse(user, 200, res, 'Password changed successfully! Other sessions have been logged out.');
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to change password. Please try again.',
     });
   }
 };

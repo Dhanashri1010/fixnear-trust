@@ -261,8 +261,8 @@ input, textarea, select {
   border-bottom: 1px solid var(--border-light);
 }
 
-/* Demo Mode Watermark / Indicator */
-.demo-indicator {
+/* Status Indicator */
+.status-indicator {
   display: inline-flex;
   align-items: center;
   gap: 6px;

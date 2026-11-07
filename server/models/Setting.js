@@ -33,6 +33,10 @@ const settingSchema = new mongoose.Schema(
       required: true,
       default: 24, // 24-hour cooldown after failing a category test
     },
+    activeAdminCount: {
+      type: Number,
+      default: 1,
+    },
   },
   {
     timestamps: true,

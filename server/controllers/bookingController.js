@@ -5,9 +5,15 @@ import { Service } from '../models/Service.js';
 import { Provider } from '../models/Provider.js';
 import { Review } from '../models/Review.js';
 import { Dispute } from '../models/Dispute.js';
+import { Setting } from '../models/Setting.js';
 import { Notification } from '../models/Notification.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { io } from '../server.js';
+import { 
+  sendBookingPlacedEmail, 
+  sendProviderAcceptedEmail, 
+  sendJobCompletedEmail 
+} from '../utils/emailHelper.js';
 
 // Helper to create notifications and emit socket event
 const notifyUser = async ({ userId, role, title, message, type = 'booking', link = '' }) => {
@@ -121,6 +127,11 @@ export const createBooking = async (req, res, next) => {
       { step: 'Completed', time: 'Pending', done: false, current: false },
     ];
 
+    // Capture operational setting snapshot for immutable fees and commission calculation
+    const settings = await Setting.getSettings();
+    const platformFeeSnapshot = settings.platformFee ?? 20;
+    const commissionRateSnapshot = settings.platformCommissionPercent ?? 10;
+
     // New booking is created as REQUESTED with providerId empty and offered to targetProvider
     const newBooking = await Booking.create({
       bookingId: bookingNumber,
@@ -141,6 +152,9 @@ export const createBooking = async (req, res, next) => {
       photos: Array.isArray(photos) ? photos.slice(0, 3) : [],
       status: 'REQUESTED',
       completionOtp,
+      platformFeeSnapshot,
+      commissionRateSnapshot,
+      invoiceNumber: `INV-${bookingNumber}`,
       offeredTo: [
         {
           providerId: targetProvider._id,
@@ -160,13 +174,22 @@ export const createBooking = async (req, res, next) => {
         status: 'UNPAID',
         baseAmount: service.startingPrice,
         extraAmount: 0,
-        totalAmount: service.startingPrice,
+        totalAmount: service.startingPrice + platformFeeSnapshot,
         issuedAt: new Date(),
       },
-      // TODO: Phase E: Integrate Razorpay payment gateway
-      paymentMethod: 'PAY_ON_SERVICE',
+      paymentMethod: 'UNPAID',
       paymentStatus: 'PENDING',
     });
+
+    sendBookingPlacedEmail({
+      customerEmail: req.user.email,
+      customerName: req.user.name,
+      bookingId: newBooking.bookingId,
+      serviceTitle: newBooking.serviceTitle,
+      scheduledDate: newBooking.scheduledDate,
+      timeSlot: newBooking.timeSlot,
+      price: newBooking.basePrice,
+    }).catch(() => {});
 
     // Notify & emit socket updates
     if (io) {
@@ -1096,6 +1119,18 @@ export const updateBookingStatus = async (req, res, next) => {
         link: `/track/${acceptedBooking._id}`,
       });
 
+      const customerUser = await User.findById(acceptedBooking.customerId);
+      if (customerUser) {
+        sendProviderAcceptedEmail({
+          customerEmail: customerUser.email,
+          customerName: acceptedBooking.customerName,
+          providerName: providerDoc.name,
+          providerPhone: providerDoc.phone,
+          bookingId: acceptedBooking.bookingId,
+          serviceTitle: acceptedBooking.serviceTitle,
+        }).catch(() => {});
+      }
+
       const resp = acceptedBooking.toObject();
       if (!isAdmin) delete resp.completionOtp;
 
@@ -1170,12 +1205,14 @@ export const updateBookingStatus = async (req, res, next) => {
       booking.failedFinishCodeAttempts = 0;
       booking.finishCodeBlockedUntil = null;
 
-      // Payments: stop marking PAID automatically; provider sets to CASH_RECEIVED on completion
-      // TODO: Phase E: Integrate Razorpay payment gateway
+      // Bill calculation: base price + approved quotation + platform fee snapshot
+      const approvedExtra = booking.quotation?.status === 'APPROVED' ? (booking.quotation.total || 0) : 0;
+      const platformFee = booking.platformFeeSnapshot ?? 20;
+      booking.invoice.extraAmount = approvedExtra;
+      booking.invoice.totalAmount = booking.basePrice + approvedExtra + platformFee;
+      booking.invoice.status = 'UNPAID';
       booking.paymentMethod = 'PAY_ON_SERVICE';
       booking.paymentStatus = 'CASH_RECEIVED';
-      booking.invoice.status = 'PAID';
-      booking.invoice.paidAt = new Date();
 
       if (providerDoc) {
         providerDoc.jobsDone = (providerDoc.jobsDone || 0) + 1;

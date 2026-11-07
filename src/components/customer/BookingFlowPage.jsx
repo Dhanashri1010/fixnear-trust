@@ -46,49 +46,83 @@ export default function BookingFlowPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [bookingConfirmed, setBookingConfirmed] = useState(null);
+  const [servicesError, setServicesError] = useState('');
 
-  // 1. Redirect to login if user is not authenticated
+  // 1. Restore draft from sessionStorage
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('fixnear_booking_draft');
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d.selectedServiceId) setSelectedServiceId(d.selectedServiceId);
+        if (d.problemNotes) setProblemNotes(d.problemNotes);
+        if (d.addressLine) setAddressLine(d.addressLine);
+        if (d.bookingCity) setBookingCity(d.bookingCity);
+        if (d.selectedDate) setSelectedDate(d.selectedDate);
+        if (d.selectedSlot) setSelectedSlot(d.selectedSlot);
+      }
+    } catch (_) {}
+  }, []);
+
+  // 2. Persist draft to sessionStorage
+  useEffect(() => {
+    try {
+      if (selectedServiceId || problemNotes || addressLine || selectedDate || selectedSlot) {
+        sessionStorage.setItem('fixnear_booking_draft', JSON.stringify({
+          selectedServiceId,
+          problemNotes,
+          addressLine,
+          bookingCity,
+          selectedDate,
+          selectedSlot,
+        }));
+      }
+    } catch (_) {}
+  }, [selectedServiceId, problemNotes, addressLine, bookingCity, selectedDate, selectedSlot]);
+
+  // 3. Redirect to login if user is not authenticated
   useEffect(() => {
     if (!currentUser) {
       navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`);
     } else {
-      if (userProfile?.savedAddresses?.[0]?.address) {
+      if (!addressLine && userProfile?.savedAddresses?.[0]?.address) {
         setAddressLine(userProfile.savedAddresses[0].address);
-      } else if (userProfile?.currentAddress) {
+      } else if (!addressLine && userProfile?.currentAddress) {
         setAddressLine(userProfile.currentAddress);
       }
-      if (selectedCity) {
+      if (selectedCity && !bookingCity) {
         setBookingCity(selectedCity);
       }
     }
   }, [currentUser, userProfile, selectedCity, navigate, location]);
 
-  // 2. Fetch live active services from API
-  useEffect(() => {
-    let isMounted = true;
+  const fetchServices = () => {
+    setLoadingServices(true);
+    setServicesError('');
     servicesAPI.getServices()
       .then((res) => {
-        if (isMounted && res.success && res.services) {
+        if (res.success && res.services) {
           setServices(res.services);
           if (res.services.length > 0) {
-            // Check query param for pre-selected service
             const queryParams = new URLSearchParams(location.search);
             const preSelect = queryParams.get('service') || queryParams.get('id');
             const match = res.services.find(s => s.serviceId === preSelect || s._id === preSelect);
-            setSelectedServiceId(match ? match.serviceId : res.services[0].serviceId);
+            setSelectedServiceId(prev => prev || (match ? match.serviceId : res.services[0].serviceId));
           }
         }
       })
       .catch((err) => {
         console.warn('Failed to load services:', err.message);
+        setServicesError('We could not connect. Please try again.');
       })
       .finally(() => {
-        if (isMounted) setLoadingServices(false);
+        setLoadingServices(false);
       });
+  };
 
-    return () => {
-      isMounted = false;
-    };
+  // 4. Fetch live active services from API
+  useEffect(() => {
+    fetchServices();
   }, [location.search]);
 
   const selectedService = services.find(s => s.serviceId === selectedServiceId || s._id === selectedServiceId) || services[0] || {
@@ -211,6 +245,10 @@ export default function BookingFlowPage() {
         price: res.booking.basePrice,
         finishCode: res.booking.completionOtp,
       });
+
+      try {
+        sessionStorage.removeItem('fixnear_booking_draft');
+      } catch (_) {}
 
       showToast('Booking placed successfully! Your technician will be confirmed shortly.', 'success');
     } catch (err) {
@@ -445,13 +483,36 @@ export default function BookingFlowPage() {
               </p>
 
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
+                <label htmlFor="service-select" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
                   Select Service:
                 </label>
-                {loadingServices ? (
+                {servicesError ? (
+                  <div style={{
+                    padding: '12px 16px',
+                    backgroundColor: '#FEE2E2',
+                    borderRadius: 'var(--radius-md)',
+                    color: '#B91C1C',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    fontSize: '13.5px'
+                  }}>
+                    <span>{servicesError}</span>
+                    <button
+                      type="button"
+                      onClick={fetchServices}
+                      className="btn btn-outline btn-sm"
+                      style={{ backgroundColor: '#FFFFFF', minHeight: '38px', padding: '6px 14px' }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : loadingServices ? (
                   <div style={{ padding: '12px', fontSize: '13.5px', color: 'var(--text-muted)' }}>Loading services from server...</div>
                 ) : (
                   <select
+                    id="service-select"
                     value={selectedServiceId}
                     onChange={(e) => setSelectedServiceId(e.target.value)}
                     style={{
@@ -459,7 +520,8 @@ export default function BookingFlowPage() {
                       padding: '12px 14px',
                       borderRadius: 'var(--radius-sm)',
                       border: '1px solid var(--border-light)',
-                      fontSize: '14px',
+                      fontSize: '16px',
+                      minHeight: '44px',
                       backgroundColor: '#FFFFFF'
                     }}
                   >
@@ -473,10 +535,11 @@ export default function BookingFlowPage() {
               </div>
 
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
+                <label htmlFor="problem-notes" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
                   Describe the Issue:
                 </label>
                 <textarea
+                  id="problem-notes"
                   rows={4}
                   value={problemNotes}
                   onChange={(e) => setProblemNotes(e.target.value)}
@@ -486,7 +549,8 @@ export default function BookingFlowPage() {
                     padding: '12px 14px',
                     borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--border-light)',
-                    fontSize: '14px',
+                    fontSize: '16px',
+                    minHeight: '100px',
                     resize: 'vertical'
                   }}
                 />
@@ -575,20 +639,22 @@ export default function BookingFlowPage() {
               </p>
 
               <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                <label htmlFor="service-city" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
                   Service City:
                 </label>
                 <input
+                  id="service-city"
                   type="text"
                   value={bookingCity}
                   onChange={(e) => setBookingCity(e.target.value)}
                   placeholder="e.g. Mumbai, Bengaluru"
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
+                    padding: '12px 14px',
                     borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--border-light)',
-                    fontSize: '14px',
+                    fontSize: '16px',
+                    minHeight: '44px',
                     backgroundColor: '#FFFFFF'
                   }}
                   required
@@ -608,11 +674,12 @@ export default function BookingFlowPage() {
                         type="button"
                         onClick={() => setAddressLine(addr.address)}
                         style={{
-                          padding: '6px 12px',
+                          padding: '8px 14px',
                           borderRadius: '6px',
                           border: addressLine === addr.address ? '1.5px solid var(--forest-700)' : '1px solid var(--border-light)',
                           backgroundColor: addressLine === addr.address ? 'var(--forest-50)' : '#FFFFFF',
-                          fontSize: '12.5px',
+                          fontSize: '13px',
+                          minHeight: '44px',
                           cursor: 'pointer',
                           textAlign: 'left'
                         }}
@@ -625,10 +692,11 @@ export default function BookingFlowPage() {
               )}
 
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
+                <label htmlFor="street-address" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
                   Complete Street Address & Landmark:
                 </label>
                 <textarea
+                  id="street-address"
                   rows={3}
                   value={addressLine}
                   onChange={(e) => setAddressLine(e.target.value)}
@@ -638,45 +706,50 @@ export default function BookingFlowPage() {
                     padding: '12px 14px',
                     borderRadius: 'var(--radius-sm)',
                     border: '1px solid var(--border-light)',
-                    fontSize: '14px'
+                    fontSize: '16px',
+                    minHeight: '80px'
                   }}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
+                  <label htmlFor="service-date" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
                     Select Preferred Date:
                   </label>
                   <input
+                    id="service-date"
                     type="date"
                     min={todayStr}
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '12px',
+                      padding: '12px 14px',
                       borderRadius: 'var(--radius-sm)',
                       border: '1px solid var(--border-light)',
-                      fontSize: '14px',
+                      fontSize: '16px',
+                      minHeight: '44px',
                       backgroundColor: '#FFFFFF'
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
+                  <label htmlFor="service-slot" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
                     Preferred Arrival Window:
                   </label>
                   <select
+                    id="service-slot"
                     value={selectedSlot}
                     onChange={(e) => setSelectedSlot(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '12px',
+                      padding: '12px 14px',
                       borderRadius: 'var(--radius-sm)',
                       border: '1px solid var(--border-light)',
-                      fontSize: '14px',
+                      fontSize: '16px',
+                      minHeight: '44px',
                       backgroundColor: '#FFFFFF'
                     }}
                   >

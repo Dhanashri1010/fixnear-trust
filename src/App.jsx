@@ -50,6 +50,7 @@ const RefundPolicyPage = lazy(() => import('./pages/customer/RefundPolicyPage'))
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const SignUpPage = lazy(() => import('./pages/auth/SignUpPage'));
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
+const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage'));
 
 // Provider Portal Pages (Lazy loaded)
 const ProviderDashboardPage = lazy(() => import('./pages/provider/ProviderDashboardPage'));
@@ -109,6 +110,14 @@ function AppLayout() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignUpPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route 
+              path="/change-password" 
+              element={
+                <ProtectedRoute allowedRoles={['customer', 'provider', 'admin']}>
+                  <ChangePasswordPage />
+                </ProtectedRoute>
+              } 
+            />
 
             {/* Service Provider Portal Routes */}
             <Route path="/provider/register" element={<ProviderRegisterPage />} />

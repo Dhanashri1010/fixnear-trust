@@ -214,3 +214,4 @@ router.post('/admins/:id/deactivate', deactivateAdminUserAction);
 router.get('/audit-logs', getAuditLogsList);
 
 export default router;
+

@@ -36,6 +36,27 @@ export const authenticate = async (req, res, next) => {
       });
     }
 
+    // Check if password was changed after token issuance (invalidate older sessions)
+    if (user.changedPasswordAfter(decoded.iat)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Password was changed recently. Please sign in again.',
+      });
+    }
+
+    // If user must change password, restrict access until updated
+    if (user.mustChangePassword) {
+      const allowedPaths = ['/api/auth/change-password', '/api/auth/logout', '/api/auth/me'];
+      const currentPath = req.originalUrl ? req.originalUrl.split('?')[0] : req.path;
+      if (!allowedPaths.includes(currentPath)) {
+        return res.status(403).json({
+          success: false,
+          code: 'MUST_CHANGE_PASSWORD',
+          message: 'You must set a new password before accessing the system.',
+        });
+      }
+    }
+
     req.user = user;
     next();
   } catch (err) {

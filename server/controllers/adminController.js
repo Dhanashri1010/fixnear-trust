@@ -14,9 +14,11 @@ import { Review } from '../models/Review.js';
 import { Dispute } from '../models/Dispute.js';
 import { Setting } from '../models/Setting.js';
 import { AuditLog } from '../models/AuditLog.js';
+import { Payment } from '../models/Payment.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { notifyUser } from './notificationController.js';
+import { sendComplaintResolvedEmail, sendProviderStatusEmail } from '../utils/emailHelper.js';
 import { offerBookingToNextProvider } from './bookingController.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { io } from '../server.js';
@@ -256,6 +258,12 @@ export const approveProviderAction = async (req, res, next) => {
       link: '/provider/dashboard',
     });
 
+    sendProviderStatusEmail({
+      providerEmail: provider.email,
+      providerName: provider.name,
+      status: 'approved',
+    }).catch(() => {});
+
     await logAudit({
       req,
       action: 'APPROVE_PROVIDER',
@@ -303,6 +311,13 @@ export const rejectProviderAction = async (req, res, next) => {
       link: '/provider/register',
     });
 
+    sendProviderStatusEmail({
+      providerEmail: provider.email,
+      providerName: provider.name,
+      status: 'rejected',
+      reason: reason.trim(),
+    }).catch(() => {});
+
     await logAudit({
       req,
       action: 'REJECT_PROVIDER',
@@ -348,6 +363,13 @@ export const requestProviderInfoAction = async (req, res, next) => {
       type: 'system',
       link: '/provider/register',
     });
+
+    sendProviderStatusEmail({
+      providerEmail: provider.email,
+      providerName: provider.name,
+      status: 'needs_info',
+      reason: message.trim(),
+    }).catch(() => {});
 
     await logAudit({
       req,
@@ -1282,25 +1304,90 @@ export const resolveDisputeAction = async (req, res, next) => {
     const dispute = await Dispute.findById(id);
     if (!dispute) return res.status(404).json({ success: false, message: 'Dispute ticket not found.' });
 
+    // Dispute resolution only works on OPEN tickets; second attempt gets 409
+    if (dispute.status !== 'OPEN') {
+      return res.status(409).json({ success: false, message: 'This complaint has already been resolved.' });
+    }
+
+    const booking = await Booking.findById(dispute.bookingId);
+    const bookingTotal = (booking?.invoice?.totalAmount || booking?.basePrice || 0) + (booking?.platformFeeSnapshot ?? 20);
+
+    const refNum = Number(refundAmount) || 0;
+    const payNum = Number(providerPayout) || 0;
+
+    // Validate refundAmount and providerPayout as whole numbers from 0 to booking total
+    if (!Number.isInteger(refNum) || !Number.isInteger(payNum) || refNum < 0 || payNum < 0) {
+      return res.status(400).json({ success: false, message: 'Refund amount and technician payout must be non-negative whole numbers.' });
+    }
+
+    if (refNum + payNum > bookingTotal) {
+      return res.status(400).json({
+        success: false,
+        message: `Total refund (₹${refNum}) and payout (₹${payNum}) cannot exceed the booking total amount of ₹${bookingTotal}.`,
+      });
+    }
+
     dispute.status = 'RESOLVED';
     dispute.decision = dec;
     dispute.adminNote = note.trim();
-    dispute.refundAmount = Number(refundAmount) || 0;
-    dispute.providerPayout = Number(providerPayout) || 0;
+    dispute.refundAmount = refNum;
+    dispute.providerPayout = payNum;
     dispute.resolvedAt = new Date();
     await dispute.save();
 
     // Update booking disputeStatus; Job status stays unchanged!
-    await Booking.findByIdAndUpdate(dispute.bookingId, {
-      disputeStatus: 'RESOLVED',
-    });
+    if (booking) {
+      booking.disputeStatus = 'RESOLVED';
+      await booking.save();
+    }
 
-    // Notify Customer
+    // Process refund if online payment was made
+    if (dec === 'REFUND_CUSTOMER' && refNum > 0 && booking) {
+      const payment = await Payment.findOne({ bookingId: booking._id, status: 'PAID' });
+      if (payment) {
+        if (payment.method === 'ONLINE' && payment.razorpayPaymentId && process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+          try {
+            if (process.env.NODE_ENV === 'test') {
+              payment.refundId = `rfnd_mock_${Date.now()}`;
+              payment.refundAmount = refNum;
+              payment.refundNotes = note.trim();
+              payment.status = refNum >= payment.amount ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+              await payment.save();
+            } else {
+              const Razorpay = (await import('razorpay')).default;
+              const rzp = new Razorpay({
+                key_id: process.env.RAZORPAY_KEY_ID,
+                key_secret: process.env.RAZORPAY_KEY_SECRET,
+              });
+              const rzpRefund = await rzp.payments.refund(payment.razorpayPaymentId, {
+                amount: refNum * 100, // paisa
+                notes: { reason: note.trim(), disputeId: dispute.disputeId },
+              });
+              payment.refundId = rzpRefund.id;
+              payment.refundAmount = refNum;
+              payment.refundNotes = note.trim();
+              payment.status = refNum >= payment.amount ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+              await payment.save();
+            }
+          } catch (refErr) {
+            console.error('[Razorpay Refund Error]:', refErr.message);
+          }
+        } else if (payment.method === 'CASH') {
+          payment.refundNotes = 'To be settled outside the app';
+          payment.refundAmount = refNum;
+          await payment.save();
+        }
+      }
+    }
+
+    const cleanDecision = dec.replace(/_/g, ' ').toLowerCase();
+
+    // Notify Customer with clean decision text
     await notifyUser({
       userId: dispute.customerId,
       role: 'customer',
-      title: 'Dispute Ticket Resolved',
-      message: `Your dispute ticket #${dispute.disputeId} was resolved: ${decision.replace(/_/g, ' ')}. Admin Note: "${note.trim()}".`,
+      title: 'Dispute Decision Recorded',
+      message: `Your dispute ticket #${dispute.disputeId} was resolved: ${cleanDecision}. Decision recorded. Note: "${note.trim()}".`,
       type: 'dispute',
       link: '/bookings',
     });
@@ -1312,12 +1399,25 @@ export const resolveDisputeAction = async (req, res, next) => {
         await notifyUser({
           userId: prov.userId,
           role: 'provider',
-          title: 'Dispute Ticket Resolved',
-          message: `Dispute ticket #${dispute.disputeId} was resolved: ${decision.replace(/_/g, ' ')}. Note: "${note.trim()}".`,
+          title: 'Dispute Decision Recorded',
+          message: `Dispute ticket #${dispute.disputeId} was resolved: ${cleanDecision}. Decision recorded. Note: "${note.trim()}".`,
           type: 'dispute',
           link: '/provider/dashboard',
         });
       }
+    }
+
+    // Send confirmation email to customer
+    const customerUser = await User.findById(dispute.customerId);
+    if (customerUser) {
+      sendComplaintResolvedEmail({
+        userEmail: customerUser.email,
+        userName: customerUser.name,
+        disputeId: dispute.disputeId,
+        decision: cleanDecision,
+        note: note.trim(),
+        refundAmount: refNum,
+      }).catch(() => {});
     }
 
     await logAudit({
@@ -1325,12 +1425,12 @@ export const resolveDisputeAction = async (req, res, next) => {
       action: 'RESOLVE_DISPUTE',
       targetType: 'Dispute',
       targetId: dispute._id,
-      details: { disputeId: dispute.disputeId, decision, note: note.trim(), refundAmount, providerPayout },
+      details: { disputeId: dispute.disputeId, decision: dec, cleanDecision, note: note.trim(), refundAmount: refNum, providerPayout: payNum },
     });
 
     res.status(200).json({
       success: true,
-      message: `Dispute ticket #${dispute.disputeId} resolved (${decision.replace(/_/g, ' ')}).`,
+      message: `Decision recorded for ticket #${dispute.disputeId} (${cleanDecision}).`,
       dispute,
     });
   } catch (err) {
@@ -1440,6 +1540,12 @@ export const createAdminUserAction = async (req, res, next) => {
       city: 'Mumbai',
     });
 
+    await Setting.findOneAndUpdate(
+      { key: 'global_settings' },
+      { $inc: { activeAdminCount: 1 } },
+      { upsert: true }
+    );
+
     await logAudit({
       req,
       action: 'CREATE_ADMIN',
@@ -1477,23 +1583,39 @@ export const deactivateAdminUserAction = async (req, res, next) => {
       });
     }
 
-    // Last active admin cannot be removed
-    const activeAdminCount = await User.countDocuments({ role: 'admin', isBlocked: false });
-    if (activeAdminCount <= 1) {
+    // Atomic conditional check on Setting to prevent concurrent elimination of last active admin
+    const currentActiveAdmins = await User.countDocuments({ role: 'admin', isBlocked: false });
+    await Setting.findOneAndUpdate(
+      { key: 'global_settings' },
+      { $set: { activeAdminCount: currentActiveAdmins } },
+      { upsert: true }
+    );
+
+    const atomicGuard = await Setting.findOneAndUpdate(
+      { key: 'global_settings', activeAdminCount: { $gt: 1 } },
+      { $inc: { activeAdminCount: -1 } },
+      { new: true }
+    );
+
+    if (!atomicGuard) {
       return res.status(400).json({
         success: false,
         message: 'Security rule: Cannot deactivate the last remaining active administrator account.',
       });
     }
 
-    const targetAdmin = await User.findById(id);
-    if (!targetAdmin || targetAdmin.role !== 'admin') {
+    // Atomically deactivate the target admin
+    const targetAdmin = await User.findOneAndUpdate(
+      { _id: id, role: 'admin', isBlocked: false },
+      { $set: { isBlocked: true, blockedReason: `Deactivated by administrator ${req.user.name}` } },
+      { new: true }
+    );
+
+    if (!targetAdmin) {
+      // Rollback counter if target admin was not found or already blocked
+      await Setting.findOneAndUpdate({ key: 'global_settings' }, { $inc: { activeAdminCount: 1 } });
       return res.status(404).json({ success: false, message: 'Administrator account not found.' });
     }
-
-    targetAdmin.isBlocked = true;
-    targetAdmin.blockedReason = `Deactivated by administrator ${req.user.name}`;
-    await targetAdmin.save();
 
     // Disconnect active socket sessions
     if (io) {

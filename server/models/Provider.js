@@ -131,5 +131,9 @@ const providerSchema = new mongoose.Schema(
   }
 );
 
+providerSchema.index({ status: 1, city: 1 });
+providerSchema.index({ skills: 1 });
+providerSchema.index({ isOnline: 1 });
+
 export const Provider = mongoose.model('Provider', providerSchema);
 export default Provider;

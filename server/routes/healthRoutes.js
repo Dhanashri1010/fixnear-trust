@@ -4,12 +4,14 @@ import mongoose from 'mongoose';
 const router = Router();
 
 router.get('/health', (req, res) => {
-  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  res.status(200).json({
-    status: 'ok',
+  const isConnected = mongoose.connection.readyState === 1;
+  const status = isConnected ? 200 : 503;
+  res.status(status).json({
+    status: isConnected ? 'ok' : 'degraded',
     service: 'FixNear Trust API',
+    uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
-    database: dbStatus,
+    database: isConnected ? 'connected' : 'disconnected',
   });
 });
 

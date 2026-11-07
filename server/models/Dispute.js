@@ -29,11 +29,11 @@ const disputeSchema = new mongoose.Schema(
     providerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Provider',
-      required: true,
+      default: null,
     },
     providerName: {
       type: String,
-      required: true,
+      default: '',
     },
     reason: {
       type: String,
@@ -50,8 +50,24 @@ const disputeSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['OPEN', 'RESOLVED_REFUND', 'RESOLVED_PAY_PROVIDER', 'RESOLVED_SPLIT'],
+      enum: ['OPEN', 'RESOLVED', 'RESOLVED_REFUND', 'RESOLVED_PAY_PROVIDER', 'RESOLVED_SPLIT', 'REJECTED'],
       default: 'OPEN',
+    },
+    decision: {
+      type: String,
+      default: '',
+    },
+    adminNote: {
+      type: String,
+      default: '',
+    },
+    refundAmount: {
+      type: Number,
+      default: 0,
+    },
+    providerPayout: {
+      type: Number,
+      default: 0,
     },
     adminResolutionNotes: {
       type: String,

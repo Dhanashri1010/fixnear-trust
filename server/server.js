@@ -8,6 +8,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
+import mongoSanitize from 'express-mongo-sanitize';
 import { connectDB } from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
@@ -20,6 +21,7 @@ import uploadRoutes from './routes/uploadRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
 import skillTestRoutes from './routes/skillTestRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 import { authenticate, authorize } from './middleware/auth.js';
 import { apiRateLimiter } from './middleware/rateLimiter.js';
 import { User } from './models/User.js';
@@ -168,17 +170,65 @@ io.on('connection', (socket) => {
   });
 });
 
-// Security & Parsing Middlewares
-app.use(helmet());
+// Security & Parsing Middlewares: Helmet with CSP allowing Vite and Razorpay
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          'https://checkout.razorpay.com',
+          'https://*.razorpay.com',
+        ],
+        frameSrc: [
+          "'self'",
+          'https://api.razorpay.com',
+          'https://checkout.razorpay.com',
+          'https://*.razorpay.com',
+        ],
+        connectSrc: [
+          "'self'",
+          'https://api.razorpay.com',
+          'https://lumberjack.razorpay.com',
+          'https://*.razorpay.com',
+          'wss:',
+          'ws:',
+        ],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https:', 'http:'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
+// Strict CORS whitelist from CLIENT_URL
+const allowedOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(',').map((u) => u.trim())
+  : ['http://localhost:5173', 'http://127.0.0.1:5173'];
+
 app.use(
   cors({
-    origin: clientUrl,
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        callback(new Error('Blocked by CORS policy: Origin not allowed.'));
+      }
+    },
     credentials: true,
   })
 );
+
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Sanitize inputs to prevent NoSQL injection ($ and . stripping)
+app.use(mongoSanitize());
 
 // Request logging (morgan)
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
@@ -197,6 +247,7 @@ app.use('/api', notificationRoutes);
 app.use('/api', supportRoutes);
 app.use('/api', uploadRoutes);
 app.use('/api', skillTestRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', authenticate, authorize('admin'), adminRoutes);
 
 // Root route
@@ -243,4 +294,26 @@ if (process.env.NODE_ENV !== 'test') {
 
   // Background ticker: run every 10 seconds to check and handle expired offers (survives server restarts)
   setInterval(checkExpiredOffers, 10000);
+
+  // Graceful shutdown
+  const gracefulShutdown = async (signal) => {
+    console.log(`[Server] Received ${signal}. Initiating graceful shutdown...`);
+    server.close(async () => {
+      console.log('[Server] HTTP server closed.');
+      if (io) {
+        io.close();
+        console.log('[Server] Socket.io server closed.');
+      }
+      try {
+        await mongoose.connection.close();
+        console.log('[Server] MongoDB connection closed.');
+      } catch (err) {
+        console.error('[Server Error] Error closing MongoDB connection:', err);
+      }
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 }

@@ -12,10 +12,15 @@ export const api = axios.create({
   },
 });
 
-// Response interceptor for consistent error handling
+// Response interceptor for consistent error handling and password-change redirects
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    if (error.response?.data?.code === 'MUST_CHANGE_PASSWORD') {
+      if (typeof window !== 'undefined' && window.location.pathname !== '/change-password') {
+        window.location.href = '/change-password';
+      }
+    }
     const message = error.response?.data?.message || error.message || 'Something went wrong. Please try again.';
     return Promise.reject(new Error(message));
   }
@@ -43,6 +48,15 @@ export const authAPI = {
   getMe: () => api.get('/auth/me'),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
+  changePassword: (data) => api.patch('/auth/change-password', data),
+};
+
+// Payments & Checkout API
+export const paymentsAPI = {
+  getConfig: () => api.get('/payments/config'),
+  createOrder: (bookingId) => api.post('/payments/order', { bookingId }),
+  verifyPayment: (data) => api.post('/payments/verify', data),
+  confirmCash: (bookingId) => api.post('/payments/cash-confirm', { bookingId }),
 };
 
 // Services & Categories API

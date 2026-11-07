@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   ChevronRight,
   Shield,
-  Wrench
+  Wrench,
+  KeyRound
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import InitialsAvatar from './InitialsAvatar';
@@ -191,6 +192,18 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Settings size={16} color="var(--forest-700)" />
             <span>Settings</span>
+          </div>
+          <ChevronRight size={14} color="var(--text-muted)" />
+        </button>
+
+        <button 
+          className="menu-item"
+          onClick={() => handleNavigate('/change-password')}
+          style={menuItemStyle}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <KeyRound size={16} color="var(--forest-700)" />
+            <span>Change Password</span>
           </div>
           <ChevronRight size={14} color="var(--text-muted)" />
         </button>

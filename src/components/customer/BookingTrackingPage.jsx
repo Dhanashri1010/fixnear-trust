@@ -21,11 +21,14 @@ import {
   Receipt, 
   KeyRound,
   Star,
-  ShieldAlert
+  ShieldAlert,
+  CreditCard,
+  Banknote
 } from 'lucide-react';
-import { bookingsAPI, getSocket } from '../../services/api';
+import { bookingsAPI, paymentsAPI, getSocket } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { loadRazorpayScript } from '../../utils/razorpay';
 import ReviewModal from './ReviewModal';
 import DisputeModal from './DisputeModal';
 import InitialsAvatar from '../common/InitialsAvatar';
@@ -42,6 +45,9 @@ export default function BookingTrackingPage() {
 
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isDisputeModalOpen, setIsDisputeModalOpen] = useState(false);
+
+  const [razorpayConfig, setRazorpayConfig] = useState({ razorpayEnabled: false, keyId: '' });
+  const [payingOnline, setPayingOnline] = useState(false);
 
   const fetchBooking = async () => {
     if (!id) return;
@@ -74,6 +80,18 @@ export default function BookingTrackingPage() {
     }
 
     fetchBooking();
+
+    // Fetch Razorpay config
+    paymentsAPI.getConfig().then((res) => {
+      if (res.success) {
+        setRazorpayConfig({
+          razorpayEnabled: Boolean(res.razorpayEnabled),
+          keyId: res.keyId || '',
+        });
+      }
+    }).catch((err) => {
+      console.warn('Failed to load payment config:', err.message);
+    });
 
     // Socket.io real-time live updates
     const socket = getSocket();
@@ -155,6 +173,73 @@ export default function BookingTrackingPage() {
   const isCancelled = booking.status === 'CANCELLED';
   const isDisputed = booking.status === 'DISPUTED';
   const hasPendingQuotation = booking.quotation?.status === 'PENDING_CUSTOMER_APPROVAL';
+
+  const basePrice = booking.basePrice || 0;
+  const approvedExtra = booking.quotation?.status === 'APPROVED' ? (booking.quotation.total || 0) : 0;
+  const platformFee = booking.platformFeeSnapshot ?? 20;
+  const totalAmount = booking.invoice?.totalAmount || (basePrice + approvedExtra + platformFee);
+  const isPaid = booking.paymentStatus === 'PAID';
+  const invoiceNumber = booking.invoiceNumber || booking.invoice?.invoiceNo || `INV-${booking.bookingId}`;
+
+  const handlePayOnline = async () => {
+    if (!booking) return;
+    setPayingOnline(true);
+    try {
+      const orderRes = await paymentsAPI.createOrder(booking.bookingId);
+      if (!orderRes.success) {
+        throw new Error(orderRes.message || 'Unable to create payment order.');
+      }
+
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded || !window.Razorpay) {
+        throw new Error('Unable to load payment gateway. Please check your internet connection or choose cash payment.');
+      }
+
+      const options = {
+        key: orderRes.keyId || razorpayConfig.keyId,
+        amount: orderRes.amount,
+        currency: orderRes.currency || 'INR',
+        name: 'FixNear Trust',
+        description: `Service Payment #${booking.bookingId}`,
+        order_id: orderRes.orderId,
+        handler: async function (response) {
+          try {
+            const verifyRes = await paymentsAPI.verifyPayment({
+              bookingId: booking.bookingId,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+
+            if (verifyRes.success) {
+              showToast('Payment successful! Your warranty tax invoice has been generated.', 'success');
+              await fetchBooking();
+            }
+          } catch (verifyErr) {
+            showToast(verifyErr.message || 'Payment verification failed. Please contact support.', 'error');
+          }
+        },
+        prefill: {
+          name: booking.customerName || currentUser?.name || '',
+          email: currentUser?.email || '',
+          contact: booking.customerPhone || currentUser?.phone || '',
+        },
+        theme: {
+          color: '#15803D',
+        },
+      };
+
+      const razorpayInstance = new window.Razorpay(options);
+      razorpayInstance.on('payment.failed', function (failure) {
+        showToast(failure.error?.description || 'Payment was declined or cancelled.', 'error');
+      });
+      razorpayInstance.open();
+    } catch (err) {
+      showToast(err.message || 'Failed to initiate online checkout.', 'error');
+    } finally {
+      setPayingOnline(false);
+    }
+  };
 
   // 5 Steps Pipeline
   const timelineSteps = booking.timeline && booking.timeline.length === 5 ? booking.timeline : [
@@ -301,47 +386,198 @@ export default function BookingTrackingPage() {
           </div>
         )}
 
-        {/* Post-Completion Rating Banner */}
+        {/* Post-Completion & Payment Card */}
         {isCompleted && (
-          <div style={{
-            backgroundColor: '#F0FDF4',
-            border: '2px solid #86EFAC',
-            borderRadius: 'var(--radius-lg)',
-            padding: '20px 24px',
-            marginBottom: '24px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '16px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <CheckCircle2 size={24} color="#16A34A" style={{ flexShrink: 0 }} />
-              <div>
-                <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#166534' }}>
-                  Service Completed & Verified
-                </h3>
-                <p style={{ fontSize: '13.5px', color: '#166534', marginTop: '2px' }}>
-                  Your 30-Day FixNear Workmanship Warranty is active. Please rate your specialist's service.
-                </p>
-              </div>
-            </div>
+          <div style={{ marginBottom: '24px' }}>
+            {!isPaid ? (
+              <div style={{
+                backgroundColor: '#FFFFFF',
+                border: '2px solid var(--forest-300)',
+                borderRadius: 'var(--radius-xl)',
+                padding: '24px 28px',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <span className="badge badge-yellow" style={{ fontSize: '11px', fontWeight: 800 }}>
+                        PAYMENT DUE
+                      </span>
+                      <span className="badge badge-forest" style={{ fontSize: '11px' }}>
+                        30-Day Warranty Active
+                      </span>
+                    </div>
+                    <h3 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--forest-900)' }}>
+                      Service Completed — Final Settlement
+                    </h3>
+                    <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                      Specialist verified your completion code. Please choose your payment method below:
+                    </p>
+                  </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => setIsReviewModalOpen(true)}
-                className="btn btn-primary"
-                style={{ backgroundColor: '#15803D', padding: '10px 18px' }}
-              >
-                <Star size={15} />
-                <span>Rate & Review</span>
-              </button>
-              <Link to={`/invoice/${booking._id}`} className="btn btn-secondary">
-                <Receipt size={15} />
-                <span>View Receipt</span>
-              </Link>
-            </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Final Amount:</div>
+                    <div style={{ fontSize: '28px', fontWeight: 900, color: 'var(--forest-900)' }}>
+                      ₹{totalAmount}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bill Breakdown Mini Summary */}
+                <div style={{
+                  backgroundColor: 'var(--bg-warm)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '14px 18px',
+                  marginBottom: '20px',
+                  fontSize: '13px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Standard inspection & labor fee:</span>
+                    <strong>₹{basePrice}</strong>
+                  </div>
+                  {approvedExtra > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Approved extra spare parts & work:</span>
+                      <strong>₹{approvedExtra}</strong>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>Platform convenience fee:</span>
+                    <span>₹{platformFee}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid var(--border-light)', fontWeight: 800 }}>
+                    <span>Total Billed:</span>
+                    <span style={{ color: 'var(--forest-900)' }}>₹{totalAmount}</span>
+                  </div>
+                </div>
+
+                {/* Two Payment Choices */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: razorpayConfig.razorpayEnabled ? 'repeat(auto-fit, minmax(260px, 1fr))' : '1fr',
+                  gap: '16px',
+                  marginBottom: '16px'
+                }}>
+                  {razorpayConfig.razorpayEnabled && (
+                    <div style={{
+                      border: '1.5px solid var(--forest-200)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: '18px',
+                      backgroundColor: '#F0FDF4',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534', fontWeight: 800, fontSize: '15px' }}>
+                          <CreditCard size={18} />
+                          <span>Pay Online</span>
+                        </div>
+                        <p style={{ fontSize: '12.5px', color: '#15803D', marginTop: '6px', lineHeight: 1.4 }}>
+                          Instant checkout via UPI, Google Pay, PhonePe, Cards, or NetBanking.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={payingOnline}
+                        onClick={handlePayOnline}
+                        className="btn btn-primary"
+                        style={{ marginTop: '14px', width: '100%', padding: '10px 16px', backgroundColor: '#15803D', fontWeight: 700 }}
+                      >
+                        {payingOnline ? 'Opening Checkout...' : `Pay Online ₹${totalAmount}`}
+                      </button>
+                    </div>
+                  )}
+
+                  <div style={{
+                    border: '1.5px solid #CBD5E1',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '18px',
+                    backgroundColor: '#FFFFFF',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#334155', fontWeight: 800, fontSize: '15px' }}>
+                        <Banknote size={18} />
+                        <span>Pay in Cash</span>
+                      </div>
+                      <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: 1.4 }}>
+                        Hand ₹{totalAmount} in cash directly to your specialist. The specialist will confirm receipt in their app.
+                      </p>
+                    </div>
+                    <div style={{
+                      marginTop: '14px',
+                      padding: '8px 12px',
+                      backgroundColor: '#F1F5F9',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      color: '#475569',
+                      textAlign: 'center',
+                      fontWeight: 600
+                    }}>
+                      Specialist will confirm in app
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <Link to={`/invoice/${booking._id}`} className="btn btn-outline btn-sm">
+                    <Receipt size={14} />
+                    <span>View Full Itemized Tax Invoice</span>
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div style={{
+                backgroundColor: '#F0FDF4',
+                border: '2px solid #86EFAC',
+                borderRadius: 'var(--radius-lg)',
+                padding: '20px 24px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '16px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <CheckCircle2 size={24} color="#16A34A" style={{ flexShrink: 0 }} />
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#166534' }}>
+                        Service Completed & Paid
+                      </h3>
+                      <span className="badge badge-forest" style={{ fontSize: '11px' }}>
+                        {booking.paymentMethod === 'CASH' ? 'Cash Confirmed' : 'Paid Online'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '13.5px', color: '#166534', marginTop: '2px' }}>
+                      Invoice #{invoiceNumber} settled in full. Your 30-Day FixNear Workmanship Warranty is active.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsReviewModalOpen(true)}
+                    className="btn btn-primary"
+                    style={{ backgroundColor: '#15803D', padding: '10px 18px' }}
+                  >
+                    <Star size={15} />
+                    <span>Rate & Review</span>
+                  </button>
+                  <Link to={`/invoice/${booking._id}`} className="btn btn-secondary">
+                    <Receipt size={15} />
+                    <span>View & Print Receipt</span>
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

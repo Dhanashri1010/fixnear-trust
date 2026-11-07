@@ -155,19 +155,36 @@ const bookingSchema = new mongoose.Schema(
       issuedAt: Date,
       paidAt: Date,
     },
-    // TODO: Phase E: Integrate Razorpay payment gateway
+    platformFeeSnapshot: {
+      type: Number,
+      default: 20,
+    },
+    commissionRateSnapshot: {
+      type: Number,
+      default: 10,
+    },
     paymentMethod: {
       type: String,
-      enum: ['PAY_ON_SERVICE', 'RAZORPAY'],
-      default: 'PAY_ON_SERVICE',
+      enum: ['ONLINE', 'CASH', 'UNPAID', 'PAY_ON_SERVICE', 'RAZORPAY'],
+      default: 'UNPAID',
     },
     paymentStatus: {
       type: String,
       enum: ['PENDING', 'CASH_RECEIVED', 'PAID', 'REFUNDED'],
       default: 'PENDING',
     },
-    razorpayOrderId: String,
-    razorpayPaymentId: String,
+    razorpayOrderId: {
+      type: String,
+      default: '',
+    },
+    razorpayPaymentId: {
+      type: String,
+      default: '',
+    },
+    invoiceNumber: {
+      type: String,
+      default: '',
+    },
     cancellationReason: String,
     cancelledBy: String,
   },
@@ -175,6 +192,13 @@ const bookingSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+bookingSchema.index({ customerId: 1, createdAt: -1 });
+bookingSchema.index({ providerId: 1, createdAt: -1 });
+bookingSchema.index({ status: 1 });
+bookingSchema.index({ city: 1 });
+bookingSchema.index({ createdAt: -1 });
+bookingSchema.index({ disputeStatus: 1 });
 
 export const Booking = mongoose.model('Booking', bookingSchema);
 export default Booking;

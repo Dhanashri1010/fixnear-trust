@@ -6,10 +6,11 @@ import {
   logout, 
   getMe, 
   forgotPassword, 
-  resetPassword 
+  resetPassword,
+  changePassword 
 } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
-import { loginRateLimiter } from '../middleware/rateLimiter.js';
+import { loginRateLimiter, authActionRateLimiter } from '../middleware/rateLimiter.js';
 import { validate } from '../middleware/validate.js';
 
 const router = Router();
@@ -52,12 +53,23 @@ const resetPasswordSchema = z.object({
   }),
 });
 
+const changePasswordSchema = z.object({
+  body: z.object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z
+      .string()
+      .min(8, 'New password must be at least 8 characters')
+      .regex(/^(?=.*[A-Za-z])(?=.*\d)/, 'Password must contain at least one letter and one number'),
+  }),
+});
+
 // Routes
 router.post('/register', validate(registerSchema), register);
 router.post('/login', loginRateLimiter, validate(loginSchema), login);
 router.post('/logout', logout);
 router.get('/me', authenticate, getMe);
-router.post('/forgot-password', validate(forgotPasswordSchema), forgotPassword);
-router.post('/reset-password', validate(resetPasswordSchema), resetPassword);
+router.patch('/change-password', authenticate, authActionRateLimiter, validate(changePasswordSchema), changePassword);
+router.post('/forgot-password', authActionRateLimiter, validate(forgotPasswordSchema), forgotPassword);
+router.post('/reset-password', authActionRateLimiter, validate(resetPasswordSchema), resetPassword);
 
 export default router;

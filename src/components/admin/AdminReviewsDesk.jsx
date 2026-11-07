@@ -209,9 +209,8 @@ export default function AdminReviewsDesk() {
                 reviews.map((rev) => (
                   <tr
                     key={rev._id}
-                    className={`transition-colors ${
-                      rev.isHidden ? 'bg-slate-50/70 text-slate-400' : 'hover:bg-slate-50/80 text-slate-800'
-                    }`}
+                    className={`transition-colors ${rev.isHidden ? 'bg-slate-50/70 text-slate-400' : 'hover:bg-slate-50/80 text-slate-800'
+                      }`}
                   >
                     <td className="py-3 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-1">
@@ -220,11 +219,10 @@ export default function AdminReviewsDesk() {
                           {[1, 2, 3, 4, 5].map((s) => (
                             <Star
                               key={s}
-                              className={`w-3.5 h-3.5 ${
-                                s <= rev.rating
+                              className={`w-3.5 h-3.5 ${s <= rev.rating
                                   ? 'text-amber-400 fill-amber-400'
                                   : 'text-slate-200'
-                              }`}
+                                }`}
                             />
                           ))}
                         </div>
@@ -265,11 +263,10 @@ export default function AdminReviewsDesk() {
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <button
                         onClick={() => handleToggleClick(rev)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                          rev.isHidden
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${rev.isHidden
                             ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
                             : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
-                        }`}
+                          }`}
                       >
                         {rev.isHidden ? (
                           <>

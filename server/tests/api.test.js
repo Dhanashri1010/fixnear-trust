@@ -48,7 +48,7 @@ beforeEach(async () => {
   await Question.deleteMany({});
   await SkillTestSession.deleteMany({});
   await TestAttempt.deleteMany({});
-  await AuditLog.deleteMany({});
+  await AuditLog.collection.deleteMany({});
 });
 
 describe('FixNear Trust API Test Suite - Phase B', () => {

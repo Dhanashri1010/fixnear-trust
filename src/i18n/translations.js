@@ -134,6 +134,23 @@ export const i18n = {
       questionBank: "Skill Test Questions",
       disputes: "Complaints & Payment Holds",
       reviews: "Reviews Moderation"
+    },
+    payment: {
+      payOnline: "Pay Online",
+      payCash: "Pay in Cash",
+      totalDue: "Total Due",
+      invoice: "Warranty Tax Invoice",
+      paid: "Paid",
+      cashConfirmed: "Cash Confirmed",
+      platformFee: "Platform Convenience Fee"
+    },
+    changePassword: {
+      title: "Change Password",
+      currentPassword: "Current Password",
+      newPassword: "New Password",
+      confirmPassword: "Confirm New Password",
+      submitBtn: "Update Password",
+      successMsg: "Password updated successfully."
     }
   },
 
@@ -249,6 +266,23 @@ export const i18n = {
       questionBank: "कौशल प्रश्न बैंक",
       disputes: "शिकायतें एवं भुगतान सुरक्षा",
       reviews: "समीक्षा मॉडरेशन"
+    },
+    payment: {
+      payOnline: "ऑनलाइन भुगतान करें",
+      payCash: "नकद भुगतान करें",
+      totalDue: "कुल देय राशि",
+      invoice: "वारंटी टैक्स चालान",
+      paid: "भुगतान हुआ",
+      cashConfirmed: "नकद प्राप्त हुआ",
+      platformFee: "प्लेटफ़ॉर्म सुविधा शुल्क"
+    },
+    changePassword: {
+      title: "पासवर्ड बदलें",
+      currentPassword: "वर्तमान पासवर्ड",
+      newPassword: "नया पासवर्ड",
+      confirmPassword: "नए पासवर्ड की पुष्टि करें",
+      submitBtn: "पासवर्ड अपडेट करें",
+      successMsg: "पासवर्ड सफलतापूर्वक अपडेट किया गया।"
     }
   },
 
@@ -364,6 +398,23 @@ export const i18n = {
       questionBank: "कौशल्य प्रश्न बँक",
       disputes: "तक्रारी व पेमेंट संरक्षण",
       reviews: "पुनरावलोकन नियंत्रण"
+    },
+    payment: {
+      payOnline: "ऑनलाइन पेमेंट करा",
+      payCash: "रोख पैसे द्या",
+      totalDue: "एकूण देय रक्कम",
+      invoice: "वॉरंटी टॅक्स चलन",
+      paid: "पेमेंट झाले",
+      cashConfirmed: "रोख रक्कम मिळाली",
+      platformFee: "प्लॅटफॉर्म सुविधा शुल्क"
+    },
+    changePassword: {
+      title: "पासवर्ड बदला",
+      currentPassword: "सध्याचा पासवर्ड",
+      newPassword: "नवीन पासवर्ड",
+      confirmPassword: "नवीन पासवर्डची पुष्टी करा",
+      submitBtn: "पासवर्ड अपडेट करा",
+      successMsg: "पासवर्ड यशस्वीरित्या बदलला."
     }
   }
 };

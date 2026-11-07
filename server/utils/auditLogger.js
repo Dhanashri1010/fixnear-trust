@@ -24,3 +24,4 @@ export const logAudit = async ({ req, action, targetType, targetId = '', details
 };
 
 export default logAudit;
+

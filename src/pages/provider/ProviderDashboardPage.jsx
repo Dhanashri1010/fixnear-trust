@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { providersAPI, bookingsAPI, getSocket } from '../../services/api';
+import { providersAPI, bookingsAPI, paymentsAPI, getSocket } from '../../services/api';
 
 export default function ProviderDashboardPage() {
   const navigate = useNavigate();
@@ -341,6 +341,23 @@ export default function ProviderDashboardPage() {
     }
   };
 
+  const [cashSubmittingId, setCashSubmittingId] = useState(null);
+
+  const handleConfirmCash = async (bookingId) => {
+    setCashSubmittingId(bookingId);
+    try {
+      const res = await paymentsAPI.confirmCash(bookingId);
+      if (res.success) {
+        showToast(`Cash payment of ₹${res.totalAmount} confirmed! Receipt #${res.invoiceNumber} issued.`, 'success');
+        await fetchDashboardData();
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to confirm cash receipt.', 'error');
+    } finally {
+      setCashSubmittingId(null);
+    }
+  };
+
   // Safe document view handler
   const handleViewDocument = async (type) => {
     setDocumentLoading(type);
@@ -417,7 +434,7 @@ export default function ProviderDashboardPage() {
                 <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--forest-900)' }}>
                   {providerName}
                 </h1>
-                <span className={`badge ${providerStatus === 'approved' ? 'badge-forest' : providerStatus === 'waiting_for_approval' ? 'badge-yellow' : 'badge-demo'}`} style={{ fontSize: '11px' }}>
+                <span className={`badge ${providerStatus === 'approved' ? 'badge-forest' : providerStatus === 'waiting_for_approval' ? 'badge-yellow' : 'badge-slate'}`} style={{ fontSize: '11px' }}>
                   {providerStatus === 'approved' ? '✓ Verified Partner' : providerStatus === 'waiting_for_approval' ? '⏳ Under Review' : providerStatus === 'needs_info' ? '⚠️ More Info Needed' : providerStatus === 'rejected' ? '❌ KYC Rejected' : '📝 Test Required'}
                 </span>
                 {provider?.skills?.some(s => s.passed) && (
@@ -462,6 +479,15 @@ export default function ProviderDashboardPage() {
                 {isOnline ? 'Online (Dispatches Active)' : 'Offline'}
               </span>
             </div>
+
+            <Link
+              to="/change-password"
+              className="btn btn-outline btn-sm"
+              style={{ color: '#475569', borderColor: '#CBD5E1', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <KeyRound size={14} />
+              <span>Password</span>
+            </Link>
 
             <button 
               type="button" 
@@ -1023,10 +1049,27 @@ export default function ProviderDashboardPage() {
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Paid Amount</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Amount Billed</div>
                       <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-800)' }}>
                         ₹{job.invoice?.totalAmount || job.basePrice}
                       </div>
+                      {job.paymentStatus === 'PAID' ? (
+                        <div style={{ marginTop: '4px' }}>
+                          <span className="badge badge-forest" style={{ fontSize: '11px' }}>
+                            ✓ Paid ({job.invoiceNumber || job.invoice?.invoiceNo || 'Receipt Issued'})
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={cashSubmittingId === job._id || cashSubmittingId === job.bookingId}
+                          onClick={() => handleConfirmCash(job.bookingId)}
+                          className="btn btn-primary btn-sm"
+                          style={{ marginTop: '6px', fontSize: '12px', padding: '6px 12px' }}
+                        >
+                          {cashSubmittingId === job._id || cashSubmittingId === job.bookingId ? 'Confirming...' : 'Confirm Cash Received'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
