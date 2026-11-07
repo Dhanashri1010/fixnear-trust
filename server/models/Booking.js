@@ -82,6 +82,7 @@ const bookingSchema = new mongoose.Schema(
     completionOtp: {
       type: String,
       required: true,
+      select: false,
     },
     failedFinishCodeAttempts: {
       type: Number,

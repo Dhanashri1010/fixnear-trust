@@ -2,7 +2,13 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { MongoMemoryServer } from 'mongodb-memory-server';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { app } from '../server.js';
 import { User } from '../models/User.js';
 import { Service } from '../models/Service.js';
@@ -17,6 +23,9 @@ import { SkillTestSession } from '../models/SkillTestSession.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { Payment } from '../models/Payment.js';
+import { SupportTicket } from '../models/SupportTicket.js';
+import { Notification } from '../models/Notification.js';
+import { FailedCleanup } from '../models/FailedCleanup.js';
 import { Counter, getNextInvoiceNumber } from '../models/Counter.js';
 import { redactSensitiveData } from '../middleware/errorMonitoring.js';
 import { validateScriptPassword } from '../scripts/createAdmin.js';
@@ -61,6 +70,9 @@ beforeEach(async () => {
   await AuditLog.collection.deleteMany({});
   await Payment.deleteMany({});
   await Counter.deleteMany({});
+  await SupportTicket.deleteMany({});
+  await Notification.deleteMany({});
+  await FailedCleanup.deleteMany({});
 
   // Seed default platform settings
   await Setting.create({
@@ -1665,9 +1677,9 @@ describe('Final Round - Sequential Invoices, Quotation Locks, Account Data & Del
     expect(downloadRes.headers['content-type']).toContain('application/json');
     expect(downloadRes.headers['content-disposition']).toContain('attachment');
     expect(downloadRes.body.platform).toBe('FixNear Trust');
-    expect(downloadRes.body.user.email).toBe('anonymize.me@fixnear.test');
+    expect(downloadRes.body.profile.email).toBe('anonymize.me@fixnear.test');
     expect(downloadRes.body.bookings.length).toBe(1);
-    expect(downloadRes.body.reviews.length).toBe(1);
+    expect(downloadRes.body.reviewsWritten.length).toBe(1);
 
     // 2. Attempt delete with wrong password -> rejected
     const badPassRes = await request(app)
@@ -1794,5 +1806,322 @@ describe('Final Round - Sequential Invoices, Quotation Locks, Account Data & Del
     expect(redacted.nested.authorization).toBe('[REDACTED]');
     expect(redacted.nested.creditCard).toBe('[REDACTED]');
     expect(redacted.nested.clean).toBe(42);
+  });
+
+  it('explicit field lists in data export: strips completionOtp and customer phone from provider export, isolates customer exports, and verifies select:false on completionOtp', async () => {
+    // 1. Create Customer A and Customer B
+    const custARes = await request(app).post('/api/auth/register').send({
+      name: 'Customer Alpha',
+      email: 'custA@fixnear.test',
+      password: 'Password123!',
+      phone: '9876543201',
+      city: 'Mumbai',
+      role: 'customer',
+    });
+    const custLoginA = await request(app).post('/api/auth/login').send({
+      email: 'custA@fixnear.test',
+      password: 'Password123!',
+    });
+    const custCookieA = custLoginA.headers['set-cookie'];
+    const userA = custARes.body.user;
+
+    const custBRes = await request(app).post('/api/auth/register').send({
+      name: 'Customer Beta',
+      email: 'custB@fixnear.test',
+      password: 'Password123!',
+      phone: '9876543202',
+      city: 'Mumbai',
+      role: 'customer',
+    });
+    const userB = custBRes.body.user;
+
+    // 2. Create Provider P
+    const provRes = await request(app).post('/api/auth/register').send({
+      name: 'Provider Pradeep',
+      email: 'provP@fixnear.test',
+      password: 'Password123!',
+      phone: '9876543203',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const provLogin = await request(app).post('/api/auth/login').send({
+      email: 'provP@fixnear.test',
+      password: 'Password123!',
+    });
+    const provCookie = provLogin.headers['set-cookie'];
+    const providerDoc = await Provider.findOne({ userId: provRes.body.user.id });
+    providerDoc.status = 'approved';
+    providerDoc.isOnline = true;
+    await providerDoc.save();
+
+    // 3. Create Booking for Customer A, completed by Provider P
+    const bookingA = await Booking.create({
+      bookingId: 'FX-EXPO-A',
+      customerId: userA.id,
+      customerName: 'Customer Alpha',
+      customerPhone: '9876543201',
+      serviceId: 'electrical-repair',
+      serviceTitle: 'Electrical Repair',
+      completionOtp: '7890',
+      providerId: providerDoc._id,
+      providerName: 'Provider Pradeep',
+      status: 'COMPLETED',
+      paymentStatus: 'PAID',
+      basePrice: 500,
+      address: '404 Alpha Street, Andheri West',
+      city: 'Mumbai',
+      scheduledDate: '2026-11-25',
+      timeSlot: '02:00 PM',
+      invoiceNumber: 'INV-2026-000500',
+    });
+
+    // 4. Create Booking and SupportTicket for Customer B
+    const bookingB = await Booking.create({
+      bookingId: 'FX-EXPO-B',
+      customerId: userB.id,
+      customerName: 'Customer Beta',
+      customerPhone: '9876543202',
+      serviceId: 'cleaning-service',
+      serviceTitle: 'Home Cleaning',
+      completionOtp: '4321',
+      status: 'REQUESTED',
+      basePrice: 600,
+      address: '505 Beta Road, Bandra',
+      city: 'Mumbai',
+      scheduledDate: '2026-11-26',
+      timeSlot: '11:00 AM',
+    });
+
+    const ticketB = await SupportTicket.create({
+      userId: userB.id,
+      ticketId: 'TCK-BETA-01',
+      subject: 'Customer B Secret Issue',
+      message: 'Private ticket from customer B',
+      userName: 'Customer Beta',
+      userEmail: 'custB@fixnear.test',
+    });
+
+    const ticketA = await SupportTicket.create({
+      userId: userA.id,
+      ticketId: 'TCK-ALPH-01',
+      subject: 'Customer A Billing Question',
+      message: 'General inquiry on invoice',
+      userName: 'Customer Alpha',
+      userEmail: 'custA@fixnear.test',
+    });
+
+    await Review.create({
+      bookingId: bookingA._id,
+      customerId: userA.id,
+      providerId: providerDoc._id,
+      authorName: 'Customer Alpha',
+      serviceTitle: 'Electrical Repair',
+      rating: 5,
+      comment: 'Very thorough electrician!',
+    });
+
+    // --- Check select: false on Booking schema ---
+    const rawBooking = await Booking.findById(bookingA._id);
+    expect(rawBooking.completionOtp).toBeUndefined();
+
+    const explicitBooking = await Booking.findById(bookingA._id).select('+completionOtp');
+    expect(explicitBooking.completionOtp).toBe('7890');
+
+    // --- Check Customer portal views own finish code ---
+    const custView = await request(app).get(`/api/bookings/${bookingA.bookingId}`).set('Cookie', custCookieA);
+    expect(custView.status).toBe(200);
+    expect(custView.body.booking.completionOtp).toBe('7890');
+
+    const custMine = await request(app).get('/api/bookings/mine').set('Cookie', custCookieA);
+    expect(custMine.status).toBe(200);
+    expect(custMine.body.bookings[0].completionOtp).toBe('7890');
+
+    // --- Check Provider portal NEVER views finish code ---
+    const provView = await request(app).get(`/api/bookings/${bookingA.bookingId}`).set('Cookie', provCookie);
+    expect(provView.status).toBe(200);
+    expect(provView.body.booking.completionOtp).toBeUndefined();
+
+    const provMine = await request(app).get('/api/bookings/mine').set('Cookie', provCookie);
+    expect(provMine.status).toBe(200);
+    expect(provMine.body.bookings[0].completionOtp).toBeUndefined();
+
+    // --- Check Customer Data Export isolation & sanitized fields ---
+    const custExport = await request(app).get('/api/auth/download-data').set('Cookie', custCookieA);
+    expect(custExport.status).toBe(200);
+    expect(custExport.body.role).toBe('customer');
+    expect(custExport.body.profile.email).toBe('custa@fixnear.test');
+    expect(custExport.body.bookings.length).toBe(1);
+    expect(custExport.body.bookings[0].bookingId).toBe('FX-EXPO-A');
+    expect(custExport.body.bookings[0].providerName).toBe('Provider Pradeep');
+    // Isolation: Customer A export must NOT contain Customer B's records
+    expect(custExport.body.bookings.some((b) => b.bookingId === 'FX-EXPO-B')).toBe(false);
+    expect(custExport.body.supportTickets.some((t) => t.ticketId === 'TCK-BETA-01')).toBe(false);
+    expect(custExport.body.supportTickets.some((t) => t.ticketId === 'TCK-ALPH-01')).toBe(true);
+    // Secrets stripped
+    expect(custExport.body.bookings[0].completionOtp).toBeUndefined();
+    expect(custExport.body.bookings[0].offeredTo).toBeUndefined();
+    expect(custExport.body.bookings[0].failedFinishCodeAttempts).toBeUndefined();
+
+    // --- Check Provider Data Export confidentiality ---
+    const provExport = await request(app).get('/api/auth/download-data').set('Cookie', provCookie);
+    expect(provExport.status).toBe(200);
+    expect(provExport.body.role).toBe('provider');
+    expect(provExport.body.profile.email).toBe('provp@fixnear.test');
+    expect(provExport.body.jobHistory.length).toBe(1);
+
+    const job = provExport.body.jobHistory[0];
+    expect(job.bookingId).toBe('FX-EXPO-A');
+    expect(job.customerFirstName).toBe('Customer'); // First name only
+    expect(job.area).toBeDefined();
+    // Confidentially withheld from provider export:
+    expect(job.completionOtp).toBeUndefined();
+    expect(job.customerPhone).toBeUndefined();
+    expect(job.phone).toBeUndefined();
+    expect(job.address).toBeUndefined();
+    expect(job.offeredTo).toBeUndefined();
+    expect(job.failedFinishCodeAttempts).toBeUndefined();
+  });
+
+  it('account deletion: removes uploaded files, records FailedCleanup if unconfigured/failing, cancels pending offers and re-dispatches, anonymizes SupportTickets and deletes notifications', async () => {
+    // 1. Create Category and Service
+    const cat = await Category.create({ name: 'Appliance Repair', categoryId: 'appliance-repair' });
+    const srv = await Service.create({
+      serviceId: 'fridge-repair',
+      categoryId: 'appliance-repair',
+      category: 'Appliance Repair',
+      title: 'Refrigerator Repair',
+      startingPrice: 450,
+      isActive: true,
+    });
+
+    // 2. Register Provider 1 and Provider 2
+    const prov1Res = await request(app).post('/api/auth/register').send({
+      name: 'Deleting Tech',
+      email: 'deltech@fixnear.test',
+      password: 'Password123!',
+      phone: '9876543401',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const prov1Login = await request(app).post('/api/auth/login').send({
+      email: 'deltech@fixnear.test',
+      password: 'Password123!',
+    });
+    const prov1Cookie = prov1Login.headers['set-cookie'];
+    const user1Id = prov1Res.body.user.id;
+
+    const prov2Res = await request(app).post('/api/auth/register').send({
+      name: 'Backup Tech',
+      email: 'backuptech@fixnear.test',
+      password: 'Password123!',
+      phone: '9876543402',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const user2Id = prov2Res.body.user.id;
+
+    const prov1 = await Provider.findOne({ userId: user1Id });
+    prov1.status = 'approved';
+    prov1.isOnline = true;
+    prov1.city = 'Mumbai';
+    prov1.skills = [{ categoryId: 'appliance-repair', categoryName: 'Appliance Repair', passed: true }];
+    prov1.idProofPublicId = 'cloudinary_private_id_proof_del_123';
+    prov1.idProofResourceType = 'image';
+    prov1.certificatePublicId = 'cloudinary_private_cert_del_456';
+    prov1.certificateResourceType = 'raw';
+    await prov1.save();
+
+    const prov2 = await Provider.findOne({ userId: user2Id });
+    prov2.status = 'approved';
+    prov2.isOnline = true;
+    prov2.city = 'Mumbai';
+    prov2.skills = [{ categoryId: 'appliance-repair', categoryName: 'Appliance Repair', passed: true }];
+    await prov2.save();
+
+    // 3. Create a local file on disk in server/uploads-private/<userId>/
+    const localUserDir = path.resolve(__dirname, '../uploads-private', String(user1Id));
+    fs.mkdirSync(localUserDir, { recursive: true });
+    const localPdfPath = path.join(localUserDir, 'license.pdf');
+    fs.writeFileSync(localPdfPath, 'Mock license contents for deletion test');
+    expect(fs.existsSync(localPdfPath)).toBe(true);
+
+    // 4. Create a REQUESTED booking offered to Provider 1 with PENDING status
+    const booking = await Booking.create({
+      bookingId: 'FX-REDISP-01',
+      customerId: new mongoose.Types.ObjectId(),
+      customerName: 'Aarti Sharma',
+      customerPhone: '9876543499',
+      serviceId: srv.serviceId,
+      serviceTitle: srv.title,
+      completionOtp: '5555',
+      basePrice: 450,
+      address: '701 Palm Beach Road, Vashi',
+      city: 'Mumbai',
+      scheduledDate: '2026-11-29',
+      timeSlot: '04:00 PM',
+      status: 'REQUESTED',
+      offeredTo: [
+        {
+          providerId: prov1._id,
+          status: 'PENDING',
+          offeredAt: new Date(),
+          expiresAt: new Date(Date.now() + 60000),
+        },
+      ],
+      currentOfferExpiresAt: new Date(Date.now() + 60000),
+    });
+
+    // 5. Create a SupportTicket and a Notification for Provider 1
+    const ticket = await SupportTicket.create({
+      userId: user1Id,
+      ticketId: 'TCK-DEL-99',
+      subject: 'Document check',
+      message: 'Please review my certificate upload',
+      userName: 'Deleting Tech',
+      userEmail: 'deltech@fixnear.test',
+    });
+
+    await Notification.create({
+      userId: user1Id,
+      role: 'provider',
+      title: 'Document Verified',
+      message: 'Your documents have been checked',
+    });
+
+    // 6. Provider 1 deletes account with password
+    const delRes = await request(app)
+      .post('/api/auth/delete-account')
+      .set('Cookie', prov1Cookie)
+      .send({ password: 'Password123!' });
+    expect(delRes.status).toBe(200);
+    expect(delRes.body.success).toBe(true);
+
+    // Assert 1: Local file was removed from server/uploads-private/<userId>/
+    expect(fs.existsSync(localPdfPath)).toBe(false);
+
+    // Assert 2: FailedCleanup collection records unconfigured Cloudinary files
+    const failedRecords = await FailedCleanup.find({ userId: user1Id });
+    expect(failedRecords.length).toBeGreaterThanOrEqual(2);
+    expect(failedRecords.some((r) => r.publicId === 'cloudinary_private_id_proof_del_123')).toBe(true);
+    expect(failedRecords.some((r) => r.publicId === 'cloudinary_private_cert_del_456')).toBe(true);
+    expect(failedRecords[0].status).toBe('PENDING_RETRY');
+
+    // Assert 3: PENDING offer was closed and job re-offered to Provider 2
+    const recheckedBooking = await Booking.findById(booking._id);
+    const prov1Offer = recheckedBooking.offeredTo.find((o) => String(o.providerId) === String(prov1._id));
+    expect(prov1Offer.status).toBe('DECLINED');
+
+    const prov2Offer = recheckedBooking.offeredTo.find((o) => String(o.providerId) === String(prov2._id));
+    expect(prov2Offer).toBeDefined();
+    expect(prov2Offer.status).toBe('PENDING');
+
+    // Assert 4: SupportTicket contact fields are anonymized
+    const recheckedTicket = await SupportTicket.findById(ticket._id);
+    expect(recheckedTicket.userName).toBe('Deleted User');
+    expect(recheckedTicket.userEmail).toContain('@deleted.fixnear.local');
+
+    // Assert 5: User notifications were deleted
+    const remainingNotifs = await Notification.countDocuments({ userId: user1Id });
+    expect(remainingNotifs).toBe(0);
   });
 });

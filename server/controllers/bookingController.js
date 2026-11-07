@@ -254,7 +254,9 @@ export const getMyBookings = async (req, res, next) => {
     let bookings = [];
 
     if (req.user.role === 'customer') {
-      const customerBookings = await Booking.find({ customerId: req.user._id }).sort({ createdAt: -1 });
+      const customerBookings = await Booking.find({ customerId: req.user._id })
+        .select('+completionOtp')
+        .sort({ createdAt: -1 });
       bookings = customerBookings.map((b) => {
         const obj = b.toObject();
         // Do not return provider name or phone to customer until accepted
@@ -325,7 +327,7 @@ export const getBookingById = async (req, res, next) => {
         ...(isObjectId ? [{ _id: id }] : []),
         { bookingId: String(id).toUpperCase() },
       ],
-    });
+    }).select('+completionOtp');
 
     if (!booking) {
       return res.status(404).json({
@@ -402,7 +404,7 @@ export const cancelBooking = async (req, res, next) => {
         ...(isObjectId ? [{ _id: id }] : []),
         { bookingId: String(id).toUpperCase() },
       ],
-    });
+    }).select('+completionOtp');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -493,7 +495,7 @@ export const rescheduleBooking = async (req, res, next) => {
         ...(isObjectId ? [{ _id: id }] : []),
         { bookingId: String(id).toUpperCase() },
       ],
-    });
+    }).select('+completionOtp');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -587,7 +589,7 @@ export const createQuotation = async (req, res, next) => {
         ...(isObjectId ? [{ _id: id }] : []),
         { bookingId: String(id).toUpperCase() },
       ],
-    });
+    }).select('+completionOtp');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -709,7 +711,7 @@ export const approveQuotation = async (req, res, next) => {
         ...(isObjectId ? [{ _id: id }] : []),
         { bookingId: String(id).toUpperCase() },
       ],
-    });
+    }).select('+completionOtp');
 
     if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
@@ -772,7 +774,7 @@ export const declineQuotation = async (req, res, next) => {
         ...(isObjectId ? [{ _id: id }] : []),
         { bookingId: String(id).toUpperCase() },
       ],
-    });
+    }).select('+completionOtp');
 
     if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
@@ -832,7 +834,7 @@ export const submitReview = async (req, res, next) => {
         ...(isObjectId ? [{ _id: id }] : []),
         { bookingId: String(id).toUpperCase() },
       ],
-    });
+    }).select('+completionOtp');
 
     if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
@@ -899,7 +901,7 @@ export const submitComplaint = async (req, res, next) => {
         ...(isObjectId ? [{ _id: id }] : []),
         { bookingId: String(id).toUpperCase() },
       ],
-    });
+    }).select('+completionOtp');
 
     if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
@@ -1021,7 +1023,7 @@ export const updateBookingStatus = async (req, res, next) => {
         ...(isObjectId ? [{ _id: id }] : []),
         { bookingId: String(id).toUpperCase() },
       ],
-    });
+    }).select('+completionOtp');
 
     if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
@@ -1355,7 +1357,7 @@ export const declineBooking = async (req, res, next) => {
         ...(isObjectId ? [{ _id: id }] : []),
         { bookingId: String(id).toUpperCase() },
       ],
-    });
+    }).select('+completionOtp');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found.' });
