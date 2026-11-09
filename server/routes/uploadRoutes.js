@@ -3,6 +3,7 @@ import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { authenticate, authorize } from '../middleware/auth.js';
 
@@ -120,7 +121,7 @@ router.post('/upload/private', authenticate, authorize('provider', 'admin'), pri
       if (!fs.existsSync(userDir)) {
         fs.mkdirSync(userDir, { recursive: true });
       }
-      const filename = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 8)}${ext}`;
+      const filename = `doc_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
       const filePath = path.join(userDir, filename);
       fs.writeFileSync(filePath, req.file.buffer);
 

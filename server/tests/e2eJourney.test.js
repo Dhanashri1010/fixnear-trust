@@ -9,7 +9,8 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-import { app } from '../server.js';
+import { io as ioClient } from 'socket.io-client';
+import { app, server, io } from '../server.js';
 import { User } from '../models/User.js';
 import { Service } from '../models/Service.js';
 import { Category } from '../models/Category.js';
@@ -49,6 +50,10 @@ beforeAll(async () => {
 }, 60000);
 
 afterAll(async () => {
+  if (server && server.listening) {
+    if (io) io.close();
+    await new Promise((resolve) => server.close(resolve));
+  }
   await mongoose.disconnect();
   if (mongod) {
     await mongod.stop();
@@ -2124,4 +2129,351 @@ describe('Final Round - Sequential Invoices, Quotation Locks, Account Data & Del
     const remainingNotifs = await Notification.countDocuments({ userId: user1Id });
     expect(remainingNotifs).toBe(0);
   });
+
+  it('Real dual socket clients test: finish code is never leaked to provider socket or provider API during reschedule, complaint, cancel, quotation, and status changes, while customer receives it', async () => {
+    // 1. Start HTTP server on ephemeral port if not already listening
+    let serverPort;
+    if (!server.listening) {
+      await new Promise((resolve) => {
+        server.listen(0, '127.0.0.1', () => {
+          serverPort = server.address().port;
+          resolve();
+        });
+      });
+    } else {
+      serverPort = server.address().port;
+    }
+    const socketUrl = `http://127.0.0.1:${serverPort}`;
+
+    // 2. Register & login Customer
+    const custEmail = `cust.socket.${Date.now()}@fixnear.test`;
+    const custReg = await request(app).post('/api/auth/register').send({
+      name: 'Pooja Customer',
+      email: custEmail,
+      phone: '9820011223',
+      password: 'Password123!',
+      role: 'customer',
+      city: 'Mumbai',
+    });
+    expect(custReg.status).toBe(201);
+    const custLogin = await request(app).post('/api/auth/login').send({
+      email: custEmail,
+      password: 'Password123!',
+    });
+    const custCookie = custLogin.headers['set-cookie'];
+    const custToken = custCookie[0].split(';')[0].replace('token=', '');
+    const custUserId = custReg.body.user.id;
+
+    // 3. Register & login Provider
+    const provEmail = `tech.socket.${Date.now()}@fixnear.test`;
+    const provReg = await request(app).post('/api/auth/register').send({
+      name: 'Suresh Electrician',
+      email: provEmail,
+      phone: '9820099887',
+      password: 'Password123!',
+      role: 'provider',
+      city: 'Mumbai',
+      serviceCategory: 'electrical-repair',
+    });
+    expect(provReg.status).toBe(201);
+    const provLogin = await request(app).post('/api/auth/login').send({
+      email: provEmail,
+      password: 'Password123!',
+    });
+    const provCookie = provLogin.headers['set-cookie'];
+    const provToken = provCookie[0].split(';')[0].replace('token=', '');
+    const provUserId = provReg.body.user.id;
+
+    // Approve provider and set online
+    const providerDoc = await Provider.findOne({ userId: provUserId });
+    providerDoc.status = 'approved';
+    providerDoc.isOnline = true;
+    providerDoc.city = 'Mumbai';
+    providerDoc.specialty = 'Electrical Repair';
+    providerDoc.skills = [
+      { categoryId: 'electrical-repair', categoryName: 'Electrical Repair', passed: true },
+    ];
+    await providerDoc.save();
+
+    // 4. Create Service and Category
+    await Category.create({
+      categoryId: 'electrical-repair',
+      name: 'Electrical Repair',
+      icon: 'zap',
+      description: 'Expert electrical works',
+    });
+    const service = await Service.create({
+      serviceId: 'fan-repair',
+      title: 'Ceiling Fan Repair',
+      categoryId: 'electrical-repair',
+      category: 'Electrical Repair',
+      startingPrice: 350,
+      description: 'Quick fan servicing and repair',
+    });
+
+    // 5. Connect real Socket.io clients
+    const socketCustomer = ioClient(socketUrl, {
+      extraHeaders: { cookie: `token=${custToken}` },
+      transports: ['polling', 'websocket'],
+      forceNew: true,
+    });
+    const socketProvider = ioClient(socketUrl, {
+      extraHeaders: { cookie: `token=${provToken}` },
+      transports: ['polling', 'websocket'],
+      forceNew: true,
+    });
+
+    await Promise.all([
+      new Promise((res, rej) => {
+        socketCustomer.on('connect', res);
+        socketCustomer.on('connect_error', rej);
+      }),
+      new Promise((res, rej) => {
+        socketProvider.on('connect', res);
+        socketProvider.on('connect_error', rej);
+      }),
+    ]);
+
+    // Join user rooms
+    socketCustomer.emit('join_user', String(custUserId));
+    socketProvider.emit('join_user', String(provUserId));
+
+    // Event capture
+    const providerSocketEvents = [];
+    socketProvider.onAny((event, ...args) => {
+      providerSocketEvents.push({ event, args });
+    });
+
+    const customerSocketEvents = [];
+    socketCustomer.onAny((event, ...args) => {
+      customerSocketEvents.push({ event, args });
+    });
+
+    const providerApiResponses = [];
+    const recordProvApi = (res) => {
+      providerApiResponses.push({ status: res.status, body: res.body });
+      return res;
+    };
+
+    const waitTick = () => new Promise((resolve) => setTimeout(resolve, 150));
+
+    // 6. Customer creates Booking 1 (offered to Suresh)
+    const b1Res = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: 'fan-repair',
+        address: 'B-204, Sea Green Apartments, Worli',
+        city: 'Mumbai',
+        scheduledDate: '2026-12-05',
+        timeSlot: '11:00 AM',
+        notes: 'Wobbling motor sound',
+      });
+    expect(b1Res.status).toBe(201);
+    const booking1Id = b1Res.body.booking._id;
+
+    // Fetch secret completionOtp from DB with +completionOtp
+    const dbBooking1 = await Booking.findById(booking1Id).select('+completionOtp');
+    const finishCode1 = String(dbBooking1.completionOtp);
+    expect(finishCode1).toMatch(/^\d{4}$/);
+
+    await waitTick();
+
+    // Provider inspects booking before acceptance (privacy masked, no finish code, no customer phone)
+    const provBeforeAccept = recordProvApi(
+      await request(app).get(`/api/bookings/${booking1Id}`).set('Cookie', provCookie)
+    );
+    expect(provBeforeAccept.status).toBe(200);
+    expect(provBeforeAccept.body.booking.customerPhone).toBe('');
+    expect(provBeforeAccept.body.booking.completionOtp).toBeUndefined();
+
+    // 7. Status change: ACCEPTED
+    const acceptRes = recordProvApi(
+      await request(app)
+        .patch(`/api/bookings/${booking1Id}/status`)
+        .set('Cookie', provCookie)
+        .send({ status: 'ACCEPTED' })
+    );
+    expect(acceptRes.status).toBe(200);
+
+    // Join booking rooms now that provider is assigned
+    socketCustomer.emit('join_booking', String(booking1Id));
+    socketProvider.emit('join_booking', String(booking1Id));
+    await waitTick();
+
+    // 8. Reschedule flow: Customer reschedules booking while ACCEPTED
+    const reschedRes = await request(app)
+      .patch(`/api/bookings/${booking1Id}/reschedule`)
+      .set('Cookie', custCookie)
+      .send({
+        scheduledDate: '2026-12-06',
+        timeSlot: '03:00 PM',
+      });
+    expect(reschedRes.status).toBe(200);
+    await waitTick();
+
+    // Status changes: ON_THE_WAY -> WORKING
+    const otwRes = recordProvApi(
+      await request(app)
+        .patch(`/api/bookings/${booking1Id}/status`)
+        .set('Cookie', provCookie)
+        .send({ status: 'ON_THE_WAY' })
+    );
+    expect(otwRes.status).toBe(200);
+    await waitTick();
+
+    const workRes = recordProvApi(
+      await request(app)
+        .patch(`/api/bookings/${booking1Id}/status`)
+        .set('Cookie', provCookie)
+        .send({ status: 'WORKING' })
+    );
+    expect(workRes.status).toBe(200);
+    await waitTick();
+
+    // 9. Quotation flow:
+    // A) Provider submits quotation 1 -> Customer approves
+    const quote1Res = recordProvApi(
+      await request(app)
+        .post(`/api/bookings/${booking1Id}/quotation`)
+        .set('Cookie', provCookie)
+        .send({
+          items: [
+            { desc: 'New Capacitor 3.15uF', amount: 180 },
+            { desc: 'Ball Bearing Replacement', amount: 250 },
+          ],
+          reason: 'Worn bearings and burnt capacitor',
+        })
+    );
+    expect(quote1Res.status).toBe(200);
+    await waitTick();
+
+    const approveQuoteRes = await request(app)
+      .patch(`/api/bookings/${booking1Id}/quotation/approve`)
+      .set('Cookie', custCookie);
+    expect(approveQuoteRes.status).toBe(200);
+    await waitTick();
+
+    // B) Provider submits quotation 2 -> Customer declines
+    const quote2Res = recordProvApi(
+      await request(app)
+        .post(`/api/bookings/${booking1Id}/quotation`)
+        .set('Cookie', provCookie)
+        .send({
+          items: [{ desc: 'Optional decorative canopy', amount: 300 }],
+          reason: 'Aesthetic replacement',
+        })
+    );
+    expect(quote2Res.status).toBe(200);
+    await waitTick();
+
+    const declineQuoteRes = await request(app)
+      .patch(`/api/bookings/${booking1Id}/quotation/decline`)
+      .set('Cookie', custCookie);
+    expect(declineQuoteRes.status).toBe(200);
+    await waitTick();
+
+    // 10. Complaint flow: Customer submits complaint
+    const complaintRes = await request(app)
+      .post(`/api/bookings/${booking1Id}/complaint`)
+      .set('Cookie', custCookie)
+      .send({
+        reason: 'Delay in spare parts arrival',
+        notes: 'Technician took 3 hours to fetch bearings from market',
+      });
+    expect(complaintRes.status).toBe(201);
+    await waitTick();
+
+    // 11. Completion flow: Provider completes booking using finish code
+    const completeRes = recordProvApi(
+      await request(app)
+        .patch(`/api/bookings/${booking1Id}/status`)
+        .set('Cookie', provCookie)
+        .send({
+          status: 'COMPLETED',
+          finishCode: finishCode1,
+        })
+    );
+    expect(completeRes.status).toBe(200);
+    await waitTick();
+
+    // 12. Cancel flow: Customer creates Booking 2, provider accepts, customer cancels
+    const b2Res = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: 'fan-repair',
+        address: 'B-204, Sea Green Apartments, Worli',
+        city: 'Mumbai',
+        scheduledDate: '2026-12-08',
+        timeSlot: '01:00 PM',
+      });
+    expect(b2Res.status).toBe(201);
+    const booking2Id = b2Res.body.booking._id;
+
+    const dbBooking2 = await Booking.findById(booking2Id).select('+completionOtp');
+    const finishCode2 = String(dbBooking2.completionOtp);
+    expect(finishCode2).toMatch(/^\d{4}$/);
+
+    // Provider accepts Booking 2
+    recordProvApi(
+      await request(app)
+        .patch(`/api/bookings/${booking2Id}/status`)
+        .set('Cookie', provCookie)
+        .send({ status: 'ACCEPTED' })
+    );
+
+    socketCustomer.emit('join_booking', String(booking2Id));
+    socketProvider.emit('join_booking', String(booking2Id));
+    await waitTick();
+
+    // Customer cancels Booking 2
+    const cancelRes = await request(app)
+      .patch(`/api/bookings/${booking2Id}/cancel`)
+      .set('Cookie', custCookie)
+      .send({ reason: 'Guest arrived, reschedule later' });
+    expect(cancelRes.status).toBe(200);
+    await waitTick();
+
+    // Provider fetches mine and booking details
+    recordProvApi(await request(app).get(`/api/bookings/${booking1Id}`).set('Cookie', provCookie));
+    recordProvApi(await request(app).get(`/api/bookings/${booking2Id}`).set('Cookie', provCookie));
+    recordProvApi(await request(app).get('/api/bookings/mine').set('Cookie', provCookie));
+
+    // 13. ASSERTIONS:
+    // A) Provider socket received real-time events across the lifecycle
+    expect(providerSocketEvents.length).toBeGreaterThan(0);
+    const providerSocketJson = JSON.stringify(providerSocketEvents);
+
+    // B) Finish code appears in NO message received by provider socket
+    expect(providerSocketJson).not.toContain(finishCode1);
+    expect(providerSocketJson).not.toContain(finishCode2);
+
+    // C) Finish code appears in NO provider API response
+    const providerApiJson = JSON.stringify(providerApiResponses);
+    expect(providerApiJson).not.toContain(finishCode1);
+    expect(providerApiJson).not.toContain(finishCode2);
+
+    // D) Customer still receives the finish code on their own booking
+    const custView = await request(app).get(`/api/bookings/${booking1Id}`).set('Cookie', custCookie);
+    expect(custView.status).toBe(200);
+    expect(custView.body.booking.completionOtp).toBe(finishCode1);
+
+    const custMine = await request(app).get('/api/bookings/mine').set('Cookie', custCookie);
+    expect(custMine.status).toBe(200);
+    const foundB1 = custMine.body.bookings.find((b) => String(b._id) === String(booking1Id));
+    expect(foundB1.completionOtp).toBe(finishCode1);
+
+    // Customer socket received finishCode1
+    const customerSocketJson = JSON.stringify(customerSocketEvents);
+    expect(customerSocketJson).toContain(finishCode1);
+
+    // 14. Cleanup sockets & server
+    socketCustomer.disconnect();
+    socketProvider.disconnect();
+    if (server && server.listening) {
+      if (io) io.close();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  }, 30000);
 });

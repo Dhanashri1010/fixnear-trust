@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 import { User } from '../models/User.js';
 import { Booking } from '../models/Booking.js';
 import { Service } from '../models/Service.js';
@@ -9,12 +10,15 @@ import { Setting } from '../models/Setting.js';
 import { Payment } from '../models/Payment.js';
 import { Notification } from '../models/Notification.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
+import { toBookingPayload } from '../utils/bookingSerializer.js';
 import { io } from '../server.js';
-import { 
-  sendBookingPlacedEmail, 
-  sendProviderAcceptedEmail, 
-  sendJobCompletedEmail 
+import {
+  sendBookingPlacedEmail,
+  sendProviderAcceptedEmail,
+  sendJobCompletedEmail
 } from '../utils/emailHelper.js';
+
+export { toBookingPayload };
 
 // Helper to create notifications and emit socket event
 const notifyUser = async ({ userId, role, title, message, type = 'booking', link = '' }) => {
@@ -52,7 +56,7 @@ const generateBookingId = async () => {
   let unique = false;
   let code = '';
   while (!unique) {
-    const randomDigits = Math.floor(10000 + Math.random() * 90000);
+    const randomDigits = crypto.randomInt(10000, 100000);
     code = `FX-${randomDigits}`;
     const existing = await Booking.findOne({ bookingId: code });
     if (!existing) unique = true;
@@ -129,7 +133,7 @@ export const createBooking = async (req, res, next) => {
 
     // 3. Generate booking ID and 4-digit completion finish code
     const bookingNumber = await generateBookingId();
-    const completionOtp = String(Math.floor(1000 + Math.random() * 9000));
+    const completionOtp = String(crypto.randomInt(1000, 10000));
 
     const initialTimeline = [
       { step: 'Booking Requested', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), done: true, current: true },
@@ -201,11 +205,11 @@ export const createBooking = async (req, res, next) => {
       scheduledDate: newBooking.scheduledDate,
       timeSlot: newBooking.timeSlot,
       price: newBooking.basePrice,
-    }).catch(() => {});
+    }).catch(() => { });
 
     // Notify & emit socket updates
     if (io) {
-      io.to(`user_${req.user._id}`).emit('booking_created', newBooking);
+      io.to(`user_${req.user._id}`).emit('booking_created', toBookingPayload(newBooking, 'customer'));
       // Emit ONLY to the specific provider's user room with masked privacy details
       io.to(`user_${targetProvider.userId}`).emit('new_job_offered', {
         bookingId: newBooking.bookingId,
@@ -241,7 +245,7 @@ export const createBooking = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Booking placed successfully!',
-      booking: newBooking,
+      booking: toBookingPayload(newBooking, 'customer'),
     });
   } catch (err) {
     next(err);
@@ -257,21 +261,12 @@ export const getMyBookings = async (req, res, next) => {
       const customerBookings = await Booking.find({ customerId: req.user._id })
         .select('+completionOtp')
         .sort({ createdAt: -1 });
-      bookings = customerBookings.map((b) => {
-        const obj = b.toObject();
-        // Do not return provider name or phone to customer until accepted
-        if (obj.status === 'REQUESTED') {
-          obj.providerName = '';
-          obj.providerPhone = '';
-        }
-        return obj;
-      });
+      bookings = customerBookings.map((b) => toBookingPayload(b, 'customer'));
     } else if (req.user.role === 'provider') {
       const provider = await Provider.findOne({ userId: req.user._id });
       if (!provider) {
         return res.status(200).json({ success: true, count: 0, bookings: [] });
       }
-      // Never send completion finish code to provider!
       const rawBookings = await Booking.find({
         $or: [
           { providerId: provider._id },
@@ -289,21 +284,14 @@ export const getMyBookings = async (req, res, next) => {
         .select('-completionOtp')
         .sort({ createdAt: -1 });
 
-      bookings = rawBookings.map((b) => {
-        const obj = b.toObject();
-        // If booking is still requested/offered, do not reveal customer's phone or full address
-        if (obj.status === 'REQUESTED') {
-          obj.customerPhone = '';
-          obj.address = `${obj.city || 'Local area'}`;
-        }
-        return obj;
-      });
+      bookings = rawBookings.map((b) => toBookingPayload(b, 'provider'));
     } else if (req.user.role === 'admin') {
       const { status, city } = req.query;
       const filter = {};
       if (status) filter.status = status;
       if (city) filter.city = new RegExp(`^${escapeRegex(city.trim())}$`, 'i');
-      bookings = await Booking.find(filter).sort({ createdAt: -1 });
+      const adminBookings = await Booking.find(filter).sort({ createdAt: -1 });
+      bookings = adminBookings.map((b) => toBookingPayload(b, 'admin'));
     }
 
     res.status(200).json({
@@ -365,27 +353,11 @@ export const getBookingById = async (req, res, next) => {
       });
     }
 
-    // Format response: Never send completion finish code to the provider
-    const bookingObj = booking.toObject();
-    if (isProvider && !isAdmin) {
-      delete bookingObj.completionOtp;
-    }
-
-    // Never reveal customer phone or full address to an offered provider until accepted
-    if (isOfferedProvider && !isAdmin) {
-      bookingObj.customerPhone = '';
-      bookingObj.address = `${bookingObj.city || 'Local area'}`;
-    }
-
-    // Do not return provider name or phone to customer until accepted
-    if (isCustomer && !isAdmin && bookingObj.status === 'REQUESTED') {
-      bookingObj.providerName = '';
-      bookingObj.providerPhone = '';
-    }
+    const viewer = isCustomer ? 'customer' : (isProvider ? 'provider' : 'admin');
 
     res.status(200).json({
       success: true,
-      booking: bookingObj,
+      booking: toBookingPayload(booking, viewer),
     });
   } catch (err) {
     next(err);
@@ -442,11 +414,12 @@ export const cancelBooking = async (req, res, next) => {
         status: 'CANCELLED',
         reason: booking.cancellationReason,
       });
-      io.to(`user_${booking.customerId}`).emit('booking_updated', booking);
+      io.to(`booking_${booking._id}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
+      io.to(`user_${booking.customerId}`).emit('booking_updated', toBookingPayload(booking, 'customer'));
       if (booking.providerId) {
         const provider = await Provider.findById(booking.providerId);
         if (provider) {
-          io.to(`user_${provider.userId}`).emit('booking_updated', booking);
+          io.to(`user_${provider.userId}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
         }
       }
     }
@@ -476,7 +449,7 @@ export const cancelBooking = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Booking has been cancelled.',
-      booking,
+      booking: toBookingPayload(booking, req.user.role),
     });
   } catch (err) {
     next(err);
@@ -535,12 +508,12 @@ export const rescheduleBooking = async (req, res, next) => {
     await booking.save();
 
     if (io) {
-      io.to(`booking_${booking._id}`).emit('booking_updated', booking);
-      io.to(`user_${booking.customerId}`).emit('booking_updated', booking);
+      io.to(`booking_${booking._id}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
+      io.to(`user_${booking.customerId}`).emit('booking_updated', toBookingPayload(booking, 'customer'));
       if (booking.providerId) {
         const provider = await Provider.findById(booking.providerId);
         if (provider) {
-          io.to(`user_${provider.userId}`).emit('booking_updated', booking);
+          io.to(`user_${provider.userId}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
         }
       }
     }
@@ -570,7 +543,7 @@ export const rescheduleBooking = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Booking rescheduled successfully.',
-      booking,
+      booking: toBookingPayload(booking, req.user.role),
     });
   } catch (err) {
     next(err);
@@ -678,7 +651,8 @@ export const createQuotation = async (req, res, next) => {
         bookingId: booking._id,
         quotation: booking.quotation,
       });
-      io.to(`user_${booking.customerId}`).emit('booking_updated', booking);
+      io.to(`booking_${booking._id}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
+      io.to(`user_${booking.customerId}`).emit('booking_updated', toBookingPayload(booking, 'customer'));
     }
 
     await notifyUser({
@@ -749,7 +723,14 @@ export const approveQuotation = async (req, res, next) => {
 
     if (io) {
       io.to(`booking_${booking._id}`).emit('quotation_decision', { status: 'APPROVED', quotation: booking.quotation });
-      io.to(`user_${booking.customerId}`).emit('booking_updated', booking);
+      io.to(`booking_${booking._id}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
+      io.to(`user_${booking.customerId}`).emit('booking_updated', toBookingPayload(booking, 'customer'));
+      if (booking.providerId) {
+        const provider = await Provider.findById(booking.providerId);
+        if (provider) {
+          io.to(`user_${provider.userId}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
+        }
+      }
     }
 
     res.status(200).json({
@@ -809,7 +790,14 @@ export const declineQuotation = async (req, res, next) => {
 
     if (io) {
       io.to(`booking_${booking._id}`).emit('quotation_decision', { status: 'REJECTED', quotation: booking.quotation });
-      io.to(`user_${booking.customerId}`).emit('booking_updated', booking);
+      io.to(`booking_${booking._id}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
+      io.to(`user_${booking.customerId}`).emit('booking_updated', toBookingPayload(booking, 'customer'));
+      if (booking.providerId) {
+        const provider = await Provider.findById(booking.providerId);
+        if (provider) {
+          io.to(`user_${provider.userId}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
+        }
+      }
     }
 
     res.status(200).json({
@@ -930,7 +918,7 @@ export const submitComplaint = async (req, res, next) => {
       });
     }
 
-    const disputeNumber = `DSP-${Math.floor(10000 + Math.random() * 90000)}`;
+    const disputeNumber = `DSP-${crypto.randomInt(10000, 100000)}`;
 
     const dispute = await Dispute.create({
       disputeId: disputeNumber,
@@ -952,11 +940,12 @@ export const submitComplaint = async (req, res, next) => {
 
     if (io) {
       io.to(`booking_${booking._id}`).emit('booking_disputed', dispute);
-      io.to(`user_${booking.customerId}`).emit('booking_updated', booking);
+      io.to(`booking_${booking._id}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
+      io.to(`user_${booking.customerId}`).emit('booking_updated', toBookingPayload(booking, 'customer'));
       if (booking.providerId) {
         const provider = await Provider.findById(booking.providerId);
         if (provider) {
-          io.to(`user_${provider.userId}`).emit('booking_updated', booking);
+          io.to(`user_${provider.userId}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
         }
       }
     }
@@ -1169,8 +1158,9 @@ export const updateBookingStatus = async (req, res, next) => {
           status: 'ACCEPTED',
           timeline: acceptedBooking.timeline,
         });
-        io.to(`user_${acceptedBooking.customerId}`).emit('booking_updated', acceptedBooking);
-        io.to(`user_${providerDoc.userId}`).emit('booking_updated', acceptedBooking);
+        io.to(`booking_${acceptedBooking._id}`).emit('booking_updated', toBookingPayload(acceptedBooking, 'provider'));
+        io.to(`user_${acceptedBooking.customerId}`).emit('booking_updated', toBookingPayload(acceptedBooking, 'customer'));
+        io.to(`user_${providerDoc.userId}`).emit('booking_updated', toBookingPayload(acceptedBooking, 'provider'));
       }
 
       await notifyUser({
@@ -1191,16 +1181,13 @@ export const updateBookingStatus = async (req, res, next) => {
           providerPhone: providerDoc.phone,
           bookingId: acceptedBooking.bookingId,
           serviceTitle: acceptedBooking.serviceTitle,
-        }).catch(() => {});
+        }).catch(() => { });
       }
-
-      const resp = acceptedBooking.toObject();
-      if (!isAdmin) delete resp.completionOtp;
 
       return res.status(200).json({
         success: true,
         message: 'Job accepted successfully!',
-        booking: resp,
+        booking: toBookingPayload(acceptedBooking, req.user.role),
       });
     }
 
@@ -1312,9 +1299,10 @@ export const updateBookingStatus = async (req, res, next) => {
         status: booking.status,
         timeline: booking.timeline,
       });
-      io.to(`user_${booking.customerId}`).emit('booking_updated', booking);
+      io.to(`booking_${booking._id}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
+      io.to(`user_${booking.customerId}`).emit('booking_updated', toBookingPayload(booking, 'customer'));
       if (providerDoc) {
-        io.to(`user_${providerDoc.userId}`).emit('booking_updated', booking);
+        io.to(`user_${providerDoc.userId}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
       }
     }
 
@@ -1326,15 +1314,10 @@ export const updateBookingStatus = async (req, res, next) => {
       link: `/track/${booking._id}`,
     });
 
-    const respBooking = booking.toObject();
-    if (req.user.role === 'provider' && !isAdmin) {
-      delete respBooking.completionOtp;
-    }
-
     res.status(200).json({
       success: true,
       message: `Status updated to ${nextStatus}.`,
-      booking: respBooking,
+      booking: toBookingPayload(booking, req.user.role),
     });
   } catch (err) {
     next(err);
@@ -1501,11 +1484,12 @@ export const offerBookingToNextProvider = async (bookingId) => {
     }
 
     if (io) {
-      io.to(`user_${updated.customerId}`).emit('booking_updated', updated);
       io.to(`booking_${updated._id}`).emit('booking_status_updated', {
         bookingId: updated._id,
         status: 'NO_PROVIDER_FOUND',
       });
+      io.to(`booking_${updated._id}`).emit('booking_updated', toBookingPayload(updated, 'provider'));
+      io.to(`user_${updated.customerId}`).emit('booking_updated', toBookingPayload(updated, 'customer'));
     }
 
     await notifyUser({

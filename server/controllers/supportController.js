@@ -1,10 +1,11 @@
+import crypto from 'crypto';
 import { SupportTicket } from '../models/SupportTicket.js';
 
 export const createSupportTicket = async (req, res, next) => {
   try {
     const { subject, message, bookingId } = req.body;
 
-    const ticketId = `TCK-${Math.floor(1000 + Math.random() * 9000)}`;
+    const ticketId = `TCK-${crypto.randomInt(1000, 10000)}`;
 
     const ticket = await SupportTicket.create({
       ticketId,

@@ -39,7 +39,8 @@ FixNear Trust is a security-first, verified local home services platform. This d
 - **Privacy Masking Before Offer Acceptance**:
   - Customer's full address and contact telephone number are withheld from technicians until the technician explicitly accepts the job offer.
   - Provider's name and telephone are withheld from the customer until acceptance.
-- **Completion Finish Code Secrecy**:
+- **Completion Finish Code Secrecy & Payload Sanitization**:
+  - Booking payloads are built only by `toBookingPayload`.
   - The finish code is shown only to the customer who owns the booking and must never appear in any provider response, notification text or data export.
   - The 4-digit completion code (`completionOtp`) is configured with `select: false` on the Mongoose schema, preventing unintended exposure in database projections.
   - It is displayed only in the customer's portal and stripped from every provider response (`.select('-completionOtp')`).

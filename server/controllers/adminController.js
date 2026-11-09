@@ -20,6 +20,7 @@ import { logAudit } from '../utils/auditLogger.js';
 import { notifyUser } from './notificationController.js';
 import { sendComplaintResolvedEmail, sendProviderStatusEmail } from '../utils/emailHelper.js';
 import { offerBookingToNextProvider } from './bookingController.js';
+import { toBookingPayload } from '../utils/bookingSerializer.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { io } from '../server.js';
 import { v2 as cloudinary } from 'cloudinary';
@@ -97,7 +98,7 @@ export const getAdminStats = async (req, res, next) => {
       const dateStr = d.toISOString().split('T')[0];
       const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
       const endOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-      
+
       const count = await Booking.countDocuments({
         createdAt: { $gte: startOfDay, $lte: endOfDay },
       });
@@ -262,7 +263,7 @@ export const approveProviderAction = async (req, res, next) => {
       providerEmail: provider.email,
       providerName: provider.name,
       status: 'approved',
-    }).catch(() => {});
+    }).catch(() => { });
 
     await logAudit({
       req,
@@ -316,7 +317,7 @@ export const rejectProviderAction = async (req, res, next) => {
       providerName: provider.name,
       status: 'rejected',
       reason: reason.trim(),
-    }).catch(() => {});
+    }).catch(() => { });
 
     await logAudit({
       req,
@@ -369,7 +370,7 @@ export const requestProviderInfoAction = async (req, res, next) => {
       providerName: provider.name,
       status: 'needs_info',
       reason: message.trim(),
-    }).catch(() => {});
+    }).catch(() => { });
 
     await logAudit({
       req,
@@ -674,7 +675,7 @@ export const getAdminBookingsList = async (req, res, next) => {
     res.status(200).json({
       success: true,
       count: bookings.length,
-      bookings,
+      bookings: bookings.map((b) => toBookingPayload(b, 'admin')),
     });
   } catch (err) {
     next(err);
@@ -703,7 +704,7 @@ export const getAdminBookingDetails = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      booking,
+      booking: toBookingPayload(booking, 'admin'),
       dispute,
       review,
     });
@@ -733,11 +734,11 @@ export const cancelBookingAction = async (req, res, next) => {
     await booking.save();
 
     if (io) {
-      io.to(`booking_${booking._id}`).emit('booking_updated', booking);
-      io.to(`user_${booking.customerId}`).emit('booking_updated', booking);
+      io.to(`booking_${booking._id}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
+      io.to(`user_${booking.customerId}`).emit('booking_updated', toBookingPayload(booking, 'customer'));
       if (booking.providerId) {
         const prov = await Provider.findById(booking.providerId);
-        if (prov) io.to(`user_${prov.userId}`).emit('booking_updated', booking);
+        if (prov) io.to(`user_${prov.userId}`).emit('booking_updated', toBookingPayload(booking, 'provider'));
       }
     }
 
@@ -775,7 +776,7 @@ export const cancelBookingAction = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: `Booking #${booking.bookingId} cancelled by admin.`,
-      booking,
+      booking: toBookingPayload(booking, 'admin'),
     });
   } catch (err) {
     next(err);
@@ -818,7 +819,7 @@ export const reassignBookingAction = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: `Booking #${booking.bookingId} reset and dispatched for reassignment.`,
-      booking,
+      booking: toBookingPayload(booking, 'admin'),
     });
   } catch (err) {
     next(err);
@@ -1272,7 +1273,7 @@ export const getAdminDisputeDetails = async (req, res, next) => {
     res.status(200).json({
       success: true,
       dispute,
-      booking,
+      booking: booking ? toBookingPayload(booking, 'admin') : null,
       customer,
       provider,
     });
@@ -1417,7 +1418,7 @@ export const resolveDisputeAction = async (req, res, next) => {
         decision: cleanDecision,
         note: note.trim(),
         refundAmount: refNum,
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     await logAudit({
