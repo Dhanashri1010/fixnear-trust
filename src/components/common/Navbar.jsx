@@ -17,7 +17,7 @@ import {
   Check
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { setLanguage, getLanguage, t } from '../../i18n/translations';
+import { useLanguage } from '../../context/LanguageContext';
 import AvatarDropdown from './AvatarDropdown';
 import InitialsAvatar from './InitialsAvatar';
 
@@ -40,7 +40,7 @@ export default function Navbar() {
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
   const [customCityInput, setCustomCityInput] = useState('');
   const [navSearch, setNavSearch] = useState('');
-  const [currentLang, setCurrentLang] = useState(getLanguage());
+  const { lang: currentLang, changeLanguage, t } = useLanguage();
 
   const cityDropdownRef = useRef(null);
 
@@ -59,8 +59,7 @@ export default function Navbar() {
   }, [isCityDropdownOpen]);
 
   const handleLanguageChange = (lang) => {
-    setLanguage(lang);
-    setCurrentLang(lang);
+    changeLanguage(lang);
   };
 
   const handleNavSearch = (e) => {
@@ -242,7 +241,7 @@ export default function Navbar() {
           <Search size={15} color="var(--forest-700)" />
           <input
             type="text"
-            placeholder="Search catalog & pros..."
+            placeholder={t('common.searchPlaceholder', 'Search catalog & pros...')}
             value={navSearch}
             onChange={(e) => setNavSearch(e.target.value)}
             onKeyDown={handleNavSearch}
@@ -268,7 +267,7 @@ export default function Navbar() {
               textDecoration: 'none'
             }}
           >
-            Catalog
+            {t('nav.catalog', 'Catalog')}
           </Link>
 
           <Link
@@ -284,7 +283,7 @@ export default function Navbar() {
             }}
           >
             <Navigation size={13} color="var(--forest-700)" />
-            <span>Track</span>
+            <span>{t('nav.track', 'Track')}</span>
           </Link>
 
           <Link
@@ -296,11 +295,11 @@ export default function Navbar() {
               textDecoration: 'none'
             }}
           >
-            My Bookings
+            {t('nav.myBookings', 'My Bookings')}
           </Link>
 
           <Link
-            to="/provider/register"
+            to={currentUser?.role === 'provider' ? '/provider/dashboard' : '/signup?role=provider'}
             style={{
               fontSize: '13.5px',
               fontWeight: location.pathname.startsWith('/provider') ? 700 : 600,
@@ -308,7 +307,7 @@ export default function Navbar() {
               textDecoration: 'none'
             }}
           >
-            Join as Partner
+            {t('nav.joinPartner', 'Join as Partner')}
           </Link>
 
           <Link
@@ -320,7 +319,7 @@ export default function Navbar() {
               textDecoration: 'none'
             }}
           >
-            Help
+            {t('nav.help', 'Help')}
           </Link>
         </nav>
 
@@ -366,7 +365,7 @@ export default function Navbar() {
             style={{ textDecoration: 'none' }}
           >
             <Wrench size={14} />
-            <span>Book</span>
+            <span>{t('common.bookNow', 'Book')}</span>
           </Link>
 
           {/* User Account Avatar or Log In Button */}
@@ -421,7 +420,7 @@ export default function Navbar() {
               style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
             >
               <LogIn size={14} />
-              <span>Log In</span>
+              <span>{t('nav.login', 'Log In')}</span>
             </Link>
           )}
 

@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { 
   ShieldCheck, 
   Mail, 
@@ -16,41 +17,67 @@ import {
   MapPin, 
   ArrowRight, 
   Wrench, 
-  AlertCircle 
+  AlertCircle,
+  Eye,
+  EyeOff,
+  CheckCircle2
 } from 'lucide-react';
+
+const CITIES = [
+  'Mumbai',
+  'Bengaluru',
+  'Delhi NCR',
+  'Pune',
+  'Hyderabad',
+  'Kolkata',
+  'Chennai',
+  'Ahmedabad',
+  'Jaipur',
+  'Chandigarh',
+];
 
 export default function SignUpPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { signUpWithEmail } = useAuth();
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const searchParams = new URLSearchParams(location.search);
   const redirectParam = searchParams.get('redirect');
+  const roleParam = searchParams.get('role');
 
-  const [desiredRole, setDesiredRole] = useState('customer'); // 'customer' | 'provider'
+  const [desiredRole, setDesiredRole] = useState(roleParam === 'provider' ? 'provider' : 'customer');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('Mumbai');
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Password strength checks
+  const isLengthValid = password.length >= 8;
+  const hasLetter = /[A-Za-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const isPasswordValid = isLengthValid && hasLetter && hasNumber;
+
   const handleSignUp = async (e) => {
     e.preventDefault();
     if (!name.trim() || !email.trim() || !password || !phone.trim()) {
-      setErrorMessage('Please fill in all required fields.');
+      setErrorMessage(t('common.errorGeneral', 'Please fill in all required fields.'));
       return;
     }
 
-    if (password.length < 8) {
-      setErrorMessage('Password must be at least 8 characters long.');
+    if (!isPasswordValid) {
+      setErrorMessage(t('auth.passwordReq', 'Password must be at least 8 characters long and include both letters and numbers.'));
       return;
     }
 
-    if (!/^(?=.*[A-Za-z])(?=.*\d)/.test(password)) {
-      setErrorMessage('Password must contain at least one letter and one number.');
+    const cleanPhone = phone.replace(/[^\d+]/g, '').trim();
+    if (cleanPhone.replace(/\D/g, '').length < 10) {
+      setErrorMessage('Please enter a valid 10-digit mobile number.');
       return;
     }
 
@@ -58,8 +85,8 @@ export default function SignUpPage() {
     setErrorMessage('');
 
     try {
-      await signUpWithEmail(email, password, desiredRole, name, phone, city);
-      showToast(`Account created successfully as ${desiredRole}!`, 'success');
+      await signUpWithEmail(email.trim().toLowerCase(), password, desiredRole, name.trim(), cleanPhone, city);
+      showToast(t('common.successGeneral', 'Account created successfully!'), 'success');
       
       if (desiredRole === 'provider') {
         navigate('/provider/register');
@@ -70,10 +97,9 @@ export default function SignUpPage() {
       }
     } catch (err) {
       console.error(err);
-      setErrorMessage(err.message?.includes('email-already-in-use') 
-        ? 'This email is already registered. Please log in instead.' 
-        : 'Could not create account. Please try again.');
-      showToast('Registration failed.', 'error');
+      const message = err.message || 'Could not create account. Please try again.';
+      setErrorMessage(message);
+      showToast(message, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -114,17 +140,17 @@ export default function SignUpPage() {
             <ShieldCheck size={30} />
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--forest-900)', letterSpacing: '-0.02em' }}>
-            Create Your Account
+            {t('auth.signupTitle', 'Create Your Account')}
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Join FixNear for verified, transparent home maintenance
+            {t('auth.signupSubtitle', 'Join FixNear for verified, transparent home maintenance')}
           </p>
         </div>
 
         {/* Role Selector Tabs (Customer vs Provider) */}
         <div style={{ marginBottom: '24px' }}>
           <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
-            I want to join FixNear as:
+            {t('auth.roleSelectLabel', 'I want to join FixNear as:')}
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <button
@@ -147,9 +173,9 @@ export default function SignUpPage() {
               }}
             >
               <User size={22} color={desiredRole === 'customer' ? 'var(--forest-700)' : 'var(--text-muted)'} />
-              <span>Customer</span>
+              <span>{t('roles.customer', 'Customer')}</span>
               <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', textAlign: 'center' }}>
-                Need home repairs
+                {t('auth.customerChoice', 'Need home repair services')}
               </span>
             </button>
 
@@ -173,9 +199,9 @@ export default function SignUpPage() {
               }}
             >
               <Wrench size={22} color={desiredRole === 'provider' ? 'var(--forest-700)' : 'var(--text-muted)'} />
-              <span>Service Provider</span>
+              <span>{t('roles.provider', 'Service Provider')}</span>
               <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', textAlign: 'center' }}>
-                Skilled technician
+                {t('auth.providerChoice', 'Skilled technician')}
               </span>
             </button>
           </div>
@@ -204,13 +230,13 @@ export default function SignUpPage() {
         <form onSubmit={handleSignUp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              Full Name
+              {t('auth.fullNameLabel', 'Full Name')}
             </label>
             <div style={{ position: 'relative' }}>
               <User size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '14px' }} />
               <input
                 type="text"
-                placeholder="e.g. Alex Morgan"
+                placeholder="e.g. Ramesh Sharma"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -231,13 +257,13 @@ export default function SignUpPage() {
 
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              Email Address
+              {t('auth.emailLabel', 'Email Address')}
             </label>
             <div style={{ position: 'relative' }}>
               <Mail size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '14px' }} />
               <input
                 type="email"
-                placeholder="name@example.com"
+                placeholder={t('auth.emailPlaceholder', 'name@example.com')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -259,13 +285,13 @@ export default function SignUpPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                Phone Number
+                {t('auth.phoneLabel', 'Phone Number')}
               </label>
               <div style={{ position: 'relative' }}>
                 <Phone size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '14px' }} />
                 <input
                   type="tel"
-                  placeholder="+91 98200 00000"
+                  placeholder="9820012345"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   required
@@ -286,16 +312,13 @@ export default function SignUpPage() {
 
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                City
+                {t('auth.cityLabel', 'City')}
               </label>
               <div style={{ position: 'relative' }}>
                 <MapPin size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '14px' }} />
-                <input
-                  type="text"
-                  placeholder="e.g. Mumbai"
+                <select
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  required
                   style={{
                     width: '100%',
                     height: '46px',
@@ -305,21 +328,32 @@ export default function SignUpPage() {
                     paddingRight: '12px',
                     fontSize: '14px',
                     outline: 'none',
-                    color: 'var(--text-primary)'
+                    color: 'var(--text-primary)',
+                    backgroundColor: '#FFFFFF',
+                    cursor: 'pointer'
                   }}
-                />
+                >
+                  {CITIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              Create Password (min 6 chars)
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                {t('auth.passwordLabel', 'Password')}
+              </label>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Min. 8 chars (letters & numbers)
+              </span>
+            </div>
             <div style={{ position: 'relative' }}>
               <Lock size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '14px' }} />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -328,15 +362,41 @@ export default function SignUpPage() {
                   width: '100%',
                   height: '46px',
                   borderRadius: 'var(--radius-sm)',
-                  border: '1.5px solid var(--border-light)',
+                  border: `1.5px solid ${password ? (isPasswordValid ? '#10B981' : '#F59E0B') : 'var(--border-light)'}`,
                   paddingLeft: '40px',
-                  paddingRight: '12px',
+                  paddingRight: '40px',
                   fontSize: '15px',
                   outline: 'none',
                   color: 'var(--text-primary)'
                 }}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '13px',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer'
+                }}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
+            {password && (
+              <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '11.5px' }}>
+                <span style={{ color: isLengthValid ? '#059669' : '#9CA3AF', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  {isLengthValid ? '✓' : '•'} 8+ characters
+                </span>
+                <span style={{ color: hasLetter && hasNumber ? '#059669' : '#9CA3AF', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  {hasLetter && hasNumber ? '✓' : '•'} Letters & numbers
+                </span>
+              </div>
+            )}
           </div>
 
           <button
@@ -351,16 +411,16 @@ export default function SignUpPage() {
               marginTop: '10px'
             }}
           >
-            <span>{submitting ? 'Creating account...' : `Sign Up as ${desiredRole === 'provider' ? 'Technician' : 'Customer'}`}</span>
+            <span>{submitting ? t('common.saving', 'Creating account...') : `${t('nav.signup', 'Sign Up')} as ${desiredRole === 'provider' ? t('roles.provider', 'Technician') : t('roles.customer', 'Customer')}`}</span>
             <ArrowRight size={16} />
           </button>
         </form>
 
         {/* Existing account footer */}
         <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '13.5px', color: 'var(--text-secondary)' }}>
-          Already have an account?{' '}
+          {t('auth.alreadyAccount', 'Already have an account?')}{' '}
           <Link to="/login" style={{ color: 'var(--forest-700)', fontWeight: 700, textDecoration: 'underline' }}>
-            Log in here
+            {t('nav.login', 'Log In')}
           </Link>
         </div>
       </div>

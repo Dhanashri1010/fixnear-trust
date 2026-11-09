@@ -21,12 +21,14 @@ import {
   Trash2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import InitialsAvatar from './InitialsAvatar';
 
 export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const { currentUser, userProfile, role, logOut } = useAuth();
+  const { t } = useLanguage();
 
   const displayName = userProfile?.name || currentUser?.name || "FixNear User";
   const displayEmail = userProfile?.email || currentUser?.email || "user@example.com";
@@ -158,7 +160,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <CalendarDays size={16} color="var(--forest-700)" />
-            <span>My Bookings</span>
+            <span>{t('nav.myBookings', 'My Bookings')}</span>
           </div>
         </button>
 
@@ -253,7 +255,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <LogOut size={16} color="#B91C1C" />
-            <span style={{ fontWeight: 600 }}>Sign out</span>
+            <span style={{ fontWeight: 600 }}>{t('nav.logout', 'Sign out')}</span>
           </div>
         </button>
       </div>

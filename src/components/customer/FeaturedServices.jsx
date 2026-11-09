@@ -9,12 +9,14 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { servicesAPI } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function FeaturedServices({ selectedCategoryId, onOpenBookingModal }) {
   const navigate = useNavigate();
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { t } = useLanguage();
 
   useEffect(() => {
     let isMounted = true;
@@ -60,20 +62,20 @@ export default function FeaturedServices({ selectedCategoryId, onOpenBookingModa
           <div>
             <div style={{ display: 'inline-flex', marginBottom: '10px' }}>
               <span className="badge badge-yellow">
-                ⭐ Most Requested in Your Area
+                {t('home.popularServices', '⭐ Most Requested in Your Area')}
               </span>
             </div>
             <h2 style={{ fontSize: '32px', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '8px' }}>
-              Standardized Rate Services
+              {t('catalog.standardRates', 'Standardized Rate Services')}
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>
-              Explore itemized details with transparent pricing and verified technicians.
+              {t('catalog.subtitle', 'Explore itemized details with transparent pricing and verified technicians.')}
             </p>
           </div>
 
           <div style={{ display: 'flex', gap: '10px' }}>
             <span className="badge badge-sage">
-              30-Day Workmanship Warranty Included
+              {t('common.warrantyBadge', '30-Day Workmanship Warranty Included')}
             </span>
           </div>
         </div>

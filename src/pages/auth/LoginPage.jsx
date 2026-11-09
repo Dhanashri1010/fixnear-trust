@@ -7,12 +7,15 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { 
   ShieldCheck, 
   Mail, 
   Lock, 
   ArrowRight, 
-  AlertCircle 
+  AlertCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -20,9 +23,11 @@ export default function LoginPage() {
   const location = useLocation();
   const { signInWithEmail } = useAuth();
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -33,8 +38,8 @@ export default function LoginPage() {
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
-    if (!email || !password) {
-      setErrorMessage('Please enter both your email address and password.');
+    if (!email.trim() || !password) {
+      setErrorMessage(t('common.errorGeneral', 'Please enter both your email address and password.'));
       return;
     }
 
@@ -42,8 +47,8 @@ export default function LoginPage() {
     setErrorMessage('');
 
     try {
-      const res = await signInWithEmail(email, password);
-      showToast('Welcome back! Successfully logged in.', 'success');
+      const res = await signInWithEmail(email.trim().toLowerCase(), password);
+      showToast(t('common.successGeneral', 'Welcome back! Successfully logged in.'), 'success');
       
       if (from) {
         navigate(from, { replace: true });
@@ -53,8 +58,9 @@ export default function LoginPage() {
       }
     } catch (err) {
       console.error(err);
-      setErrorMessage(err?.response?.data?.message || 'Invalid email or password. Please try again.');
-      showToast('Login failed. Please check your credentials.', 'error');
+      const message = err?.message || 'Invalid email or password. Please try again.';
+      setErrorMessage(message);
+      showToast(message, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -95,10 +101,10 @@ export default function LoginPage() {
             <ShieldCheck size={30} />
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--forest-900)', letterSpacing: '-0.02em' }}>
-            Welcome to FixNear
+            {t('auth.loginTitle', 'Welcome to FixNear')}
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Verified Home Services Marketplace
+            {t('brand.subtitle', 'Verified Home Services Marketplace')}
           </p>
         </div>
 
@@ -124,13 +130,13 @@ export default function LoginPage() {
         <form onSubmit={handleEmailLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-              Email Address
+              {t('auth.emailLabel', 'Email Address')}
             </label>
             <div style={{ position: 'relative' }}>
               <Mail size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '14px' }} />
               <input
                 type="email"
-                placeholder="name@example.com"
+                placeholder={t('auth.emailPlaceholder', 'name@example.com')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -152,14 +158,17 @@ export default function LoginPage() {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                Password
+                {t('auth.passwordLabel', 'Password')}
               </label>
+              <Link to="/reset-password" style={{ fontSize: '12px', color: 'var(--forest-700)', textDecoration: 'none', fontWeight: 600 }}>
+                Forgot?
+              </Link>
             </div>
             <div style={{ position: 'relative' }}>
               <Lock size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '14px' }} />
               <input
-                type="password"
-                placeholder="Enter your password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -169,12 +178,28 @@ export default function LoginPage() {
                   borderRadius: 'var(--radius-sm)',
                   border: '1.5px solid var(--border-light)',
                   paddingLeft: '40px',
-                  paddingRight: '12px',
+                  paddingRight: '40px',
                   fontSize: '15px',
                   outline: 'none',
                   color: 'var(--text-primary)'
                 }}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '13px',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer'
+                }}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
           </div>
 
@@ -190,24 +215,24 @@ export default function LoginPage() {
               marginTop: '8px'
             }}
           >
-            <span>{submitting ? 'Signing in...' : 'Sign In'}</span>
+            <span>{submitting ? t('common.loading', 'Signing in...') : t('nav.login', 'Sign In')}</span>
             <ArrowRight size={16} />
           </button>
         </form>
 
         {/* Sign up prompt */}
         <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '14px', color: 'var(--text-secondary)' }}>
-          Don't have an account?{' '}
+          {t('auth.noAccount', "Don't have an account?")}{' '}
           <Link to="/signup" style={{ color: 'var(--forest-700)', fontWeight: 700, textDecoration: 'underline' }}>
-            Create one here
+            {t('nav.signup', 'Create one here')}
           </Link>
         </div>
 
         {/* Provider Sign-up link */}
         <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px', color: 'var(--text-muted)' }}>
-          Are you a technician?{' '}
-          <Link to="/provider/register" style={{ color: 'var(--forest-700)', fontWeight: 600 }}>
-            Join as Service Partner
+          Are you a skilled technician?{' '}
+          <Link to="/signup?role=provider" style={{ color: 'var(--forest-700)', fontWeight: 600 }}>
+            {t('nav.joinPartner', 'Join as Service Partner')}
           </Link>
         </div>
 

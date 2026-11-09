@@ -12,12 +12,14 @@ import {
 } from 'lucide-react';
 import { providersAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import InitialsAvatar from '../common/InitialsAvatar';
 
 export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingModal }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [topProvider, setTopProvider] = useState(null);
   const { selectedCity } = useAuth();
+  const { t } = useLanguage();
 
   useEffect(() => {
     let isMounted = true;
@@ -60,10 +62,10 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
               <span className="badge badge-forest" style={{ padding: '6px 14px', fontSize: '13px' }}>
                 <ShieldCheck size={16} />
-                FixNear Trust Standard
+                {t('common.verifiedBadge', 'FixNear Trust Standard')}
               </span>
               <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                3-Layer Vetting & Payment Protection
+                {t('common.warrantyBadge', '30-Day FixNear Warranty')}
               </span>
             </div>
 
@@ -76,9 +78,9 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
               letterSpacing: '-0.03em',
               marginBottom: '18px'
             }}>
-              Intelligent, Honest Home Services.{' '}
+              {t('home.heroTitle', 'Intelligent, Honest Home Services.')}{' '}
               <span style={{ color: 'var(--forest-700)' }}>
-                Fixed Right the First Time.
+                {t('home.heroSubtitle', 'Fixed Right the First Time.')}
               </span>
             </h1>
 
@@ -90,7 +92,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
               marginBottom: '32px',
               maxWidth: '540px'
             }}>
-              Explore transparent service rates, certified local specialists, and a 30-day workmanship guarantee. Zero hidden callout fees, zero surprise pricing.
+              {t('home.heroDesc', 'Explore transparent service rates, certified local specialists, and a 30-day workmanship guarantee. Zero hidden callout fees, zero surprise pricing.')}
             </p>
 
             {/* Interactive Search Bar Box */}
@@ -111,7 +113,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
               </div>
               <input 
                 type="text" 
-                placeholder="What needs repair? (e.g., Split AC, Pipe leak, MCB tripping)"
+                placeholder={t('home.searchPlaceholder', 'What needs repair? (e.g., Split AC, Pipe leak, MCB tripping)')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && onSearch(searchTerm)}
@@ -129,7 +131,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                 onClick={() => onSearch(searchTerm)}
                 style={{ borderRadius: 'var(--radius-sm)' }}
               >
-                Find Specialist
+                {t('home.searchBtn', 'Find Specialist')}
               </button>
             </div>
 

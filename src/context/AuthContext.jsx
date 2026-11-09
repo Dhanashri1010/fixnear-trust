@@ -147,6 +147,8 @@ export function AuthProvider({ children }) {
       value={{
         currentUser,
         userProfile,
+        user: currentUser,
+        profile: userProfile,
         providerProfile,
         role,
         setRole,
@@ -156,6 +158,8 @@ export function AuthProvider({ children }) {
         signUpWithEmail,
         signInWithEmail,
         logOut,
+        setUser: setCurrentUser,
+        setProfile: setUserProfile,
         updateUserProfile: updateUserProfileData,
         updateProviderProfile: updateProviderProfileData,
       }}

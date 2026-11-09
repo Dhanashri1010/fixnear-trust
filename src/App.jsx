@@ -7,6 +7,7 @@ import React, { Suspense, lazy, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { LanguageProvider } from './context/LanguageContext';
 
 // Common Components (Eager loaded for immediate structure)
 import Navbar from './components/common/Navbar';
@@ -180,11 +181,13 @@ function AppLayout() {
 export default function App() {
   return (
     <BrowserRouter>
-      <ToastProvider>
-        <AuthProvider>
-          <AppLayout />
-        </AuthProvider>
-      </ToastProvider>
+      <LanguageProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <AppLayout />
+          </AuthProvider>
+        </ToastProvider>
+      </LanguageProvider>
     </BrowserRouter>
   );
 }

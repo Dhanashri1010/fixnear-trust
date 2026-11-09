@@ -10,6 +10,7 @@ import {
   Wrench
 } from 'lucide-react';
 import { servicesAPI } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 const ICON_MAP = {
   Wind: Wind,
@@ -24,6 +25,7 @@ const ICON_MAP = {
 export default function ServiceCategories({ selectedCategoryId, onSelectCategory }) {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { t } = useLanguage();
 
   useEffect(() => {
     let isMounted = true;
@@ -53,14 +55,14 @@ export default function ServiceCategories({ selectedCategoryId, onSelectCategory
         <div style={{ textAlign: 'center', maxWidth: '640px', margin: '0 auto 48px auto' }}>
           <div style={{ display: 'inline-flex', marginBottom: '12px' }}>
             <span className="badge badge-forest">
-              Verified Service Catalog
+              {t('common.verifiedBadge', 'Verified Service Catalog')}
             </span>
           </div>
           <h2 style={{ fontSize: '32px', fontWeight: 800, marginBottom: '12px', letterSpacing: '-0.02em' }}>
-            Browse Essential Home Services
+            {t('home.browseCategories', 'Browse Essential Home Services')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '16px' }}>
-            All services feature upfront rate cards, OEM-compliant spares, and certified technicians. No doorstep surprises.
+            {t('home.browseSubtitle', 'All services feature upfront rate cards, OEM-compliant spares, and certified technicians. No doorstep surprises.')}
           </p>
         </div>
 
@@ -124,7 +126,7 @@ export default function ServiceCategories({ selectedCategoryId, onSelectCategory
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--forest-900)' }}>
-                    {cat.name}
+                    {t(`categories.${cat.categoryId}`, cat.name)}
                   </h3>
                   <ArrowUpRight size={18} color="var(--forest-700)" />
                 </div>

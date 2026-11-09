@@ -25,12 +25,14 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { servicesAPI, providersAPI, uploadAPI } from '../../services/api';
 
 export default function ProviderRegisterPage() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, profile, currentUser, role, logOut, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -63,6 +65,14 @@ export default function ProviderRegisterPage() {
   const [certPreviewUrl, setCertPreviewUrl] = useState('');
   const [uploadingField, setUploadingField] = useState(null);
 
+  // Redirect unauthenticated visitors to partner signup
+  useEffect(() => {
+    if (!authLoading && !currentUser) {
+      showToast('Please create your technician account or log in first.', 'info');
+      navigate('/signup?role=provider&redirect=/provider/register', { replace: true });
+    }
+  }, [authLoading, currentUser, navigate]);
+
   // Fetch categories and existing provider profile
   useEffect(() => {
     let isMounted = true;
@@ -82,9 +92,9 @@ export default function ProviderRegisterPage() {
           setExistingProvider(prov);
           setFormData((prev) => ({
             ...prev,
-            name: prov.name || prev.name,
-            phone: prov.phone || prev.phone,
-            city: prov.city || prev.city,
+            name: prov.name || prev.name || profile?.name || currentUser?.name || '',
+            phone: prov.phone || prev.phone || profile?.phone || currentUser?.phone || '',
+            city: prov.city || prev.city || profile?.city || currentUser?.city || 'Mumbai',
             serviceArea: prov.serviceArea || prev.serviceArea,
             specialty: prov.specialty || prev.specialty,
             categoryId: prov.skills?.[0]?.categoryId || prev.categoryId,
@@ -114,9 +124,13 @@ export default function ProviderRegisterPage() {
       }
     };
 
-    fetchInitData();
+    if (currentUser) {
+      fetchInitData();
+    } else {
+      setInitialLoading(false);
+    }
     return () => { isMounted = false; };
-  }, [user, profile]);
+  }, [currentUser, profile]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -280,6 +294,40 @@ export default function ProviderRegisterPage() {
         <div style={{ textAlign: 'center' }}>
           <div className="spinner" style={{ margin: '0 auto 16px' }} />
           <p style={{ color: 'var(--text-muted)' }}>Loading technician registration...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentUser && role === 'customer') {
+    return (
+      <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '80vh', padding: '60px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ maxWidth: '520px', width: '100%', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-lg)', padding: '36px 32px', textAlign: 'center', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-light)' }}>
+          <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'var(--forest-50)', color: 'var(--forest-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+            <Wrench size={28} />
+          </div>
+          <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
+            Technician Account Required
+          </h2>
+          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '24px' }}>
+            You are currently signed in with a customer account ({currentUser.email}). To offer home services and earn on FixNear, please create a Service Partner account.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={async () => {
+                await logOut();
+                navigate('/signup?role=provider&redirect=/provider/register');
+              }}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              Sign Up as Service Partner
+            </button>
+            <Link to="/" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
+              Back to Home
+            </Link>
+          </div>
         </div>
       </div>
     );
