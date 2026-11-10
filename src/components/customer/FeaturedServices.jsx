@@ -84,7 +84,7 @@ export default function FeaturedServices({ selectedCategoryId, onOpenBookingModa
         {loading && (
           <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
             <div className="spinner" style={{ margin: '0 auto 16px auto' }} />
-            <p style={{ fontSize: '14.5px' }}>Loading verified standard-rate services...</p>
+            <p style={{ fontSize: '14.5px' }}>{t('catalog.loadingServices', 'Loading verified standard-rate services...')}</p>
           </div>
         )}
 
@@ -92,7 +92,7 @@ export default function FeaturedServices({ selectedCategoryId, onOpenBookingModa
         {!loading && error && (
           <div style={{ padding: '36px', textAlign: 'center', backgroundColor: '#FEF2F2', borderRadius: 'var(--radius-lg)', border: '1px solid #FECACA' }}>
             <AlertCircle size={32} color="#DC2626" style={{ margin: '0 auto 12px auto' }} />
-            <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#991B1B', marginBottom: '6px' }}>Could not load services</h4>
+            <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#991B1B', marginBottom: '6px' }}>{t('catalog.couldNotLoad', 'Could not load services')}</h4>
             <p style={{ fontSize: '13.5px', color: '#B91C1C' }}>{error}</p>
           </div>
         )}
@@ -101,8 +101,8 @@ export default function FeaturedServices({ selectedCategoryId, onOpenBookingModa
         {!loading && !error && services.length === 0 && (
           <div style={{ padding: '48px', textAlign: 'center', backgroundColor: 'var(--bg-warm)', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border-medium)' }}>
             <Wrench size={36} color="var(--forest-600)" style={{ margin: '0 auto 12px auto' }} />
-            <h4 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>No services available in this category yet</h4>
-            <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>Check back soon as we onboard certified technicians.</p>
+            <h4 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>{t('catalog.noServices', 'No services available in this category yet')}</h4>
+            <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>{t('catalog.checkBackSoon', 'Check back soon as we onboard certified technicians.')}</p>
           </div>
         )}
 
@@ -152,7 +152,7 @@ export default function FeaturedServices({ selectedCategoryId, onOpenBookingModa
                       color: 'var(--forest-800)',
                       boxShadow: 'var(--shadow-sm)'
                     }}>
-                      {service.category}
+                      {t(`categories.${service.category}`, service.category)}
                     </div>
 
                     <div style={{
@@ -182,7 +182,7 @@ export default function FeaturedServices({ selectedCategoryId, onOpenBookingModa
                       <Star size={15} color="#F59E0B" fill="#F59E0B" />
                       <span style={{ fontWeight: 700, fontSize: '13.5px' }}>{service.rating || '4.9'}</span>
                       <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        ({service.reviewsCount || 120} verified ratings)
+                        ({service.reviewsCount || 120} {t('catalog.verifiedRatings', 'verified ratings')})
                       </span>
                     </div>
 
@@ -221,7 +221,7 @@ export default function FeaturedServices({ selectedCategoryId, onOpenBookingModa
                           )}
                         </div>
                         <span style={{ fontSize: '11px', color: 'var(--forest-600)', fontWeight: 600 }}>
-                          Standard Base Rate
+                          {t('catalog.standardBaseRate', 'Standard Base Rate')}
                         </span>
                       </div>
 
@@ -230,7 +230,7 @@ export default function FeaturedServices({ selectedCategoryId, onOpenBookingModa
                         className="btn btn-primary btn-sm"
                         onClick={() => handleBook(service)}
                       >
-                        <span>Book Service</span>
+                        <span>{t('catalog.bookService', 'Book Service')}</span>
                         <ArrowRight size={14} />
                       </button>
                     </div>

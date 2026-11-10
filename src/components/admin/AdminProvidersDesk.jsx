@@ -25,10 +25,12 @@ import {
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 import InitialsAvatar from '../common/InitialsAvatar';
 
 export default function AdminProvidersDesk() {
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -128,16 +130,16 @@ export default function AdminProvidersDesk() {
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Users size={20} color="var(--forest-700)" />
-            <span>Service Specialists & Partner Quality Watchdog</span>
+            <span>{t('admin.deskProvidersTitle')}</span>
           </h2>
           <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Track certified technician quality, ratings, active status, and perform binding suspension or reinstatement rulings.
+            {t('admin.deskProvidersDesc')}
           </div>
         </div>
 
         <button type="button" onClick={fetchProviders} className="btn btn-outline btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
           <RefreshCw size={14} />
-          <span>Refresh</span>
+          <span>{t('admin.refresh')}</span>
         </button>
       </div>
 
@@ -159,13 +161,13 @@ export default function AdminProvidersDesk() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, phone, or specialty..."
+              placeholder={t('common.searchPlaceholder', 'Search...')}
               className="form-control"
               style={{ width: '100%', paddingLeft: '36px', fontSize: '13px', height: '38px', borderRadius: '8px' }}
             />
           </div>
           <button type="submit" className="btn btn-secondary btn-sm" style={{ height: '38px', padding: '0 16px' }}>
-            Search
+            {t('admin.search')}
           </button>
         </form>
 
@@ -176,12 +178,12 @@ export default function AdminProvidersDesk() {
             className="form-control"
             style={{ fontSize: '13px', height: '38px', borderRadius: '8px', padding: '0 12px' }}
           >
-            <option value="all">All Statuses</option>
-            <option value="approved">Approved & Active</option>
-            <option value="waiting_for_approval">Waiting Approval</option>
-            <option value="suspended">Suspended</option>
-            <option value="rejected">Rejected</option>
-            <option value="flagged">Quality Watchdog (Rating &lt; 3.5)</option>
+            <option value="all">{t('admin.allStatuses')}</option>
+            <option value="approved">{t('admin.approvedActive')}</option>
+            <option value="waiting_for_approval">{t('admin.waitingApproval')}</option>
+            <option value="suspended">{t('admin.suspendedStatus')}</option>
+            <option value="rejected">{t('admin.rejectedStatus')}</option>
+            <option value="flagged">{t('admin.qualityWatchdogFilter')}</option>
           </select>
 
           <select
@@ -190,12 +192,12 @@ export default function AdminProvidersDesk() {
             className="form-control"
             style={{ fontSize: '13px', height: '38px', borderRadius: '8px', padding: '0 12px' }}
           >
-            <option value="all">All Cities</option>
-            <option value="Mumbai">Mumbai</option>
-            <option value="Delhi">Delhi</option>
-            <option value="Bangalore">Bangalore</option>
-            <option value="Hyderabad">Hyderabad</option>
-            <option value="Pune">Pune</option>
+            <option value="all">{t('admin.allCities')}</option>
+            <option value="Mumbai">{'Mumbai'}</option>
+            <option value="Delhi">{'Delhi'}</option>
+            <option value="Bangalore">{'Bangalore'}</option>
+            <option value="Hyderabad">{'Hyderabad'}</option>
+            <option value="Pune">{'Pune'}</option>
           </select>
         </div>
       </div>
@@ -211,25 +213,25 @@ export default function AdminProvidersDesk() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div className="spinner" style={{ margin: '0 auto 12px auto' }} />
-            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Querying specialist directory...</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('admin.specialistDirectory')}</span>
           </div>
         ) : providers.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
             <Users size={36} color="var(--forest-300)" style={{ margin: '0 auto 12px auto' }} />
-            <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)', margin: '0 0 6px 0' }}>No Providers Found</h4>
-            <p style={{ fontSize: '13px', margin: 0 }}>No specialist profiles matched your search and filter criteria.</p>
+            <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)', margin: '0 0 6px 0' }}>{t('admin.noProvidersFound')}</h4>
+            <p style={{ fontSize: '13px', margin: 0 }}>{t('common.noResults', 'No specialist profiles matched your search and filter criteria.')}</p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--bg-warm)', borderBottom: '1.5px solid var(--border-light)', fontSize: '12px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '14px 18px' }}>Technician</th>
-                  <th style={{ padding: '14px 18px' }}>City & Area</th>
-                  <th style={{ padding: '14px 18px' }}>Specialty</th>
-                  <th style={{ padding: '14px 18px' }}>Rating & Jobs</th>
-                  <th style={{ padding: '14px 18px' }}>Status</th>
-                  <th style={{ padding: '14px 18px', textAlign: 'right' }}>Actions</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.candidate', 'Technician')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.cityAndArea')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.specialty')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.ratingAndJobs')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.status')}</th>
+                  <th style={{ padding: '14px 18px', textAlign: 'right' }}>{t('admin.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -275,7 +277,7 @@ export default function AdminProvidersDesk() {
 
                       <td style={{ padding: '16px 18px', fontSize: '13px', color: 'var(--text-main)' }}>
                         <span className="badge badge-neutral" style={{ fontSize: '12px' }}>
-                          {tech.specialty || 'General Service'}
+                          {tech.specialty || t('common.details', 'General Service')}
                         </span>
                       </td>
 
@@ -288,7 +290,7 @@ export default function AdminProvidersDesk() {
                           </span>
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                          {tech.jobsDone || 0} jobs completed
+                          {tech.jobsDone || 0} {t('admin.jobsCompleted')}
                         </div>
                       </td>
 
@@ -296,11 +298,11 @@ export default function AdminProvidersDesk() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {isSuspended ? (
                             <span className="badge badge-danger" style={{ fontSize: '11px', fontWeight: 800, alignSelf: 'flex-start' }}>
-                              SUSPENDED
+                              {t('admin.suspendedStatus')}
                             </span>
                           ) : isApproved ? (
                             <span className="badge badge-success" style={{ fontSize: '11px', fontWeight: 800, alignSelf: 'flex-start' }}>
-                              APPROVED
+                              {t('admin.approvedActive')}
                             </span>
                           ) : (
                             <span className="badge badge-warning" style={{ fontSize: '11px', fontWeight: 800, alignSelf: 'flex-start' }}>
@@ -310,7 +312,7 @@ export default function AdminProvidersDesk() {
 
                           {isFlagged && (
                             <span className="badge" style={{ backgroundColor: '#DC2626', color: '#FFFFFF', fontSize: '10px', fontWeight: 800, alignSelf: 'flex-start' }}>
-                              NEEDS ATTENTION
+                              {t('admin.needsAttentionSuffix')}
                             </span>
                           )}
                         </div>
@@ -328,7 +330,7 @@ export default function AdminProvidersDesk() {
                             style={{ color: '#16A34A', borderColor: '#86EFAC', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
                             <RotateCcw size={13} />
-                            <span>Reinstate</span>
+                            <span>{t('admin.reinstateSpecialist')}</span>
                           </button>
                         ) : (
                           <button
@@ -341,7 +343,7 @@ export default function AdminProvidersDesk() {
                             style={{ color: '#DC2626', borderColor: '#FCA5A5', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
                             <Ban size={13} />
-                            <span>Suspend</span>
+                            <span>{t('admin.suspendSpecialist')}</span>
                           </button>
                         )}
                       </td>
@@ -378,10 +380,10 @@ export default function AdminProvidersDesk() {
             boxShadow: 'var(--shadow-xl)'
           }}>
             <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#DC2626', marginBottom: '8px' }}>
-              Suspend Specialist: {selectedProvider?.name}
+              {t('admin.suspendSpecialist')}: {selectedProvider?.name}
             </h3>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-              Suspending this specialist immediately forces them offline and cancels any open job offers so they are immediately re-dispatched to the next eligible partner.
+              {t('admin.suspendNotice')}
             </p>
 
             <textarea
@@ -390,7 +392,7 @@ export default function AdminProvidersDesk() {
               rows={4}
               className="form-control"
               style={{ width: '100%', fontSize: '13px', padding: '10px', borderRadius: '8px', marginBottom: '16px' }}
-              placeholder="State the formal reason for suspending this specialist..."
+              placeholder={t('admin.decisionReason', 'Reason...')}
             />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
@@ -399,7 +401,7 @@ export default function AdminProvidersDesk() {
                 onClick={() => setSuspendModalOpen(false)}
                 className="btn btn-outline btn-sm"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -407,7 +409,7 @@ export default function AdminProvidersDesk() {
                 onClick={handleConfirmSuspend}
                 className="btn btn-danger btn-sm"
               >
-                {processing ? 'Suspending...' : 'Confirm Suspension'}
+                {processing ? t('common.loading') : t('admin.suspendSpecialist')}
               </button>
             </div>
           </div>
@@ -438,10 +440,10 @@ export default function AdminProvidersDesk() {
             boxShadow: 'var(--shadow-xl)'
           }}>
             <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#16A34A', marginBottom: '8px' }}>
-              Reinstate Specialist: {selectedProvider?.name}
+              {t('admin.reinstateSpecialist')}: {selectedProvider?.name}
             </h3>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-              Restore this partner to approved status so they can toggle online and receive customer job dispatches again.
+              {t('admin.reinstateNotice')}
             </p>
 
             <textarea
@@ -450,7 +452,7 @@ export default function AdminProvidersDesk() {
               rows={3}
               className="form-control"
               style={{ width: '100%', fontSize: '13px', padding: '10px', borderRadius: '8px', marginBottom: '16px' }}
-              placeholder="State resolution rationale (optional)..."
+              placeholder={t('admin.decisionReason', 'Reason...')}
             />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
@@ -459,7 +461,7 @@ export default function AdminProvidersDesk() {
                 onClick={() => setReinstateModalOpen(false)}
                 className="btn btn-outline btn-sm"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -468,7 +470,7 @@ export default function AdminProvidersDesk() {
                 className="btn btn-primary btn-sm"
                 style={{ backgroundColor: '#16A34A', borderColor: '#16A34A' }}
               >
-                {processing ? 'Reinstating...' : 'Confirm Reinstatement'}
+                {processing ? t('common.loading') : t('admin.reinstateSpecialist')}
               </button>
             </div>
           </div>

@@ -22,7 +22,10 @@ api.interceptors.response.use(
       }
     }
     const message = error.response?.data?.message || error.message || 'Something went wrong. Please try again.';
-    return Promise.reject(new Error(message));
+    const customErr = new Error(message);
+    customErr.code = error.response?.data?.code;
+    customErr.data = error.response?.data;
+    return Promise.reject(customErr);
   }
 );
 
@@ -51,6 +54,7 @@ export const authAPI = {
   changePassword: (data) => api.patch('/auth/change-password', data),
   downloadMyData: () => api.get('/auth/download-data', { responseType: 'blob' }),
   deleteMyAccount: (password) => api.post('/auth/delete-account', { password }),
+  updatePreferredLanguage: (language) => api.patch('/auth/preferred-language', { language }),
 };
 
 // Payments & Checkout API

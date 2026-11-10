@@ -1,9 +1,4 @@
-// ===================================================================
-// FixNear Trust - Modern, High-Simplicity Sign Up Page
-// Role Selection (Customer vs Service Provider) + Account Registration
-// ===================================================================
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -15,12 +10,13 @@ import {
   User, 
   Phone, 
   MapPin, 
+  Briefcase, 
   ArrowRight, 
-  Wrench, 
   AlertCircle,
   Eye,
   EyeOff,
-  CheckCircle2
+  CheckCircle2,
+  Globe
 } from 'lucide-react';
 
 const CITIES = [
@@ -39,9 +35,9 @@ const CITIES = [
 export default function SignUpPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signUpWithEmail } = useAuth();
+  const { currentUser, role, signUpWithEmail } = useAuth();
   const { showToast } = useToast();
-  const { t } = useLanguage();
+  const { lang, changeLanguage, t, getErrorMessage } = useLanguage();
 
   const searchParams = new URLSearchParams(location.search);
   const redirectParam = searchParams.get('redirect');
@@ -56,6 +52,21 @@ export default function SignUpPage() {
   const [city, setCity] = useState('Mumbai');
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Handle logged-in user navigating back to signup page
+  useEffect(() => {
+    if (currentUser) {
+      if (redirectParam) {
+        navigate(redirectParam, { replace: true });
+      } else if (role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else if (role === 'provider') {
+        navigate('/provider/dashboard', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [currentUser, role, redirectParam, navigate]);
 
   // Password strength checks
   const isLengthValid = password.length >= 8;
@@ -77,7 +88,7 @@ export default function SignUpPage() {
 
     const cleanPhone = phone.replace(/[^\d+]/g, '').trim();
     if (cleanPhone.replace(/\D/g, '').length < 10) {
-      setErrorMessage('Please enter a valid 10-digit mobile number.');
+      setErrorMessage(t('common.errorGeneral', 'Please enter a valid 10-digit mobile number.'));
       return;
     }
 
@@ -85,7 +96,16 @@ export default function SignUpPage() {
     setErrorMessage('');
 
     try {
-      await signUpWithEmail(email.trim().toLowerCase(), password, desiredRole, name.trim(), cleanPhone, city);
+      await signUpWithEmail({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        role: desiredRole,
+        phone: cleanPhone,
+        city,
+        preferredLanguage: lang,
+      });
+
       showToast(t('common.successGeneral', 'Account created successfully!'), 'success');
       
       if (desiredRole === 'provider') {
@@ -97,7 +117,7 @@ export default function SignUpPage() {
       }
     } catch (err) {
       console.error(err);
-      const message = err.message || 'Could not create account. Please try again.';
+      const message = getErrorMessage(err, t('common.errorGeneral', 'Could not create account. Please try again.'));
       setErrorMessage(message);
       showToast(message, 'error');
     } finally {
@@ -123,6 +143,43 @@ export default function SignUpPage() {
         boxShadow: 'var(--shadow-lg)',
         border: '1px solid var(--border-light)'
       }}>
+        {/* Language Selector Bar */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '8px',
+          marginBottom: '20px',
+          paddingBottom: '16px',
+          borderBottom: '1px solid var(--border-light)'
+        }}>
+          <Globe size={15} color="var(--forest-700)" />
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {[
+              { code: 'en', label: 'English' },
+              { code: 'hi', label: 'हिन्दी' },
+              { code: 'mr', label: 'मराठी' },
+            ].map((item) => (
+              <button
+                key={item.code}
+                type="button"
+                onClick={() => changeLanguage(item.code)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '12px',
+                  fontWeight: lang === item.code ? 700 : 500,
+                  backgroundColor: lang === item.code ? 'var(--forest-700)' : 'var(--forest-50)',
+                  color: lang === item.code ? '#FFFFFF' : 'var(--forest-800)',
+                  transition: 'var(--transition-fast)'
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div style={{
@@ -143,91 +200,74 @@ export default function SignUpPage() {
             {t('auth.signupTitle', 'Create Your Account')}
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            {t('auth.signupSubtitle', 'Join FixNear for verified, transparent home maintenance')}
+            {t('auth.signupSubtitle', 'Join thousands who trust FixNear for verified home care')}
           </p>
         </div>
 
-        {/* Role Selector Tabs (Customer vs Provider) */}
-        <div style={{ marginBottom: '24px' }}>
-          <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
-            {t('auth.roleSelectLabel', 'I want to join FixNear as:')}
-          </label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <button
-              type="button"
-              onClick={() => setDesiredRole('customer')}
-              style={{
-                padding: '14px 12px',
-                borderRadius: 'var(--radius-md)',
-                border: desiredRole === 'customer' ? '2px solid var(--forest-700)' : '1.5px solid var(--border-light)',
-                backgroundColor: desiredRole === 'customer' ? 'var(--forest-50)' : '#FFFFFF',
-                color: desiredRole === 'customer' ? 'var(--forest-900)' : 'var(--text-secondary)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '6px',
-                cursor: 'pointer',
-                transition: 'all 150ms ease',
-                fontWeight: 700,
-                fontSize: '14px'
-              }}
-            >
-              <User size={22} color={desiredRole === 'customer' ? 'var(--forest-700)' : 'var(--text-muted)'} />
-              <span>{t('roles.customer', 'Customer')}</span>
-              <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', textAlign: 'center' }}>
-                {t('auth.customerChoice', 'Need home repair services')}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setDesiredRole('provider')}
-              style={{
-                padding: '14px 12px',
-                borderRadius: 'var(--radius-md)',
-                border: desiredRole === 'provider' ? '2px solid var(--forest-700)' : '1.5px solid var(--border-light)',
-                backgroundColor: desiredRole === 'provider' ? 'var(--forest-50)' : '#FFFFFF',
-                color: desiredRole === 'provider' ? 'var(--forest-900)' : 'var(--text-secondary)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '6px',
-                cursor: 'pointer',
-                transition: 'all 150ms ease',
-                fontWeight: 700,
-                fontSize: '14px'
-              }}
-            >
-              <Wrench size={22} color={desiredRole === 'provider' ? 'var(--forest-700)' : 'var(--text-muted)'} />
-              <span>{t('roles.provider', 'Service Provider')}</span>
-              <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', textAlign: 'center' }}>
-                {t('auth.providerChoice', 'Skilled technician')}
-              </span>
-            </button>
-          </div>
+        {/* Role Switcher Tabs */}
+        <div style={{
+          display: 'flex',
+          backgroundColor: 'var(--bg-warm-secondary)',
+          borderRadius: 'var(--radius-md)',
+          padding: '4px',
+          marginBottom: '20px'
+        }}>
+          <button
+            type="button"
+            onClick={() => setDesiredRole('customer')}
+            style={{
+              flex: 1,
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '13.5px',
+              fontWeight: desiredRole === 'customer' ? 700 : 500,
+              backgroundColor: desiredRole === 'customer' ? '#FFFFFF' : 'transparent',
+              color: desiredRole === 'customer' ? 'var(--forest-900)' : 'var(--text-secondary)',
+              boxShadow: desiredRole === 'customer' ? 'var(--shadow-sm)' : 'none',
+              transition: 'var(--transition-fast)'
+            }}
+          >
+            {t('roles.customer', 'Customer')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setDesiredRole('provider')}
+            style={{
+              flex: 1,
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '13.5px',
+              fontWeight: desiredRole === 'provider' ? 700 : 500,
+              backgroundColor: desiredRole === 'provider' ? '#FFFFFF' : 'transparent',
+              color: desiredRole === 'provider' ? 'var(--forest-900)' : 'var(--text-secondary)',
+              boxShadow: desiredRole === 'provider' ? 'var(--shadow-sm)' : 'none',
+              transition: 'var(--transition-fast)'
+            }}
+          >
+            {t('roles.provider', 'Service Partner (Technician)')}
+          </button>
         </div>
 
         {/* Error message alert */}
         {errorMessage && (
           <div style={{
-            backgroundColor: '#FEF2F2',
-            border: '1px solid #FCA5A5',
-            borderRadius: 'var(--radius-sm)',
-            padding: '12px 14px',
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
-            color: '#991B1B',
-            fontSize: '13.5px',
-            marginBottom: '20px'
+            backgroundColor: '#FEE2E2',
+            color: '#B91C1C',
+            padding: '12px 16px',
+            borderRadius: 'var(--radius-sm)',
+            marginBottom: '20px',
+            fontSize: '13.5px'
           }}>
             <AlertCircle size={18} style={{ flexShrink: 0 }} />
             <span>{errorMessage}</span>
           </div>
         )}
 
-        {/* Registration Form */}
-        <form onSubmit={handleSignUp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {/* Sign Up Form */}
+        <form onSubmit={handleSignUp} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
               {t('auth.fullNameLabel', 'Full Name')}
@@ -236,7 +276,7 @@ export default function SignUpPage() {
               <User size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '14px' }} />
               <input
                 type="text"
-                placeholder="e.g. Ramesh Sharma"
+                placeholder={t('auth.fullNameLabel', 'Full Name')}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -247,7 +287,7 @@ export default function SignUpPage() {
                   border: '1.5px solid var(--border-light)',
                   paddingLeft: '40px',
                   paddingRight: '12px',
-                  fontSize: '15px',
+                  fontSize: '14.5px',
                   outline: 'none',
                   color: 'var(--text-primary)'
                 }}
@@ -274,7 +314,7 @@ export default function SignUpPage() {
                   border: '1.5px solid var(--border-light)',
                   paddingLeft: '40px',
                   paddingRight: '12px',
-                  fontSize: '15px',
+                  fontSize: '14.5px',
                   outline: 'none',
                   color: 'var(--text-primary)'
                 }}
@@ -282,7 +322,7 @@ export default function SignUpPage() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
                 {t('auth.phoneLabel', 'Phone Number')}
@@ -291,7 +331,7 @@ export default function SignUpPage() {
                 <Phone size={18} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '14px' }} />
                 <input
                   type="tel"
-                  placeholder="9820012345"
+                  placeholder="9876543210"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   required
@@ -302,7 +342,7 @@ export default function SignUpPage() {
                     border: '1.5px solid var(--border-light)',
                     paddingLeft: '40px',
                     paddingRight: '12px',
-                    fontSize: '14px',
+                    fontSize: '14.5px',
                     outline: 'none',
                     color: 'var(--text-primary)'
                   }}
@@ -347,7 +387,7 @@ export default function SignUpPage() {
                 {t('auth.passwordLabel', 'Password')}
               </label>
               <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                Min. 8 chars (letters & numbers)
+                {t('auth.passwordRules', 'Min. 8 chars (letters & numbers)')}
               </span>
             </div>
             <div style={{ position: 'relative' }}>
@@ -390,10 +430,10 @@ export default function SignUpPage() {
             {password && (
               <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '11.5px' }}>
                 <span style={{ color: isLengthValid ? '#059669' : '#9CA3AF', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  {isLengthValid ? '✓' : '•'} 8+ characters
+                  {isLengthValid ? '✓' : '•'} {t('auth.min8Chars', '8+ characters')}
                 </span>
                 <span style={{ color: hasLetter && hasNumber ? '#059669' : '#9CA3AF', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  {hasLetter && hasNumber ? '✓' : '•'} Letters & numbers
+                  {hasLetter && hasNumber ? '✓' : '•'} {t('auth.lettersAndNumbers', 'Letters & numbers')}
                 </span>
               </div>
             )}
@@ -411,7 +451,11 @@ export default function SignUpPage() {
               marginTop: '10px'
             }}
           >
-            <span>{submitting ? t('common.saving', 'Creating account...') : `${t('nav.signup', 'Sign Up')} as ${desiredRole === 'provider' ? t('roles.provider', 'Technician') : t('roles.customer', 'Customer')}`}</span>
+            <span>
+              {submitting
+                ? t('common.saving', 'Creating account...')
+                : `${t('nav.signup', 'Sign Up')} as ${desiredRole === 'provider' ? t('roles.provider', 'Technician') : t('roles.customer', 'Customer')}`}
+            </span>
             <ArrowRight size={16} />
           </button>
         </form>

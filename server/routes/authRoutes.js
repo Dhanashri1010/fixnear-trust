@@ -10,6 +10,7 @@ import {
   changePassword,
   downloadMyData,
   deleteMyAccount,
+  updatePreferredLanguage,
 } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { loginRateLimiter, authActionRateLimiter } from '../middleware/rateLimiter.js';
@@ -29,6 +30,7 @@ const registerSchema = z.object({
     role: z.enum(['customer', 'provider', 'admin']).optional(),
     phone: z.string().optional(),
     city: z.string().max(60, 'City name cannot exceed 60 characters').optional(),
+    preferredLanguage: z.enum(['en', 'hi', 'mr']).optional(),
   }),
 });
 
@@ -76,6 +78,7 @@ router.post('/register', validate(registerSchema), register);
 router.post('/login', loginRateLimiter, validate(loginSchema), login);
 router.post('/logout', logout);
 router.get('/me', authenticate, getMe);
+router.patch('/preferred-language', authenticate, updatePreferredLanguage);
 router.patch('/change-password', authenticate, authActionRateLimiter, validate(changePasswordSchema), changePassword);
 router.post('/forgot-password', authActionRateLimiter, validate(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', authActionRateLimiter, validate(resetPasswordSchema), resetPassword);

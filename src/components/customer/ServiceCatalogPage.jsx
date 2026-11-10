@@ -6,20 +6,22 @@ import {
   Clock, 
   ShieldCheck, 
   CheckCircle2, 
-  ArrowRight,
-  ChevronRight,
-  Home,
-  SlidersHorizontal,
-  RotateCcw,
-  Wrench,
-  AlertCircle
+  ArrowRight, 
+  ChevronRight, 
+  Home, 
+  SlidersHorizontal, 
+  RotateCcw, 
+  Wrench, 
+  AlertCircle 
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { servicesAPI } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function ServiceCatalogPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { t, formatCurrency } = useLanguage();
 
   const [services, setServices] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -28,27 +30,27 @@ export default function ServiceCatalogPage() {
 
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState(searchParams.get('category') || 'all');
   const [searchFilter, setSearchFilter] = useState(searchParams.get('search') || '');
-  const [selectedPriceRange, setSelectedPriceRange] = useState('all'); // 'all' | 'under-400' | '400-800' | 'above-800'
-  const [minRating, setMinRating] = useState(0); // 0, 4.85, 4.9
-  const [sortBy, setSortBy] = useState('popular'); // 'popular' | 'price-asc' | 'price-desc' | 'rating'
+  const [selectedPriceRange, setSelectedPriceRange] = useState('all');
+  const [minRating, setMinRating] = useState(0);
+  const [sortBy, setSortBy] = useState('popular'); // popular, price-asc, price-desc, rating
 
   useEffect(() => {
     let isMounted = true;
-    const loadCatalogData = async () => {
+    const fetchCatalog = async () => {
       try {
         setLoading(true);
-        const [catsRes, servsRes] = await Promise.all([
-          servicesAPI.getCategories(),
+        const [servRes, catRes] = await Promise.all([
           servicesAPI.getServices(),
+          servicesAPI.getCategories()
         ]);
         if (isMounted) {
-          setCategories(catsRes.categories || []);
-          setServices(servsRes.services || []);
+          setServices(servRes.services || []);
+          setCategories(catRes.categories || []);
           setError('');
         }
       } catch (err) {
         if (isMounted) {
-          setError(err.message || 'Failed to load catalog data.');
+          setError(err.message || t('common.errorGeneral', 'Unable to load service catalog.'));
         }
       } finally {
         if (isMounted) {
@@ -57,13 +59,12 @@ export default function ServiceCatalogPage() {
       }
     };
 
-    loadCatalogData();
+    fetchCatalog();
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Sync category changes to URL
   const handleCategoryChange = (catId) => {
     setSelectedCategoryFilter(catId);
     if (catId === 'all') {
@@ -74,49 +75,57 @@ export default function ServiceCatalogPage() {
     setSearchParams(searchParams);
   };
 
-  // Filter & sort logic
-  const filteredServices = useMemo(() => {
-    return services.filter(service => {
-      // Category filter
-      if (selectedCategoryFilter !== 'all' && service.categoryId !== selectedCategoryFilter && service.category !== selectedCategoryFilter) {
-        return false;
-      }
-
-      // Keyword search
-      if (searchFilter.trim()) {
-        const query = searchFilter.toLowerCase();
-        const matchesTitle = service.title?.toLowerCase().includes(query);
-        const matchesCategory = service.category?.toLowerCase().includes(query);
-        const matchesFeatures = service.features?.some(f => f.toLowerCase().includes(query));
-        if (!matchesTitle && !matchesCategory && !matchesFeatures) return false;
-      }
-
-      // Price filter
-      if (selectedPriceRange === 'under-400' && service.startingPrice >= 400) return false;
-      if (selectedPriceRange === '400-800' && (service.startingPrice < 400 || service.startingPrice > 800)) return false;
-      if (selectedPriceRange === 'above-800' && service.startingPrice <= 800) return false;
-
-      // Rating filter
-      if (minRating > 0 && (service.rating || 4.9) < minRating) return false;
-
-      return true;
-    }).sort((a, b) => {
-      if (sortBy === 'price-asc') return a.startingPrice - b.startingPrice;
-      if (sortBy === 'price-desc') return b.startingPrice - a.startingPrice;
-      if (sortBy === 'rating') return (b.rating || 4.9) - (a.rating || 4.9);
-      return (b.reviewsCount || 100) - (a.reviewsCount || 100);
-    });
-  }, [services, selectedCategoryFilter, searchFilter, selectedPriceRange, minRating, sortBy]);
-
   const resetAllFilters = () => {
-    handleCategoryChange('all');
+    setSelectedCategoryFilter('all');
     setSearchFilter('');
     setSelectedPriceRange('all');
     setMinRating(0);
     setSortBy('popular');
+    setSearchParams({});
   };
 
-  const activeCategoryObject = categories.find(c => c.categoryId === selectedCategoryFilter || c.name === selectedCategoryFilter);
+  const filteredServices = useMemo(() => {
+    return services.filter(service => {
+      // Category match
+      if (selectedCategoryFilter !== 'all') {
+        const catMatch = 
+          (service.categoryId && service.categoryId === selectedCategoryFilter) ||
+          (service.category && service.category.toLowerCase() === selectedCategoryFilter.toLowerCase());
+        if (!catMatch) return false;
+      }
+
+      // Search match
+      if (searchFilter.trim()) {
+        const q = searchFilter.toLowerCase();
+        const titleMatch = service.title && service.title.toLowerCase().includes(q);
+        const descMatch = service.description && service.description.toLowerCase().includes(q);
+        const catMatch = service.category && service.category.toLowerCase().includes(q);
+        const featMatch = service.features && service.features.some(f => f.toLowerCase().includes(q));
+        if (!titleMatch && !descMatch && !catMatch && !featMatch) return false;
+      }
+
+      // Price range match
+      const price = Number(service.startingPrice || 0);
+      if (selectedPriceRange === 'under-400' && price >= 400) return false;
+      if (selectedPriceRange === '400-800' && (price < 400 || price > 800)) return false;
+      if (selectedPriceRange === 'above-800' && price <= 800) return false;
+
+      // Rating match
+      const rating = Number(service.rating || 0);
+      if (minRating > 0 && rating < minRating) return false;
+
+      return true;
+    }).sort((a, b) => {
+      if (sortBy === 'price-asc') return (a.startingPrice || 0) - (b.startingPrice || 0);
+      if (sortBy === 'price-desc') return (b.startingPrice || 0) - (a.startingPrice || 0);
+      if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
+      return (b.reviewsCount || 0) - (a.reviewsCount || 0); // popular
+    });
+  }, [services, selectedCategoryFilter, searchFilter, selectedPriceRange, minRating, sortBy]);
+
+  const activeCategoryObject = categories.find(c => 
+    c.categoryId === selectedCategoryFilter || c.name.toLowerCase() === selectedCategoryFilter.toLowerCase()
+  );
 
   return (
     <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '85vh', padding: '32px 0 72px 0' }}>
@@ -137,18 +146,18 @@ export default function ServiceCatalogPage() {
           <button 
             type="button"
             onClick={() => navigate('/')}
-            style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, background: 'none' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
           >
             <Home size={14} />
-            <span>Home</span>
+            <span>{t('nav.home', 'Home')}</span>
           </button>
           <ChevronRight size={13} />
-          <span style={{ color: 'var(--text-secondary)' }}>All Services</span>
+          <span style={{ color: 'var(--text-secondary)' }}>{t('catalog.allCategories', 'All Services')}</span>
           {activeCategoryObject && (
             <>
               <ChevronRight size={13} />
               <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>
-                {activeCategoryObject.name}
+                {t(`categories.${activeCategoryObject.categoryId}`, activeCategoryObject.name)}
               </span>
             </>
           )}
@@ -172,14 +181,14 @@ export default function ServiceCatalogPage() {
             <div style={{ display: 'inline-flex', marginBottom: '8px' }}>
               <span className="badge badge-forest">
                 <ShieldCheck size={14} />
-                Standardized Rate Catalog
+                {t('catalog.standardRates', 'Standardized Rate Catalog')}
               </span>
             </div>
             <h1 style={{ fontSize: '30px', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '8px' }}>
-              {activeCategoryObject ? activeCategoryObject.name : "Explore All Certified Home Services"}
+              {activeCategoryObject ? t(`categories.${activeCategoryObject.categoryId}`, activeCategoryObject.name) : t('catalog.title', 'Explore All Certified Home Services')}
             </h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '15px', maxWidth: '620px' }}>
-              Every service includes upfront itemized pricing, vetted skill-certified partners, and our signature 30-day workmanship guarantee.
+              {t('catalog.subtitle', 'Every service includes upfront itemized pricing, vetted skill-certified partners, and our signature 30-day workmanship guarantee.')}
             </p>
           </div>
 
@@ -194,11 +203,11 @@ export default function ServiceCatalogPage() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--forest-800)' }}>
               <CheckCircle2 size={16} color="var(--forest-700)" />
-              <span>Zero Doorstep Surprises</span>
+              <span>{t('catalog.zeroSurprises', 'Zero Doorstep Surprises')}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--forest-800)' }}>
               <CheckCircle2 size={16} color="var(--forest-700)" />
-              <span>Payment Protected by Server</span>
+              <span>{t('common.paymentProtection', 'Payment Protected by Server')}</span>
             </div>
           </div>
         </div>
@@ -207,7 +216,7 @@ export default function ServiceCatalogPage() {
         {loading && (
           <div style={{ padding: '80px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
             <div className="spinner" style={{ margin: '0 auto 16px auto' }} />
-            <p style={{ fontSize: '15px' }}>Loading verified service catalog...</p>
+            <p style={{ fontSize: '15px' }}>{t('catalog.loadingServices', 'Loading verified service catalog...')}</p>
           </div>
         )}
 
@@ -215,7 +224,7 @@ export default function ServiceCatalogPage() {
         {!loading && error && (
           <div style={{ padding: '36px', textAlign: 'center', backgroundColor: '#FEF2F2', borderRadius: 'var(--radius-lg)', border: '1px solid #FECACA' }}>
             <AlertCircle size={32} color="#DC2626" style={{ margin: '0 auto 12px auto' }} />
-            <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#991B1B', marginBottom: '6px' }}>Catalog error</h4>
+            <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#991B1B', marginBottom: '6px' }}>{t('catalog.couldNotLoad', 'Catalog error')}</h4>
             <p style={{ fontSize: '14px', color: '#B91C1C' }}>{error}</p>
           </div>
         )}
@@ -242,21 +251,21 @@ export default function ServiceCatalogPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '16px' }}>
                   <Filter size={18} color="var(--forest-700)" />
-                  <span>Filters</span>
+                  <span>{t('common.filter', 'Filters')}</span>
                 </div>
                 <button 
                   onClick={resetAllFilters}
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--forest-700)', fontWeight: 600, background: 'none' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--forest-700)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
                 >
                   <RotateCcw size={12} />
-                  <span>Reset All</span>
+                  <span>{t('common.clear', 'Reset All')}</span>
                 </button>
               </div>
 
               {/* Filter 1: Search inside catalog */}
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 700, marginBottom: '8px', display: 'block', color: 'var(--text-primary)' }}>
-                  Search Catalog
+                  {t('catalog.searchPlaceholderCatalog', 'Search Catalog')}
                 </label>
                 <div style={{ position: 'relative' }}>
                   <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -264,7 +273,7 @@ export default function ServiceCatalogPage() {
                     type="text"
                     value={searchFilter}
                     onChange={(e) => setSearchFilter(e.target.value)}
-                    placeholder="Search by issue or name..."
+                    placeholder={t('catalog.searchPlaceholderCatalog', 'Search by issue or name...')}
                     className="input-field"
                     style={{ paddingLeft: '34px', fontSize: '13px', height: '38px' }}
                   />
@@ -274,7 +283,7 @@ export default function ServiceCatalogPage() {
               {/* Filter 2: Categories */}
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 700, marginBottom: '10px', display: 'block', color: 'var(--text-primary)' }}>
-                  Service Category
+                  {t('catalog.allCategoriesFilter', 'Service Category')}
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <button
@@ -291,7 +300,7 @@ export default function ServiceCatalogPage() {
                       cursor: 'pointer'
                     }}
                   >
-                    All Categories ({services.length})
+                    {t('catalog.allCategories', 'All Categories')} ({services.length})
                   </button>
                   {categories.map(c => {
                     const count = services.filter(s => s.categoryId === c.categoryId || s.category === c.name).length;
@@ -315,7 +324,7 @@ export default function ServiceCatalogPage() {
                           alignItems: 'center'
                         }}
                       >
-                        <span>{c.name}</span>
+                        <span>{t(`categories.${c.categoryId}`, c.name)}</span>
                         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({count})</span>
                       </button>
                     );
@@ -326,14 +335,14 @@ export default function ServiceCatalogPage() {
               {/* Filter 3: Price Range */}
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 700, marginBottom: '10px', display: 'block', color: 'var(--text-primary)' }}>
-                  Base Rate
+                  {t('catalog.standardBaseRate', 'Base Rate')}
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    { id: 'all', label: 'Any Base Price' },
-                    { id: 'under-400', label: 'Under ₹400' },
-                    { id: '400-800', label: '₹400 - ₹800' },
-                    { id: 'above-800', label: 'Above ₹800' }
+                    { id: 'all', label: t('common.all', 'Any Base Price') },
+                    { id: 'under-400', label: `< ₹400` },
+                    { id: '400-800', label: `₹400 - ₹800` },
+                    { id: 'above-800', label: `> ₹800` }
                   ].map(p => (
                     <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                       <input 
@@ -352,13 +361,13 @@ export default function ServiceCatalogPage() {
               {/* Filter 4: Rating */}
               <div>
                 <label style={{ fontSize: '13px', fontWeight: 700, marginBottom: '10px', display: 'block', color: 'var(--text-primary)' }}>
-                  Technician Rating
+                  {t('technician.ratingScore', 'Technician Rating')}
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
-                    { val: 0, label: 'All Verified Ratings' },
-                    { val: 4.85, label: '4.85+ Highly Rated' },
-                    { val: 4.9, label: '4.9+ FixNear Premier' }
+                    { val: 0, label: t('common.all', 'All Verified Ratings') },
+                    { val: 4.85, label: `4.85+ ★` },
+                    { val: 4.9, label: `4.9+ ★` }
                   ].map(r => (
                     <label key={r.val} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                       <input 
@@ -393,22 +402,22 @@ export default function ServiceCatalogPage() {
                 gap: '12px'
               }}>
                 <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Showing <strong style={{ color: 'var(--forest-900)' }}>{filteredServices.length}</strong> standardized services
+                  {t('catalog.showingServices', 'Showing verified services')}: <strong style={{ color: 'var(--forest-900)' }}>{filteredServices.length}</strong>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <SlidersHorizontal size={14} color="var(--text-muted)" />
-                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Sort by:</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{t('common.sortBy', 'Sort by:')}</span>
                   <select 
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
                     className="input-field"
                     style={{ height: '36px', fontSize: '13px', padding: '0 12px', minWidth: '150px' }}
                   >
-                    <option value="popular">Most Popular</option>
-                    <option value="price-asc">Price: Low to High</option>
-                    <option value="price-desc">Price: High to Low</option>
-                    <option value="rating">Top Rated</option>
+                    <option value="popular">{t('home.popularServices', 'Most Popular')}</option>
+                    <option value="price-asc">{t('common.price', 'Price')}: ↑</option>
+                    <option value="price-desc">{t('common.price', 'Price')}: ↓</option>
+                    <option value="rating">{t('technician.topRatedBadge', 'Top Rated')}</option>
                   </select>
                 </div>
               </div>
@@ -423,12 +432,12 @@ export default function ServiceCatalogPage() {
                   border: '1px dashed var(--border-medium)'
                 }}>
                   <Wrench size={48} color="var(--text-muted)" style={{ margin: '0 auto 16px auto' }} />
-                  <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>No matching services found</h3>
+                  <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>{t('catalog.noServicesFound', 'No matching services found')}</h3>
                   <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                    Try clearing or relaxing your search query and filters.
+                    {t('search.noResultsDesc', 'Try clearing or relaxing your search query and filters.')}
                   </p>
                   <button onClick={resetAllFilters} className="btn btn-outline btn-sm">
-                    Reset All Filters
+                    {t('common.clear', 'Reset All Filters')}
                   </button>
                 </div>
               ) : (
@@ -477,7 +486,7 @@ export default function ServiceCatalogPage() {
                             fontWeight: 700,
                             color: 'var(--forest-800)'
                           }}>
-                            {service.category}
+                            {t(`categories.${service.category}`, service.category)}
                           </div>
 
                           <div style={{
@@ -506,7 +515,7 @@ export default function ServiceCatalogPage() {
                             <Star size={14} color="#F59E0B" fill="#F59E0B" />
                             <span style={{ fontWeight: 700, fontSize: '13px' }}>{service.rating || '4.9'}</span>
                             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                              ({service.reviewsCount || 100} ratings)
+                              ({service.reviewsCount || 100} {t('catalog.verifiedRatings', 'ratings')})
                             </span>
                           </div>
 
@@ -535,16 +544,16 @@ export default function ServiceCatalogPage() {
                             <div>
                               <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
                                 <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--forest-800)' }}>
-                                  ₹{service.startingPrice}
+                                  {formatCurrency(service.startingPrice)}
                                 </span>
                                 {service.originalPrice > service.startingPrice && (
                                   <span style={{ fontSize: '12.5px', textDecoration: 'line-through', color: 'var(--text-muted)' }}>
-                                    ₹{service.originalPrice}
+                                    {formatCurrency(service.originalPrice)}
                                   </span>
                                 )}
                               </div>
                               <span style={{ fontSize: '11px', color: 'var(--forest-600)', fontWeight: 600 }}>
-                                Standard Rate
+                                {t('catalog.standardBaseRate', 'Standard Rate')}
                               </span>
                             </div>
 
@@ -552,7 +561,7 @@ export default function ServiceCatalogPage() {
                               className="btn btn-primary btn-sm"
                               onClick={() => navigate(`/book?serviceId=${serviceKey}`)}
                             >
-                              <span>Book Now</span>
+                              <span>{t('common.bookNow', 'Book Now')}</span>
                               <ArrowRight size={13} />
                             </button>
                           </div>

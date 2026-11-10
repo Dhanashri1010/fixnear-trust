@@ -14,12 +14,14 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { bookingsAPI, getSocket } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function QuotationReviewPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { currentUser } = useAuth();
   const { showToast } = useToast();
+  const { t, formatCurrency } = useLanguage();
 
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,10 +37,10 @@ export default function QuotationReviewPage() {
       if (res.success && res.booking) {
         setBooking(res.booking);
       } else {
-        setError('Booking not found.');
+        setError(t('quotation.noQuoteFound', 'Booking not found.'));
       }
     } catch (err) {
-      setError(err.message || 'Could not fetch quotation details.');
+      setError(err.message || t('quotation.loadingQuote', 'Could not fetch quotation details.'));
     } finally {
       setLoading(false);
     }
@@ -67,15 +69,15 @@ export default function QuotationReviewPage() {
   const handleApprove = async () => {
     setSubmitting(true);
     try {
-      const res = await bookingsAPI.approveQuotation(booking._id || booking.bookingId);
-      showToast('Spare parts quotation approved successfully!', 'success');
+      await bookingsAPI.approveQuotation(booking._id || booking.bookingId);
+      showToast(t('quotation.quoteApprovedNotice', 'Spare parts quotation approved successfully!'), 'success');
       setFeedbackMessage({
         type: 'success',
-        text: `Quotation Approved. Authorization for ₹${quote?.total || 0} extra work has been granted.`
+        text: `${t('quotation.quoteApprovedNotice')} ${formatCurrency(quote?.total || 0)}`
       });
       fetchBooking();
     } catch (err) {
-      showToast(err.message || 'Failed to approve quotation.', 'error');
+      showToast(err.message || t('common.errorGeneral', 'Failed to approve quotation.'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -85,14 +87,14 @@ export default function QuotationReviewPage() {
     setSubmitting(true);
     try {
       await bookingsAPI.declineQuotation(booking._id || booking.bookingId);
-      showToast('Quotation declined. Technician will proceed with baseline scope only.', 'info');
+      showToast(t('quotation.quoteDeclinedNotice', 'Quotation declined. Technician will proceed with baseline scope only.'), 'info');
       setFeedbackMessage({
         type: 'danger',
-        text: `Quotation Declined. The technician will charge only for the baseline service.`
+        text: t('quotation.quoteDeclinedNotice')
       });
       fetchBooking();
     } catch (err) {
-      showToast(err.message || 'Failed to decline quotation.', 'error');
+      showToast(err.message || t('common.errorGeneral', 'Failed to decline quotation.'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -103,7 +105,7 @@ export default function QuotationReviewPage() {
       <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
           <Clock size={32} style={{ margin: '0 auto 12px auto', animation: 'spin 1.5s linear infinite' }} />
-          <div>Loading quotation details...</div>
+          <div>{t('quotation.loadingQuote')}</div>
         </div>
       </div>
     );
@@ -113,10 +115,10 @@ export default function QuotationReviewPage() {
     return (
       <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '80vh', padding: '60px 20px', textAlign: 'center' }}>
         <div className="container" style={{ maxWidth: '480px' }}>
-          <h2>{error || 'No quotation found for this booking'}</h2>
+          <h2>{error || t('quotation.noQuoteFound')}</h2>
           <div style={{ marginTop: '20px' }}>
             <Link to="/bookings" className="btn btn-primary">
-              Return to Bookings
+              {t('invoice.returnToBookingsBtn')}
             </Link>
           </div>
         </div>
@@ -149,17 +151,17 @@ export default function QuotationReviewPage() {
             style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, textDecoration: 'none' }}
           >
             <Home size={14} />
-            <span>Home</span>
+            <span>{t('nav.home')}</span>
           </Link>
           <ChevronRight size={13} />
           <Link 
             to={`/track/${booking._id}`}
             style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}
           >
-            Tracking #{booking.bookingId}
+            {t('tracking.title')} #{booking.bookingId}
           </Link>
           <ChevronRight size={13} />
-          <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>Quotation Review</span>
+          <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>{t('quotation.title')}</span>
         </nav>
 
         {/* Feedback Alert */}
@@ -194,7 +196,7 @@ export default function QuotationReviewPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                 <span className="badge badge-forest">
                   <ShieldCheck size={13} />
-                  Doorstep Rate Transparency
+                  {t('quotation.doorstepTransparency')}
                 </span>
                 <span style={{
                   fontSize: '11px',
@@ -205,21 +207,21 @@ export default function QuotationReviewPage() {
                   backgroundColor: isApproved ? 'var(--forest-100)' : isRejected ? '#FEE2E2' : 'var(--yellow-100)',
                   color: isApproved ? 'var(--forest-800)' : isRejected ? '#991B1B' : 'var(--yellow-800)'
                 }}>
-                  Status: {quote?.status || 'NONE'}
+                  {t('common.status')}: {quote?.status || 'NONE'}
                 </span>
               </div>
               <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--forest-900)' }}>
-                Spare Parts & Extra Labor Quotation
+                {t('quotation.sparePartsTitle')}
               </h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
-                Service: <strong>{booking.serviceTitle}</strong> · Technician: <strong>{booking.providerName}</strong>
+                {t('common.service')}: <strong>{booking.serviceTitle}</strong> · {t('common.verifiedTechnician')}: <strong>{booking.providerName}</strong>
               </p>
             </div>
 
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Additional Cost:</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('quotation.additionalCostLabel')}</div>
               <div style={{ fontSize: '28px', fontWeight: 900, color: 'var(--forest-900)' }}>
-                ₹{quote?.total || 0}
+                {formatCurrency(quote?.total || 0)}
               </div>
             </div>
           </div>
@@ -228,16 +230,16 @@ export default function QuotationReviewPage() {
         {/* Quotation Reason & Scope */}
         <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)', marginBottom: '24px' }}>
           <h2 style={{ fontSize: '17px', fontWeight: 800, marginBottom: '14px' }}>
-            Technician Diagnostic Notes
+            {t('quotation.technicianNotesHeading')}
           </h2>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6, padding: '14px', backgroundColor: 'var(--bg-warm)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)' }}>
-            {quote?.reason || 'Additional replacement parts requested for long-term repair stability.'}
+            {quote?.reason || t('quotation.defaultReason')}
           </p>
 
           {/* Items Table */}
           {quote?.items && quote.items.length > 0 && (
             <div style={{ marginTop: '20px' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '10px' }}>Required Replacement Items</h3>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '10px' }}>{t('quotation.requiredItemsHeading')}</h3>
               <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
                 {quote.items.map((item, idx) => (
                   <div key={idx} style={{
@@ -248,10 +250,10 @@ export default function QuotationReviewPage() {
                     fontSize: '13.5px'
                   }}>
                     <div>
-                      <strong>{item.desc || 'Replacement Part'}</strong>
-                      {item.partNo && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Part #{item.partNo}</div>}
+                      <strong>{item.desc || t('quotation.replacementPartDefault')}</strong>
+                      {item.partNo && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('common.reference')} #{item.partNo}</div>}
                     </div>
-                    <strong style={{ color: 'var(--forest-800)' }}>₹{item.amount}</strong>
+                    <strong style={{ color: 'var(--forest-800)' }}>{formatCurrency(item.amount)}</strong>
                   </div>
                 ))}
               </div>
@@ -269,7 +271,7 @@ export default function QuotationReviewPage() {
                 style={{ color: '#DC2626', borderColor: '#FCA5A5' }}
               >
                 <XCircle size={15} />
-                <span>Decline Quotation</span>
+                <span>{t('quotation.declineQuotationBtn')}</span>
               </button>
 
               <button
@@ -279,7 +281,7 @@ export default function QuotationReviewPage() {
                 disabled={submitting}
               >
                 <CheckCircle2 size={15} />
-                <span>Approve Extra Work (₹{quote?.total || 0})</span>
+                <span>{t('quotation.approveExtraWorkBtn')} ({formatCurrency(quote?.total || 0)})</span>
               </button>
             </div>
           )}

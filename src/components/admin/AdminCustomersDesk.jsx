@@ -21,10 +21,12 @@ import {
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 import InitialsAvatar from '../common/InitialsAvatar';
 
 export default function AdminCustomersDesk() {
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -111,16 +113,16 @@ export default function AdminCustomersDesk() {
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Users size={20} color="var(--forest-700)" />
-            <span>Customer Accounts & Trust Governance</span>
+            <span>{t('admin.deskCustomersTitle')}</span>
           </h2>
           <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Search registered customers, monitor booking history, and enforce platform trust restrictions.
+            {t('admin.deskCustomersDesc')}
           </div>
         </div>
 
         <button type="button" onClick={fetchCustomers} className="btn btn-outline btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
           <RefreshCw size={14} />
-          <span>Refresh</span>
+          <span>{t('admin.refresh')}</span>
         </button>
       </div>
 
@@ -142,13 +144,13 @@ export default function AdminCustomersDesk() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by customer name, email, or phone..."
+              placeholder={t('common.searchPlaceholder', 'Search...')}
               className="form-control"
               style={{ width: '100%', paddingLeft: '36px', fontSize: '13px', height: '38px', borderRadius: '8px' }}
             />
           </div>
           <button type="submit" className="btn btn-secondary btn-sm" style={{ height: '38px', padding: '0 16px' }}>
-            Search
+            {t('admin.search')}
           </button>
         </form>
 
@@ -158,9 +160,9 @@ export default function AdminCustomersDesk() {
           className="form-control"
           style={{ fontSize: '13px', height: '38px', borderRadius: '8px', padding: '0 12px' }}
         >
-          <option value="all">All Accounts</option>
-          <option value="active">Active Accounts</option>
-          <option value="blocked">Suspended / Blocked</option>
+          <option value="all">{t('admin.allAccounts')}</option>
+          <option value="active">{t('admin.activeAccounts')}</option>
+          <option value="blocked">{t('admin.suspendedAccounts')}</option>
         </select>
       </div>
 
@@ -175,25 +177,25 @@ export default function AdminCustomersDesk() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div className="spinner" style={{ margin: '0 auto 12px auto' }} />
-            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Querying customer database...</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('admin.aggregatingOps')}</span>
           </div>
         ) : customers.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
             <Users size={36} color="var(--forest-300)" style={{ margin: '0 auto 12px auto' }} />
-            <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)', margin: '0 0 6px 0' }}>No Customers Found</h4>
-            <p style={{ fontSize: '13px', margin: 0 }}>No customer accounts matched your search criteria.</p>
+            <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)', margin: '0 0 6px 0' }}>{t('admin.noCustomersFound')}</h4>
+            <p style={{ fontSize: '13px', margin: 0 }}>{t('common.noResults', 'No customer accounts matched your search criteria.')}</p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '650px' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--bg-warm)', borderBottom: '1.5px solid var(--border-light)', fontSize: '12px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '14px 18px' }}>Customer</th>
-                  <th style={{ padding: '14px 18px' }}>City</th>
-                  <th style={{ padding: '14px 18px' }}>Joined Date</th>
-                  <th style={{ padding: '14px 18px' }}>Bookings</th>
-                  <th style={{ padding: '14px 18px' }}>Status</th>
-                  <th style={{ padding: '14px 18px', textAlign: 'right' }}>Actions</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.customers')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.city')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.joinDate')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.bookings')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.status')}</th>
+                  <th style={{ padding: '14px 18px', textAlign: 'right' }}>{t('admin.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -217,7 +219,7 @@ export default function AdminCustomersDesk() {
                               {cust.name}
                             </div>
                             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                              {cust.email} • {cust.phone || 'No phone'}
+                              {cust.email} {'•'} {cust.phone || t('common.noPhone', 'No phone')}
                             </div>
                           </div>
                         </div>
@@ -245,7 +247,7 @@ export default function AdminCustomersDesk() {
                         {isBlocked ? (
                           <div>
                             <span className="badge badge-danger" style={{ fontSize: '11px', fontWeight: 800 }}>
-                              SUSPENDED
+                              {t('admin.suspendedStatus')}
                             </span>
                             {cust.blockedReason && (
                               <div style={{ fontSize: '11px', color: '#991B1B', marginTop: '2px', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -255,7 +257,7 @@ export default function AdminCustomersDesk() {
                           </div>
                         ) : (
                           <span className="badge badge-success" style={{ fontSize: '11px', fontWeight: 800 }}>
-                            ACTIVE
+                            {t('admin.approvedActive')}
                           </span>
                         )}
                       </td>
@@ -270,7 +272,7 @@ export default function AdminCustomersDesk() {
                             style={{ color: '#16A34A', borderColor: '#86EFAC', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
                             <RotateCcw size={13} />
-                            <span>Unblock</span>
+                            <span>{t('admin.unblockBtn')}</span>
                           </button>
                         ) : (
                           <button
@@ -284,7 +286,7 @@ export default function AdminCustomersDesk() {
                             style={{ color: '#DC2626', borderColor: '#FCA5A5', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
                             <Ban size={13} />
-                            <span>Block User</span>
+                            <span>{t('admin.blockBtn')}</span>
                           </button>
                         )}
                       </td>
@@ -321,10 +323,10 @@ export default function AdminCustomersDesk() {
             boxShadow: 'var(--shadow-xl)'
           }}>
             <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#DC2626', marginBottom: '8px' }}>
-              Suspend Customer Account: {selectedCustomer?.name}
+              {t('admin.suspendBtn')}: {selectedCustomer?.name}
             </h3>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-              Suspending this customer immediately terminates all active web socket connections and invalidates subsequent authentication requests. They will not be able to sign in.
+              {t('admin.securityNotice')}
             </p>
 
             <textarea
@@ -333,7 +335,7 @@ export default function AdminCustomersDesk() {
               rows={4}
               className="form-control"
               style={{ width: '100%', fontSize: '13px', padding: '10px', borderRadius: '8px', marginBottom: '16px' }}
-              placeholder="State the reason for blocking this customer..."
+              placeholder={t('admin.decisionReason')}
             />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
@@ -342,7 +344,7 @@ export default function AdminCustomersDesk() {
                 onClick={() => setBlockModalOpen(false)}
                 className="btn btn-outline btn-sm"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -350,7 +352,7 @@ export default function AdminCustomersDesk() {
                 onClick={handleConfirmBlock}
                 className="btn btn-danger btn-sm"
               >
-                {processing ? 'Suspending...' : 'Confirm Account Block'}
+                {processing ? t('common.loading') : t('admin.blockBtn')}
               </button>
             </div>
           </div>

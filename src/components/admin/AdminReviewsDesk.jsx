@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminAPI } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 import {
   Star,
   EyeOff,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 
 export default function AdminReviewsDesk() {
+  const { t } = useLanguage();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -103,18 +105,18 @@ export default function AdminReviewsDesk() {
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Star className="w-6 h-6 text-amber-500 fill-amber-500" />
-            Customer Reviews & Ratings Moderation Desk
+            <span>{t('admin.customerReviewsDesk')}</span>
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Audit public feedback. Moderating or hiding offensive reviews instantly recalculates the technician's rating score.
+            {t('admin.customerReviewsDesc')}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold">
-            {visibleCount} Visible
+            {visibleCount} {t('admin.visible')}
           </span>
           <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-semibold">
-            {hiddenCount} Moderated
+            {hiddenCount} {t('admin.moderated')}
           </span>
           <button
             onClick={fetchReviews}
@@ -122,7 +124,7 @@ export default function AdminReviewsDesk() {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 ml-2"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            <span>{t('admin.refresh')}</span>
           </button>
         </div>
       </div>
@@ -148,7 +150,7 @@ export default function AdminReviewsDesk() {
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search reviewer, comment, service..."
+              placeholder={t('common.searchPlaceholder', 'Search...')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-amber-500"
@@ -158,7 +160,7 @@ export default function AdminReviewsDesk() {
             type="submit"
             className="px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800"
           >
-            Search
+            {t('admin.search')}
           </button>
         </form>
 
@@ -169,9 +171,9 @@ export default function AdminReviewsDesk() {
             onChange={(e) => setVisibilityFilter(e.target.value)}
             className="text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-amber-500 bg-white"
           >
-            <option value="all">All Feedback</option>
-            <option value="visible">Public Only</option>
-            <option value="hidden">Hidden / Moderated Only</option>
+            <option value="all">{t('admin.allFeedback')}</option>
+            <option value="visible">{t('admin.publicOnly')}</option>
+            <option value="hidden">{t('admin.hiddenOnly')}</option>
           </select>
         </div>
       </div>
@@ -182,12 +184,12 @@ export default function AdminReviewsDesk() {
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
-                <th className="py-3 px-4">Rating</th>
-                <th className="py-3 px-4">Customer & Service</th>
-                <th className="py-3 px-4">Review Content</th>
-                <th className="py-3 px-4">Timestamp</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Moderation</th>
+                <th className="py-3 px-4">{t('admin.rating')}</th>
+                <th className="py-3 px-4">{t('admin.customerAndService')}</th>
+                <th className="py-3 px-4">{t('admin.reviewContent')}</th>
+                <th className="py-3 px-4">{t('admin.timestamp')}</th>
+                <th className="py-3 px-4">{t('admin.status')}</th>
+                <th className="py-3 px-4 text-right">{t('admin.moderation')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -195,14 +197,14 @@ export default function AdminReviewsDesk() {
                 <tr>
                   <td colSpan="6" className="py-12 text-center text-slate-400">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-amber-500" />
-                    Loading verified reviews...
+                    <span>{t('admin.loadingReviews')}</span>
                   </td>
                 </tr>
               ) : reviews.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="py-12 text-center text-slate-500">
                     <MessageSquare className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    No reviews matching the criteria.
+                    <span>{t('admin.noReviewsCriteria')}</span>
                   </td>
                 </tr>
               ) : (
@@ -230,13 +232,13 @@ export default function AdminReviewsDesk() {
                     </td>
                     <td className="py-3 px-4">
                       <div className="font-semibold text-slate-900">{rev.authorName}</div>
-                      <div className="text-xs text-slate-500">{rev.serviceTitle || 'Home Service'}</div>
+                      <div className="text-xs text-slate-500">{rev.serviceTitle || t('common.details', 'Home Service')}</div>
                     </td>
                     <td className="py-3 px-4 max-w-md">
                       <p className="text-sm line-clamp-2">"{rev.comment}"</p>
                       {rev.isHidden && rev.hiddenReason && (
                         <div className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded mt-1 inline-block">
-                          Moderation note: {rev.hiddenReason}
+                          <span>{t('admin.moderationNote')} {rev.hiddenReason}</span>
                         </div>
                       )}
                     </td>
@@ -251,12 +253,12 @@ export default function AdminReviewsDesk() {
                       {rev.isHidden ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-200">
                           <EyeOff className="w-3 h-3" />
-                          Hidden
+                          <span>{t('admin.hidden')}</span>
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
                           <Eye className="w-3 h-3" />
-                          Public
+                          <span>{t('admin.public')}</span>
                         </span>
                       )}
                     </td>
@@ -271,12 +273,12 @@ export default function AdminReviewsDesk() {
                         {rev.isHidden ? (
                           <>
                             <Eye className="w-3.5 h-3.5" />
-                            Unhide Review
+                            <span>{t('admin.unhideReview')}</span>
                           </>
                         ) : (
                           <>
                             <EyeOff className="w-3.5 h-3.5" />
-                            Hide / Moderate
+                            <span>{t('admin.hideReview')}</span>
                           </>
                         )}
                       </button>
@@ -302,14 +304,14 @@ export default function AdminReviewsDesk() {
 
             <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-1">
               <EyeOff className="w-5 h-5 text-rose-600" />
-              Hide Review from Public View
+              <span>{t('admin.hideReviewTitle')}</span>
             </h3>
             <p className="text-xs text-slate-500 mb-4">
-              This review will be immediately hidden from customer apps and excluded from the technician's average rating calculation.
+              {t('admin.hideReviewNotice')}
             </p>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4 text-xs">
-              <div className="font-semibold text-slate-800 mb-1">Review by {activeReview.authorName}:</div>
+              <div className="font-semibold text-slate-800 mb-1">{t('admin.reviewBy')} {activeReview.authorName}:</div>
               <p className="text-slate-600 italic">"{activeReview.comment}"</p>
             </div>
 
@@ -322,13 +324,13 @@ export default function AdminReviewsDesk() {
             >
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Reason for Moderation (Audit Logged)
+                  {t('admin.reasonModeration')}
                 </label>
                 <textarea
                   rows="3"
                   value={hideReason}
                   onChange={(e) => setHideReason(e.target.value)}
-                  placeholder="e.g. Abusive language, false claims, promotional spam..."
+                  placeholder={t('admin.decisionReason', 'Reason...')}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-rose-500"
                   required
                 />
@@ -341,7 +343,7 @@ export default function AdminReviewsDesk() {
                   disabled={submitting}
                   className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -351,12 +353,12 @@ export default function AdminReviewsDesk() {
                   {submitting ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Hiding...
+                      <span>{t('admin.hiding')}</span>
                     </>
                   ) : (
                     <>
                       <EyeOff className="w-3.5 h-3.5" />
-                      Confirm Hide
+                      <span>{t('admin.confirmHide')}</span>
                     </>
                   )}
                 </button>

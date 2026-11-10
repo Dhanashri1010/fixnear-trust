@@ -25,9 +25,11 @@ import {
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function AdminBookingsDesk() {
   const { showToast } = useToast();
+  const { t, formatCurrency, formatDate } = useLanguage();
 
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -120,16 +122,16 @@ export default function AdminBookingsDesk() {
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <ShoppingBag size={20} color="var(--forest-700)" />
-            <span>Central Bookings Dispatch & Operations Desk</span>
+            <span>{t('admin.deskBookingsTitle')}</span>
           </h2>
           <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Inspect full customer addresses, technician assignments, quotation extra parts, and intervene with booking cancellations or reassignments.
+            {t('admin.deskBookingsDesc')}
           </div>
         </div>
 
         <button type="button" onClick={fetchBookings} className="btn btn-outline btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
           <RefreshCw size={14} />
-          <span>Refresh</span>
+          <span>{t('admin.refresh')}</span>
         </button>
       </div>
 
@@ -151,13 +153,13 @@ export default function AdminBookingsDesk() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by Booking ID, customer, service, address..."
+              placeholder={t('admin.search') + '...'}
               className="form-control"
               style={{ width: '100%', paddingLeft: '36px', fontSize: '13px', height: '38px', borderRadius: '8px' }}
             />
           </div>
           <button type="submit" className="btn btn-secondary btn-sm" style={{ height: '38px', padding: '0 16px' }}>
-            Search
+            {t('admin.search')}
           </button>
         </form>
 
@@ -167,14 +169,14 @@ export default function AdminBookingsDesk() {
           className="form-control"
           style={{ fontSize: '13px', height: '38px', borderRadius: '8px', padding: '0 12px' }}
         >
-          <option value="all">All Statuses</option>
-          <option value="REQUESTED">REQUESTED</option>
-          <option value="ACCEPTED">ACCEPTED</option>
-          <option value="ON_THE_WAY">ON_THE_WAY</option>
-          <option value="WORKING">WORKING</option>
-          <option value="COMPLETED">COMPLETED</option>
-          <option value="CANCELLED">CANCELLED</option>
-          <option value="NO_PROVIDER_FOUND">NO_PROVIDER_FOUND</option>
+          <option value="all">{t('admin.allStatuses')}</option>
+          <option value="REQUESTED">{t('status.REQUESTED')}</option>
+          <option value="ACCEPTED">{t('status.ACCEPTED')}</option>
+          <option value="ON_THE_WAY">{t('status.ON_THE_WAY')}</option>
+          <option value="WORKING">{t('status.WORKING')}</option>
+          <option value="COMPLETED">{t('status.COMPLETED')}</option>
+          <option value="CANCELLED">{t('status.CANCELLED')}</option>
+          <option value="NO_PROVIDER_FOUND">{t('status.NO_PROVIDER_FOUND')}</option>
         </select>
 
         <select
@@ -183,12 +185,12 @@ export default function AdminBookingsDesk() {
           className="form-control"
           style={{ fontSize: '13px', height: '38px', borderRadius: '8px', padding: '0 12px' }}
         >
-          <option value="all">All Cities</option>
-          <option value="Mumbai">Mumbai</option>
-          <option value="Delhi">Delhi</option>
-          <option value="Bangalore">Bangalore</option>
-          <option value="Hyderabad">Hyderabad</option>
-          <option value="Pune">Pune</option>
+          <option value="all">{t('admin.city')}</option>
+          <option value="Mumbai">{'Mumbai'}</option>
+          <option value="Delhi">{'Delhi'}</option>
+          <option value="Bangalore">{'Bangalore'}</option>
+          <option value="Hyderabad">{'Hyderabad'}</option>
+          <option value="Pune">{'Pune'}</option>
         </select>
       </div>
 
@@ -203,26 +205,26 @@ export default function AdminBookingsDesk() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div className="spinner" style={{ margin: '0 auto 12px auto' }} />
-            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Querying bookings database...</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('admin.aggregatingOps')}</span>
           </div>
         ) : bookings.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
             <ShoppingBag size={36} color="var(--forest-300)" style={{ margin: '0 auto 12px auto' }} />
-            <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)', margin: '0 0 6px 0' }}>No Bookings Found</h4>
-            <p style={{ fontSize: '13px', margin: 0 }}>No bookings matched your search and filter criteria.</p>
+            <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)', margin: '0 0 6px 0' }}>{t('admin.noBookingsFound')}</h4>
+            <p style={{ fontSize: '13px', margin: 0 }}>{t('admin.noBookingsFound')}</p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '750px' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--bg-warm)', borderBottom: '1.5px solid var(--border-light)', fontSize: '12px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '14px 18px' }}>Booking</th>
-                  <th style={{ padding: '14px 18px' }}>Customer & Location</th>
-                  <th style={{ padding: '14px 18px' }}>Assigned Partner</th>
-                  <th style={{ padding: '14px 18px' }}>Schedule</th>
-                  <th style={{ padding: '14px 18px' }}>Amount</th>
-                  <th style={{ padding: '14px 18px' }}>Status</th>
-                  <th style={{ padding: '14px 18px', textAlign: 'right' }}>Inspect</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.booking')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.customerDetails')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.assignedProvider')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.date')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.amount')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.status')}</th>
+                  <th style={{ padding: '14px 18px', textAlign: 'right' }}>{t('admin.details')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -262,7 +264,7 @@ export default function AdminBookingsDesk() {
                           </div>
                         ) : (
                           <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                            {b.status === 'REQUESTED' ? 'Offering in queue...' : 'Unassigned'}
+                            {b.status === 'REQUESTED' ? t('status.REQUESTED') : t('admin.unassignedSuffix')}
                           </span>
                         )}
                       </td>
@@ -282,7 +284,7 @@ export default function AdminBookingsDesk() {
                           b.status === 'CANCELLED' || b.status === 'NO_PROVIDER_FOUND' ? 'badge-danger' :
                           b.status === 'REQUESTED' ? 'badge-primary' : 'badge-warning'
                         }`} style={{ fontSize: '11px', fontWeight: 800 }}>
-                          {b.status}
+                          {t('status.' + b.status, b.status)}
                         </span>
                       </td>
 
@@ -294,7 +296,7 @@ export default function AdminBookingsDesk() {
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                         >
                           <Eye size={13} />
-                          <span>View</span>
+                          <span>{t('admin.view')}</span>
                         </button>
                       </td>
                     </tr>
@@ -334,7 +336,7 @@ export default function AdminBookingsDesk() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
               <div>
                 <span className="badge badge-primary" style={{ fontSize: '11px', fontWeight: 800 }}>
-                  BOOKING DETAILS
+                  {t('admin.details')}
                 </span>
                 <h3 style={{ fontSize: '19px', fontWeight: 800, color: 'var(--forest-900)', margin: '4px 0 0 0' }}>
                   #{selectedBooking.bookingId}
@@ -359,26 +361,26 @@ export default function AdminBookingsDesk() {
                   selectedBooking.status === 'COMPLETED' ? 'badge-success' :
                   selectedBooking.status === 'CANCELLED' ? 'badge-danger' : 'badge-warning'
                 }`} style={{ fontSize: '11px', fontWeight: 800 }}>
-                  {selectedBooking.status}
+                  {t('status.' + selectedBooking.status, selectedBooking.status)}
                 </span>
               </div>
               <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Scheduled: {selectedBooking.scheduledDate} • {selectedBooking.timeSlot}
+                {t('admin.date')}: {selectedBooking.scheduledDate} • {selectedBooking.timeSlot}
               </div>
             </div>
 
             {/* Full Customer Details (Phone & Address Visible to Admin) */}
             <div style={{ border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
               <h4 style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase', marginBottom: '10px' }}>
-                Customer Information (Admin Verified)
+                {t('admin.customerDetails')}
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
-                <div><strong>Name:</strong> {selectedBooking.customerName}</div>
-                <div><strong>Phone:</strong> {selectedBooking.customerPhone}</div>
-                <div><strong>Full Address:</strong> {selectedBooking.address}, {selectedBooking.city}</div>
+                <div><strong>{t('common.name', 'Name')}:</strong> {selectedBooking.customerName}</div>
+                <div><strong>{t('admin.phone')}:</strong> {selectedBooking.customerPhone}</div>
+                <div><strong>{t('admin.address')}:</strong> {selectedBooking.address}, {selectedBooking.city}</div>
                 {selectedBooking.problemNote && (
                   <div style={{ marginTop: '4px', color: 'var(--text-secondary)' }}>
-                    <strong>Problem Note:</strong> "{selectedBooking.problemNote}"
+                    <strong>{t('providerDashboard.problemDescLabel')}:</strong> "{selectedBooking.problemNote}"
                   </div>
                 )}
               </div>
@@ -387,17 +389,17 @@ export default function AdminBookingsDesk() {
             {/* Assigned Partner Details */}
             <div style={{ border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
               <h4 style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase', marginBottom: '10px' }}>
-                Assigned Specialist
+                {t('admin.assignedProvider')}
               </h4>
               {selectedBooking.providerId ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
-                  <div><strong>Name:</strong> {selectedBooking.providerName}</div>
-                  <div><strong>Phone:</strong> {selectedBooking.providerPhone}</div>
-                  <div><strong>Specialist ID:</strong> {selectedBooking.providerId}</div>
+                  <div><strong>{t('common.name', 'Name')}:</strong> {selectedBooking.providerName}</div>
+                  <div><strong>{t('admin.phone')}:</strong> {selectedBooking.providerPhone}</div>
+                  <div><strong>{t('common.id', 'ID')}:</strong> {selectedBooking.providerId}</div>
                 </div>
               ) : (
                 <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                  {selectedBooking.status === 'REQUESTED' ? 'Offer pending in 60s window with nearby specialists.' : 'No specialist assigned.'}
+                  {selectedBooking.status === 'REQUESTED' ? t('status.REQUESTED') : t('admin.noProvidersFound')}
                 </div>
               )}
             </div>
@@ -405,21 +407,21 @@ export default function AdminBookingsDesk() {
             {/* Financial Invoice Breakdown */}
             <div style={{ border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
               <h4 style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase', marginBottom: '10px' }}>
-                Financial Invoice & Escrow Breakdown
+                {t('admin.pricingBreakdown')}
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Base Diagnostic Price:</span>
+                  <span>{t('booking.baseService')}:</span>
                   <span>₹{selectedBooking.basePrice || selectedBooking.invoice?.baseAmount || 0}</span>
                 </div>
                 {selectedBooking.invoice?.extraAmount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#D97706' }}>
-                    <span>Approved Extra Spare Parts:</span>
+                    <span>{t('providerDashboard.sparePartsQuoteLabel')}</span>
                     <span>+₹{selectedBooking.invoice.extraAmount}</span>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, borderTop: '1px solid var(--border-light)', paddingTop: '6px', fontSize: '14px' }}>
-                  <span>Billed Total:</span>
+                  <span>{t('admin.total')}:</span>
                   <span>₹{selectedBooking.invoice?.totalAmount || selectedBooking.basePrice || 0}</span>
                 </div>
               </div>
@@ -435,7 +437,7 @@ export default function AdminBookingsDesk() {
                   style={{ width: '100%', color: '#DC2626', borderColor: '#FCA5A5' }}
                 >
                   <XCircle size={16} />
-                  <span>Cancel Booking as Admin</span>
+                  <span>{t('admin.cancelBookingBtn')}</span>
                 </button>
               </div>
             )}
@@ -467,10 +469,10 @@ export default function AdminBookingsDesk() {
             boxShadow: 'var(--shadow-xl)'
           }}>
             <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#DC2626', marginBottom: '8px' }}>
-              Cancel Booking #{selectedBooking?.bookingId}
+              {t('admin.cancelBookingBtn')} #{selectedBooking?.bookingId}
             </h3>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-              State the reason for administrative cancellation. Both the customer and assigned technician will be notified, and any escrow hold will be released.
+              {t('admin.cancelBookingPrompt')}
             </p>
 
             <textarea
@@ -479,7 +481,7 @@ export default function AdminBookingsDesk() {
               rows={3}
               className="form-control"
               style={{ width: '100%', fontSize: '13px', padding: '10px', borderRadius: '8px', marginBottom: '16px' }}
-              placeholder="State the cancellation rationale..."
+              placeholder={t('admin.reason')}
             />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
@@ -488,7 +490,7 @@ export default function AdminBookingsDesk() {
                 onClick={() => setCancelModalOpen(false)}
                 className="btn btn-outline btn-sm"
               >
-                Go Back
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -496,7 +498,7 @@ export default function AdminBookingsDesk() {
                 onClick={handleConfirmCancel}
                 className="btn btn-danger btn-sm"
               >
-                {processing ? 'Cancelling...' : 'Confirm Cancellation'}
+                {processing ? t('common.loading') : t('admin.cancelBookingBtn')}
               </button>
             </div>
           </div>

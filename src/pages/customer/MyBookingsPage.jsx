@@ -9,6 +9,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { bookingsAPI, getSocket } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { 
   CalendarDays, 
   Clock, 
@@ -32,6 +33,7 @@ export default function MyBookingsPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { showToast } = useToast();
+  const { t, formatDate, formatCurrency, getStatusLabel } = useLanguage();
 
   const [tab, setTab] = useState('upcoming'); // 'upcoming' | 'done' | 'cancelled'
   const [bookings, setBookings] = useState([]);
@@ -58,7 +60,7 @@ export default function MyBookingsPage() {
       }
     } catch (err) {
       console.warn('Failed to fetch bookings:', err.message);
-      setError(err.message || 'Could not load your bookings.');
+      setError(err.message || t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -92,50 +94,36 @@ export default function MyBookingsPage() {
   const handleCancelBooking = async (id) => {
     try {
       await bookingsAPI.cancelBooking(id, cancelReason || 'Cancelled by customer');
-      showToast('Booking cancelled.', 'info');
+      showToast(t('booking.cancelSuccess', 'Booking cancelled.'), 'info');
       setCancellingBookingId(null);
       setCancelReason('');
       fetchBookings();
     } catch (err) {
-      showToast(err.message || 'Failed to cancel booking', 'error');
+      showToast(err.message || t('common.error'), 'error');
     }
   };
 
   const handleRescheduleBooking = async (id) => {
     if (!newDate || !newSlot) {
-      showToast('Please select both a new date and time slot.', 'error');
+      showToast(t('booking.selectDateSlotPrompt', 'Please select both a new date and time slot.'), 'error');
       return;
     }
     try {
       await bookingsAPI.rescheduleBooking(id, { scheduledDate: newDate, timeSlot: newSlot });
-      showToast('Booking rescheduled successfully!', 'success');
+      showToast(t('booking.rescheduleSuccess', 'Booking rescheduled successfully!'), 'success');
       setReschedulingBookingId(null);
       fetchBookings();
     } catch (err) {
-      showToast(err.message || 'Failed to reschedule booking', 'error');
+      showToast(err.message || t('common.error'), 'error');
     }
   };
 
   // Plain-Language Status Formatter
   const getPlainStatus = (status) => {
-    switch (status) {
-      case 'REQUESTED':
-        return { label: 'Booking Placed (Assigning Pro)', color: 'badge-yellow', badgeColor: '#D97706' };
-      case 'ACCEPTED':
-        return { label: 'Specialist Confirmed', color: 'badge-forest', badgeColor: '#10B981' };
-      case 'ON_THE_WAY':
-        return { label: 'Specialist On The Way', color: 'badge-forest', badgeColor: '#059669' };
-      case 'WORKING':
-        return { label: 'Repair in Progress', color: 'badge-forest', badgeColor: '#2563EB' };
-      case 'COMPLETED':
-        return { label: 'Completed & Warranted', color: 'badge-forest', badgeColor: '#16A34A' };
-      case 'CANCELLED':
-        return { label: 'Cancelled', color: 'badge-muted', badgeColor: '#6B7280' };
-      case 'DISPUTED':
-        return { label: 'In Dispute Review', color: 'badge-yellow', badgeColor: '#DC2626' };
-      default:
-        return { label: status || 'Pending', color: 'badge-muted', badgeColor: '#6B7280' };
-    }
+    return {
+      label: getStatusLabel(status),
+      badgeColor: status === 'COMPLETED' ? '#16A34A' : status === 'CANCELLED' ? '#6B7280' : status === 'DISPUTED' ? '#DC2626' : '#10B981'
+    };
   };
 
   // Filter tabs
@@ -154,10 +142,10 @@ export default function MyBookingsPage() {
       {/* Page Header */}
       <div style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--forest-900)' }}>
-          My Bookings
+          {t('myBookings.title')}
         </h1>
         <p style={{ fontSize: '14.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-          Live appointment tracking, transparent quotations, finish codes and 30-day warranty protection.
+          {t('myBookings.subtitle')}
         </p>
       </div>
 
@@ -186,7 +174,7 @@ export default function MyBookingsPage() {
           }}
         >
           <Clock size={16} />
-          <span>Upcoming & Active ({upcomingBookings.length})</span>
+          <span>{t('myBookings.tabUpcoming')} ({upcomingBookings.length})</span>
         </button>
 
         <button
@@ -207,7 +195,7 @@ export default function MyBookingsPage() {
           }}
         >
           <CheckCircle2 size={16} />
-          <span>Done ({doneBookings.length})</span>
+          <span>{t('myBookings.tabCompleted')} ({doneBookings.length})</span>
         </button>
 
         <button
@@ -228,7 +216,7 @@ export default function MyBookingsPage() {
           }}
         >
           <XCircle size={16} />
-          <span>Cancelled ({cancelledBookings.length})</span>
+          <span>{t('myBookings.tabCancelled')} ({cancelledBookings.length})</span>
         </button>
       </div>
 
@@ -236,7 +224,7 @@ export default function MyBookingsPage() {
       {loading && (
         <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
           <Clock size={32} style={{ margin: '0 auto 12px auto', animation: 'spin 1.5s linear infinite' }} />
-          <div>Loading your bookings from server...</div>
+          <div>{t('common.loading')}</div>
         </div>
       )}
 
@@ -281,18 +269,14 @@ export default function MyBookingsPage() {
             <CalendarDays size={28} />
           </div>
           <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '8px' }}>
-            No {tab} bookings found
+            {t('myBookings.noBookingsTitle')}
           </h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '20px' }}>
-            {tab === 'upcoming' 
-              ? 'You do not have any active appointments scheduled.' 
-              : tab === 'done' 
-              ? 'You have not completed any appointments yet.'
-              : 'You have no cancelled bookings.'}
+            {t('myBookings.noBookingsDesc')}
           </p>
           <Link to="/book" className="btn btn-primary" style={{ display: 'inline-flex' }}>
             <Wrench size={16} />
-            <span>Book a Verified Service</span>
+            <span>{t('myBookings.bookServiceBtn')}</span>
           </Link>
         </div>
       )}
@@ -344,10 +328,10 @@ export default function MyBookingsPage() {
 
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)' }}>
-                      ₹{booking.invoice?.totalAmount || booking.basePrice}
+                      {formatCurrency(booking.invoice?.totalAmount || booking.basePrice)}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                      {isCompleted ? 'Payment Protected (Paid)' : 'Payment Protection'}
+                      {isCompleted ? t('tracking.paymentVerified') : t('booking.paymentProtection')}
                     </div>
                   </div>
                 </div>
@@ -365,18 +349,18 @@ export default function MyBookingsPage() {
                 }}>
                   <div>
                     <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>
-                      Assigned Specialist
+                      {t('tracking.assignedSpecialist')}
                     </span>
                     <strong style={{ color: 'var(--forest-900)' }}>
                       {booking.status === 'REQUESTED' 
-                        ? 'Assigning in your area...' 
-                        : (booking.providerName || 'Certified Specialist')}
+                        ? t('tracking.searchingTechnician') 
+                        : (booking.providerName || t('technician.certifiedBadge'))}
                     </strong>
                   </div>
 
                   <div>
                     <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>
-                      Scheduled Window
+                      {t('booking.summaryTime')}
                     </span>
                     <span style={{ color: 'var(--text-primary)' }}>
                       {booking.scheduledDate}, {booking.timeSlot}
@@ -385,7 +369,7 @@ export default function MyBookingsPage() {
 
                   <div>
                     <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>
-                      4-Digit Finish Code
+                      {t('myBookings.completionOtpLabel')}
                     </span>
                     <span style={{
                       fontSize: '14px',
@@ -394,37 +378,37 @@ export default function MyBookingsPage() {
                       color: isCompleted ? 'var(--text-muted)' : 'var(--forest-800)',
                       fontFamily: 'monospace'
                     }}>
-                      {isCompleted ? 'VERIFIED' : (booking.completionOtp || '****')}
+                      {isCompleted ? t('tracking.paymentVerified') : (booking.completionOtp || '****')}
                     </span>
                   </div>
                 </div>
 
                 {/* Address */}
                 <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                  <strong>Address:</strong> {booking.address} ({booking.city})
+                  <strong>{t('booking.addressLabel')}:</strong> {booking.address} ({booking.city})
                 </div>
 
                 {/* Inline Cancel / Reschedule Forms if active */}
                 {cancellingBookingId === booking._id && (
                   <div style={{ padding: '14px', backgroundColor: '#FEF2F2', borderRadius: '8px', marginBottom: '16px', border: '1px solid #FCA5A5' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#991B1B', marginBottom: '8px' }}>Confirm Cancellation:</div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#991B1B', marginBottom: '8px' }}>{t('myBookings.cancelBtn')}:</div>
                     <input
                       type="text"
-                      placeholder="Reason for cancellation (optional)"
+                      placeholder={t('myBookings.cancelBtn')}
                       value={cancelReason}
                       onChange={(e) => setCancelReason(e.target.value)}
                       style={{ width: '100%', padding: '8px 10px', fontSize: '13px', borderRadius: '4px', border: '1px solid #FCA5A5', marginBottom: '10px' }}
                     />
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button className="btn btn-outline btn-sm" onClick={() => setCancellingBookingId(null)}>Keep Booking</button>
-                      <button className="btn btn-primary btn-sm" style={{ backgroundColor: '#DC2626' }} onClick={() => handleCancelBooking(booking._id)}>Confirm Cancel</button>
+                      <button className="btn btn-outline btn-sm" onClick={() => setCancellingBookingId(null)}>{t('common.cancel')}</button>
+                      <button className="btn btn-primary btn-sm" style={{ backgroundColor: '#DC2626' }} onClick={() => handleCancelBooking(booking._id)}>{t('myBookings.cancelBtn')}</button>
                     </div>
                   </div>
                 )}
 
                 {reschedulingBookingId === booking._id && (
                   <div style={{ padding: '14px', backgroundColor: 'var(--forest-50)', borderRadius: '8px', marginBottom: '16px', border: '1px solid var(--forest-200)' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '8px' }}>Choose New Date & Slot:</div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '8px' }}>{t('myBookings.rescheduleBtn')}:</div>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
                       <input
                         type="date"
@@ -438,15 +422,15 @@ export default function MyBookingsPage() {
                         onChange={(e) => setNewSlot(e.target.value)}
                         style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-light)' }}
                       >
-                        <option value="">-- Choose Slot --</option>
-                        <option value="Morning (09:00 AM - 12:00 PM)">Morning (09:00 AM - 12:00 PM)</option>
-                        <option value="Afternoon (12:00 PM - 03:00 PM)">Afternoon (12:00 PM - 03:00 PM)</option>
-                        <option value="Evening (03:00 PM - 06:00 PM)">Evening (03:00 PM - 06:00 PM)</option>
+                        <option value="">{t('booking.summaryTime')}</option>
+                        <option value="Morning (09:00 AM - 12:00 PM)">09:00 AM - 12:00 PM</option>
+                        <option value="Afternoon (12:00 PM - 03:00 PM)">12:00 PM - 03:00 PM</option>
+                        <option value="Evening (03:00 PM - 06:00 PM)">03:00 PM - 06:00 PM</option>
                       </select>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <button className="btn btn-outline btn-sm" onClick={() => setReschedulingBookingId(null)}>Cancel</button>
-                      <button className="btn btn-primary btn-sm" onClick={() => handleRescheduleBooking(booking._id)}>Save New Time</button>
+                      <button className="btn btn-outline btn-sm" onClick={() => setReschedulingBookingId(null)}>{t('common.cancel')}</button>
+                      <button className="btn btn-primary btn-sm" onClick={() => handleRescheduleBooking(booking._id)}>{t('common.save')}</button>
                     </div>
                   </div>
                 )}
@@ -466,7 +450,7 @@ export default function MyBookingsPage() {
                           }}
                           style={{ fontSize: '12px', color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
                         >
-                          Cancel
+                          {t('myBookings.cancelBtn')}
                         </button>
                         <span style={{ color: 'var(--border-light)' }}>·</span>
                         <button
@@ -477,7 +461,7 @@ export default function MyBookingsPage() {
                           }}
                           style={{ fontSize: '12px', color: 'var(--forest-700)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
                         >
-                          Reschedule
+                          {t('myBookings.rescheduleBtn')}
                         </button>
                       </>
                     )}
@@ -493,7 +477,7 @@ export default function MyBookingsPage() {
                         style={{ marginRight: '8px' }}
                       >
                         <FileText size={14} />
-                        <span>Review Quote (₹{booking.quotation.total})</span>
+                        <span>{t('quotation.title')} ({formatCurrency(booking.quotation.total)})</span>
                       </button>
                     )}
 
@@ -504,7 +488,7 @@ export default function MyBookingsPage() {
                         className="btn btn-primary btn-sm"
                       >
                         <Navigation size={14} />
-                        <span>Track Live Progress →</span>
+                        <span>{t('myBookings.trackBtn')} →</span>
                       </button>
                     )}
 
@@ -516,7 +500,7 @@ export default function MyBookingsPage() {
                           className="btn btn-secondary btn-sm"
                         >
                           <Star size={14} color="#F59E0B" />
-                          <span>Rate Service</span>
+                          <span>{t('myBookings.reviewBtn')}</span>
                         </button>
 
                         <button
@@ -526,7 +510,7 @@ export default function MyBookingsPage() {
                           style={{ color: '#DC2626', borderColor: '#FCA5A5' }}
                         >
                           <ShieldAlert size={14} />
-                          <span>Raise Dispute</span>
+                          <span>{t('myBookings.disputeBtn')}</span>
                         </button>
 
                         <button
@@ -535,7 +519,7 @@ export default function MyBookingsPage() {
                           className="btn btn-primary btn-sm"
                         >
                           <FileText size={14} />
-                          <span>Warranty Receipt</span>
+                          <span>{t('myBookings.viewInvoiceBtn')}</span>
                         </button>
                       </div>
                     )}
@@ -547,7 +531,7 @@ export default function MyBookingsPage() {
                         className="btn btn-primary btn-sm"
                       >
                         <RotateCcw size={14} />
-                        <span>Book Again</span>
+                        <span>{t('myBookings.bookServiceBtn')}</span>
                       </button>
                     )}
                   </div>

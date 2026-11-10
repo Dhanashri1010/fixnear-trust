@@ -1,39 +1,32 @@
 // ===================================================================
-// FixNear Trust - Post-Completion Verified Customer Review Modal
-// 1-5 Star Rating + Written Feedback
+// FixNear Trust - Customer Service Review Modal
+// Collects rating & comments, sends to REST API
 // ===================================================================
 
 import React, { useState } from 'react';
-import { 
-  Star, 
-  ShieldCheck, 
-  X, 
-  CheckCircle2, 
-  AlertCircle
-} from 'lucide-react';
+import { Star, X, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { bookingsAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function ReviewModal({ isOpen, onClose, booking, onReviewSubmitted }) {
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
-  const [comment, setComment] = useState('');
+  const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState("");
 
   if (!isOpen || !booking) return null;
 
-  const proName = booking.providerName || booking.technicianName || "Specialist";
-  const serviceName = booking.serviceTitle || "Home Service";
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMsg('');
+    setErrorMsg("");
 
-    if (!comment.trim()) {
-      setErrorMsg('Please write a brief feedback sentence about your service.');
+    if (!comment.trim() || comment.length < 10) {
+      setErrorMsg(t('reviews.minCharsPrompt', "Please share at least 10 characters describing your experience."));
       return;
     }
 
@@ -43,21 +36,23 @@ export default function ReviewModal({ isOpen, onClose, booking, onReviewSubmitte
       await bookingsAPI.submitReview(bookingId, {
         rating,
         comment: comment.trim(),
-        photos: [],
       });
 
-      showToast('Thank you! Your verified rating & review has been published.', 'success');
+      showToast(t('reviews.thankYouToast', "Thank you! Your verified review has been published."), "success");
       if (onReviewSubmitted) onReviewSubmitted();
       onClose();
     } catch (err) {
-      console.error('Review submit error:', err);
-      const msg = err.message || 'Failed to submit review. Please try again.';
+      console.error("Review submission error:", err);
+      const msg = err.message || t('reviews.submitFailed', "Failed to submit review. Please try again.");
       setErrorMsg(msg);
-      showToast(msg, 'error');
+      showToast(msg, "error");
     } finally {
       setSubmitting(false);
     }
   };
+
+  const proName = booking.providerName || booking.provider?.name || t('technician.certifiedBadge');
+  const serviceName = booking.serviceTitle || booking.service?.title || t('brand.name');
 
   return (
     <div style={{
@@ -97,9 +92,9 @@ export default function ReviewModal({ isOpen, onClose, booking, onReviewSubmitte
           <div>
             <span className="badge badge-forest" style={{ fontSize: '11px', marginBottom: '4px' }}>
               <ShieldCheck size={12} />
-              Verified Service Review
+              {t('reviews.verifiedBadge')}
             </span>
-            <h3 style={{ fontSize: '18px', fontWeight: 800 }}>Rate Your Experience</h3>
+            <h3 style={{ fontSize: '18px', fontWeight: 800 }}>{t('reviews.rateExperienceHeading')}</h3>
           </div>
 
           <button 
@@ -136,11 +131,11 @@ export default function ReviewModal({ isOpen, onClose, booking, onReviewSubmitte
             <div>
               <div style={{ fontWeight: 700, fontSize: '15px' }}>{serviceName}</div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Technician: <strong>{proName}</strong>
+                {t('reviews.technicianLabel')} <strong>{proName}</strong>
               </div>
             </div>
             <span className="badge badge-forest" style={{ fontSize: '11px' }}>
-              Job Completed
+              {t('reviews.jobCompletedBadge')}
             </span>
           </div>
 
@@ -165,7 +160,7 @@ export default function ReviewModal({ isOpen, onClose, booking, onReviewSubmitte
           {/* Star Rating Selector */}
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '10px' }}>
-              How satisfied were you with the quality of repair?
+              {t('reviews.satisfactionQuestion')}
             </label>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
               {[1, 2, 3, 4, 5].map((star) => (
@@ -192,20 +187,20 @@ export default function ReviewModal({ isOpen, onClose, booking, onReviewSubmitte
               ))}
             </div>
             <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>
-              {rating === 5 ? 'Excellent Workmanship' : rating === 4 ? 'Very Good Service' : rating === 3 ? 'Average' : 'Needs Improvement'}
+              {rating === 5 ? t('reviews.rating5Text') : rating === 4 ? t('reviews.rating4Text') : rating === 3 ? t('reviews.rating3Text') : t('reviews.ratingLowerText')}
             </div>
           </div>
 
           {/* Comment */}
           <div style={{ marginBottom: '24px' }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-              Written Feedback:
+              {t('reviews.feedbackHeading')}
             </label>
             <textarea
               rows={4}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Tell other customers about punctuality, transparency of pricing, and workmanship quality..."
+              placeholder={t('reviews.feedbackPlaceholder')}
               style={{
                 width: '100%',
                 padding: '12px',
@@ -226,7 +221,7 @@ export default function ReviewModal({ isOpen, onClose, booking, onReviewSubmitte
               disabled={submitting}
               style={{ flex: 1 }}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
@@ -234,7 +229,7 @@ export default function ReviewModal({ isOpen, onClose, booking, onReviewSubmitte
               disabled={submitting}
               style={{ flex: 1.5 }}
             >
-              {submitting ? 'Publishing...' : 'Submit Verified Review'}
+              {submitting ? t('reviews.publishingReviewBtn') : t('reviews.submitReviewBtn')}
             </button>
           </div>
 

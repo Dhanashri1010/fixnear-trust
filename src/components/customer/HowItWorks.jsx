@@ -3,35 +3,37 @@ import {
   Search, 
   UserCheck, 
   FileCheck, 
-  ShieldCheck, 
-  ArrowRight 
+  ShieldCheck
 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function HowItWorks() {
+  const { t } = useLanguage();
+
   const steps = [
     {
-      num: "01",
+      num: t('home.step1Num', '01'),
       icon: Search,
-      title: "Select Service or Symptom",
-      desc: "Choose from our transparent rate card or describe the symptom. No hidden initial callout fees."
+      title: t('home.step1TitleFull', 'Select Service or Symptom'),
+      desc: t('home.step1DescFull', 'Choose from our transparent rate card or describe the symptom. No hidden initial callout fees.')
     },
     {
-      num: "02",
+      num: t('home.step2Num', '02'),
       icon: UserCheck,
-      title: "Certified Partner Dispatched",
-      desc: "A background-checked, skill-certified local technician arrives equipped with diagnostic tools."
+      title: t('home.step2TitleFull', 'Certified Partner Dispatched'),
+      desc: t('home.step2DescFull', 'A background-checked, skill-certified local technician arrives equipped with diagnostic tools.')
     },
     {
-      num: "03",
+      num: t('home.step3Num', '03'),
       icon: FileCheck,
-      title: "Digital Quotation Approval",
-      desc: "If additional replacement parts are required, approve the itemized quote on your screen before work starts."
+      title: t('home.step3TitleFull', 'Digital Quotation Approval'),
+      desc: t('home.step3DescFull', 'If additional replacement parts are required, approve the itemized quote on your screen before work starts.')
     },
     {
-      num: "04",
+      num: t('home.step4Num', '04'),
       icon: ShieldCheck,
-      title: "Verify & Activate Warranty",
-      desc: "Inspect completed work, confirm completion via OTP, and receive your 30-day FixNear warranty certificate."
+      title: t('home.step4TitleFull', 'Verify & Activate Warranty'),
+      desc: t('home.step4DescFull', 'Inspect completed work, confirm completion via OTP, and receive your 30-day FixNear warranty certificate.')
     }
   ];
 
@@ -43,14 +45,14 @@ export default function HowItWorks() {
         <div style={{ textAlign: 'center', maxWidth: '640px', margin: '0 auto 48px auto' }}>
           <div style={{ display: 'inline-flex', marginBottom: '12px' }}>
             <span className="badge badge-forest">
-              Simple 4-Step Process
+              {t('home.simple4Step', 'Simple 4-Step Process')}
             </span>
           </div>
           <h2 style={{ fontSize: '32px', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '12px' }}>
-            How FixNear Trust Works
+            {t('home.howItWorks', 'How FixNear Works')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '15.5px' }}>
-            Engineered to eliminate surprise doorstep estimates, low-quality repairs, and unverified service partners.
+            {t('home.howItWorksSubtitle', 'Engineered to eliminate surprise doorstep estimates, low-quality repairs, and unverified service partners.')}
           </p>
         </div>
 

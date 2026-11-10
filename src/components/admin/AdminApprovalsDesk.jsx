@@ -26,10 +26,12 @@ import {
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 import InitialsAvatar from '../common/InitialsAvatar';
 
 export default function AdminApprovalsDesk() {
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -155,8 +157,8 @@ export default function AdminApprovalsDesk() {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px', backgroundColor: '#FFFFFF', borderRadius: '16px' }}>
         <div className="spinner" style={{ margin: '0 auto 16px auto' }} />
-        <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)' }}>Loading Approvals Queue...</h3>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Retrieving submitted partner applications awaiting verification.</p>
+        <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)' }}>{t('admin.loadingApprovals')}</h3>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('admin.retrievingApplications')}</p>
       </div>
     );
   }
@@ -183,20 +185,20 @@ export default function AdminApprovalsDesk() {
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <UserCheck size={20} color="var(--forest-700)" />
-            <span>Specialist Verification & KYC Review Queue</span>
+            <span>{t('admin.deskApprovalsTitle')}</span>
           </h2>
           <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Review skill examination scores, signed KYC identification proofs, and make binding onboarding rulings.
+            {t('admin.deskApprovalsDesc')}
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span className="badge badge-primary" style={{ padding: '6px 12px', fontSize: '12.5px' }}>
-            {candidates.length} Candidate{candidates.length !== 1 ? 's' : ''} Awaiting Review
+            {candidates.length} {t('admin.candidate')} • {t('admin.awaitingReview')}
           </span>
           <button type="button" onClick={fetchCandidates} className="btn btn-outline btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <RefreshCw size={14} />
-            <span>Refresh</span>
+            <span>{t('admin.refresh')}</span>
           </button>
         </div>
       </div>
@@ -211,10 +213,10 @@ export default function AdminApprovalsDesk() {
         }}>
           <CheckCircle2 size={44} color="#16A34A" style={{ margin: '0 auto 16px auto' }} />
           <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
-            All Verification Submissions Processed
+            {t('admin.allSubmissionsProcessed')}
           </h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px', maxWidth: '440px', margin: '0 auto' }}>
-            No technicians waiting for approval. As soon as a provider completes registration and skill testing, their dossier will appear here for review.
+            {t('admin.noTechsWaiting')}
           </p>
         </div>
       ) : (
@@ -234,7 +236,7 @@ export default function AdminApprovalsDesk() {
           }}>
             <div style={{ padding: '16px', borderBottom: '1px solid var(--border-light)', backgroundColor: 'var(--bg-warm)' }}>
               <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase' }}>
-                Pending Candidates ({candidates.length})
+                {t('admin.pendingCandidates')} ({candidates.length})
               </span>
             </div>
 
@@ -289,11 +291,11 @@ export default function AdminApprovalsDesk() {
             {detailLoading ? (
               <div style={{ textAlign: 'center', padding: '60px 20px' }}>
                 <div className="spinner" style={{ margin: '0 auto 12px auto' }} />
-                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading provider dossier and signed document URLs...</span>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('admin.loadingApprovals')}</span>
               </div>
             ) : !activeProvider ? (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
-                Select a candidate from the left queue to inspect their dossier.
+                {t('admin.noTechsWaiting')}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -308,18 +310,18 @@ export default function AdminApprovalsDesk() {
                           {activeProvider.name}
                         </h3>
                         <span className="badge badge-warning" style={{ fontSize: '11px', fontWeight: 800 }}>
-                          WAITING APPROVAL
+                          {t('admin.waitingApproval')}
                         </span>
                       </div>
                       <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <Phone size={13} /> {activeProvider.phone || activeProvider.userId?.phone || 'No phone'}
+                          <Phone size={13} /> {activeProvider.phone || activeProvider.userId?.phone || '—'}
                         </span>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                           <MapPin size={13} /> {activeProvider.city}
                         </span>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <Briefcase size={13} /> {activeProvider.experienceYears || 3} Years Exp
+                          <Briefcase size={13} /> {activeProvider.experienceYears || 3} {t('provider.yearsSuffix')}
                         </span>
                       </div>
                     </div>
@@ -335,7 +337,7 @@ export default function AdminApprovalsDesk() {
                       style={{ color: '#DC2626', borderColor: '#FCA5A5' }}
                     >
                       <XCircle size={15} />
-                      <span>Reject</span>
+                      <span>{t('admin.rejectBtn')}</span>
                     </button>
                     <button
                       type="button"
@@ -344,7 +346,7 @@ export default function AdminApprovalsDesk() {
                       className="btn btn-secondary btn-sm"
                     >
                       <MessageSquare size={15} />
-                      <span>Request Info</span>
+                      <span>{t('admin.requestMoreInfo')}</span>
                     </button>
                     <button
                       type="button"
@@ -354,7 +356,7 @@ export default function AdminApprovalsDesk() {
                       style={{ backgroundColor: '#16A34A', borderColor: '#16A34A' }}
                     >
                       <CheckCircle2 size={15} />
-                      <span>Approve Partner</span>
+                      <span>{t('admin.approveBtn')}</span>
                     </button>
                   </div>
                 </div>
@@ -368,17 +370,17 @@ export default function AdminApprovalsDesk() {
                 }}>
                   <h4 style={{ fontSize: '13px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Award size={16} color="var(--forest-700)" />
-                    <span>Skill Test Certification & Integrity Audit</span>
+                    <span>{t('admin.skillExamScore')}</span>
                   </h4>
 
                   {activeAttempts.length === 0 ? (
                     <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                       {activeProvider.skills && activeProvider.skills.length > 0 ? (
                         <div>
-                          Skill verified: <strong>{activeProvider.skills[0].categoryName}</strong> with score <strong>{activeProvider.skills[0].testScore}%</strong>.
+                          {t('providerDashboard.skillsCert')}: <strong>{activeProvider.skills[0].categoryName}</strong> ({activeProvider.skills[0].testScore}%).
                         </div>
                       ) : (
-                        'No test session records found.'
+                        t('providerDashboard.noSkills')
                       )}
                     </div>
                   ) : (
@@ -398,15 +400,15 @@ export default function AdminApprovalsDesk() {
                         >
                           <div>
                             <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--forest-900)' }}>
-                              {att.categoryName || att.categoryId} Test
+                              {att.categoryName || att.categoryId}
                             </span>
                             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                              Date: {new Date(att.createdAt).toLocaleDateString()} • Warnings: {att.warningCount || 0}
+                              {t('admin.date')}: {new Date(att.createdAt).toLocaleDateString()} • {t('admin.warningCount')}: {att.warningCount || 0}
                             </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <span className={att.passed ? 'badge badge-success' : 'badge badge-danger'} style={{ fontSize: '12px', fontWeight: 800 }}>
-                              {att.score}% ({att.passed ? 'PASSED' : 'FAILED'})
+                              {att.score}% ({att.passed ? t('status.PASSED') : t('status.FAILED')})
                             </span>
                           </div>
                         </div>
@@ -419,7 +421,7 @@ export default function AdminApprovalsDesk() {
                 <div>
                   <h4 style={{ fontSize: '13px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <ShieldCheck size={16} color="var(--forest-700)" />
-                    <span>Signed KYC & Identification Documents</span>
+                    <span>{t('providerDashboard.privateKycDocs')}</span>
                   </h4>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
@@ -433,10 +435,10 @@ export default function AdminApprovalsDesk() {
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                         <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>
-                          Government Photo ID
+                          {t('admin.govtIdProof')}
                         </span>
                         <span className="badge badge-neutral" style={{ fontSize: '10.5px' }}>
-                          Confidential
+                          {t('providerDashboard.privateKycDocs')}
                         </span>
                       </div>
 
@@ -446,13 +448,13 @@ export default function AdminApprovalsDesk() {
                             type="button"
                             onClick={() => {
                               setPreviewDocUrl(activeDocs.idProof.url);
-                              setPreviewDocTitle(`${activeProvider.name} - Government Photo ID`);
+                              setPreviewDocTitle(`${activeProvider.name} - ${t('admin.govtIdProof')}`);
                             }}
                             className="btn btn-secondary btn-sm"
                             style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                           >
                             <Eye size={13} />
-                            <span>Preview</span>
+                            <span>{t('admin.view')}</span>
                           </button>
                           <a
                             href={activeDocs.idProof.url}
@@ -466,7 +468,7 @@ export default function AdminApprovalsDesk() {
                         </div>
                       ) : (
                         <div style={{ fontSize: '12px', color: '#DC2626' }}>
-                          No ID proof uploaded.
+                          {t('providerDashboard.idNotUploaded')}
                         </div>
                       )}
                     </div>
@@ -480,10 +482,10 @@ export default function AdminApprovalsDesk() {
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                         <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>
-                          Trade Certificate / ITI
+                          {t('admin.tradeCertificate')}
                         </span>
                         <span className="badge badge-neutral" style={{ fontSize: '10.5px' }}>
-                          Skill Verification
+                          {t('admin.skillExamScore')}
                         </span>
                       </div>
 
@@ -493,13 +495,13 @@ export default function AdminApprovalsDesk() {
                             type="button"
                             onClick={() => {
                               setPreviewDocUrl(activeDocs.certificate.url);
-                              setPreviewDocTitle(`${activeProvider.name} - Trade Certificate`);
+                              setPreviewDocTitle(`${activeProvider.name} - ${t('admin.tradeCertificate')}`);
                             }}
                             className="btn btn-secondary btn-sm"
                             style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                           >
                             <Eye size={13} />
-                            <span>Preview</span>
+                            <span>{t('admin.view')}</span>
                           </button>
                           <a
                             href={activeDocs.certificate.url}
@@ -513,7 +515,7 @@ export default function AdminApprovalsDesk() {
                         </div>
                       ) : (
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                          Optional trade certificate not submitted.
+                          {t('providerDashboard.missing')}
                         </div>
                       )}
                     </div>
@@ -552,10 +554,10 @@ export default function AdminApprovalsDesk() {
             boxShadow: 'var(--shadow-xl)'
           }}>
             <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#DC2626', marginBottom: '8px' }}>
-              Reject Application for {activeProvider?.name}
+              {t('admin.rejectBtn')}: {activeProvider?.name}
             </h3>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-              Please specify the precise reason for rejection. This explanation is saved in the audit log and delivered to the provider's console so they can correct their documents.
+              {t('admin.rejectionReasonPrompt')}
             </p>
 
             <textarea
@@ -564,7 +566,7 @@ export default function AdminApprovalsDesk() {
               rows={4}
               className="form-control"
               style={{ width: '100%', fontSize: '13px', padding: '10px', borderRadius: '8px', marginBottom: '16px' }}
-              placeholder="Explain why the documents or background check did not satisfy requirements..."
+              placeholder={t('admin.rejectionReasonPrompt')}
             />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
@@ -573,7 +575,7 @@ export default function AdminApprovalsDesk() {
                 onClick={() => setRejectModalOpen(false)}
                 className="btn btn-outline btn-sm"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -581,7 +583,7 @@ export default function AdminApprovalsDesk() {
                 onClick={handleConfirmReject}
                 className="btn btn-danger btn-sm"
               >
-                {processing ? 'Processing...' : 'Confirm Rejection'}
+                {processing ? t('common.loading') : t('admin.rejectBtn')}
               </button>
             </div>
           </div>
@@ -612,10 +614,10 @@ export default function AdminApprovalsDesk() {
             boxShadow: 'var(--shadow-xl)'
           }}>
             <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
-              Request Additional Information
+              {t('admin.requestMoreInfo')}
             </h3>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-              Send a formal message to {activeProvider?.name}. Their account status will transition to <strong>more_info_needed</strong> so they can upload fresh photos or clarifications.
+              {t('admin.moreInfoPrompt')}
             </p>
 
             <textarea
@@ -624,7 +626,7 @@ export default function AdminApprovalsDesk() {
               rows={4}
               className="form-control"
               style={{ width: '100%', fontSize: '13px', padding: '10px', borderRadius: '8px', marginBottom: '16px' }}
-              placeholder="State exactly what additional document or clarification is required..."
+              placeholder={t('admin.moreInfoPrompt')}
             />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
@@ -633,7 +635,7 @@ export default function AdminApprovalsDesk() {
                 onClick={() => setInfoModalOpen(false)}
                 className="btn btn-outline btn-sm"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -641,7 +643,7 @@ export default function AdminApprovalsDesk() {
                 onClick={handleConfirmRequestInfo}
                 className="btn btn-primary btn-sm"
               >
-                {processing ? 'Sending...' : 'Dispatch Request'}
+                {processing ? t('common.loading') : t('admin.requestMoreInfo')}
               </button>
             </div>
           </div>

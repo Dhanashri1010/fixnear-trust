@@ -293,7 +293,7 @@ export default function ProviderRegisterPage() {
       <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div className="spinner" style={{ margin: '0 auto 16px' }} />
-          <p style={{ color: 'var(--text-muted)' }}>Loading technician registration...</p>
+          <p style={{ color: 'var(--text-muted)' }}>{t('provider.loadingReg')}</p>
         </div>
       </div>
     );
@@ -307,10 +307,10 @@ export default function ProviderRegisterPage() {
             <Wrench size={28} />
           </div>
           <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
-            Technician Account Required
+            {t('provider.techAccountRequired')}
           </h2>
           <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '24px' }}>
-            You are currently signed in with a customer account ({currentUser.email}). To offer home services and earn on FixNear, please create a Service Partner account.
+            {t('provider.customerAccountNotice')}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
@@ -322,10 +322,10 @@ export default function ProviderRegisterPage() {
               }}
               style={{ width: '100%', justifyContent: 'center' }}
             >
-              Sign Up as Service Partner
+              {t('provider.signUpPartnerBtn')}
             </button>
             <Link to="/" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-              Back to Home
+              {t('provider.backToHome')}
             </Link>
           </div>
         </div>
@@ -352,13 +352,13 @@ export default function ProviderRegisterPage() {
             marginBottom: '12px'
           }}>
             <ShieldCheck size={16} />
-            <span>FIXNEAR PARTNER NETWORK</span>
+            <span>{t('provider.partnerNetwork')}</span>
           </div>
           <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--forest-900)', margin: '0 0 8px' }}>
-            Technician Partner Registration
+            {t('provider.regHeading')}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '15px', maxWidth: '520px', margin: '0 auto' }}>
-            Join our verified marketplace. Complete your profile, verify your identity, and pass the safety skill test.
+            {t('provider.regSubheading')}
           </p>
         </div>
 
@@ -433,7 +433,7 @@ export default function ProviderRegisterPage() {
                 {step > 1 ? <CheckCircle2 size={20} /> : '1'}
               </div>
               <span style={{ fontSize: '12px', fontWeight: step === 1 ? 700 : 500, color: step >= 1 ? 'var(--forest-900)' : 'var(--text-muted)' }}>
-                Personal Details
+                {t('provider.step1Title')}
               </span>
             </div>
 
@@ -455,7 +455,7 @@ export default function ProviderRegisterPage() {
                 {step > 2 ? <CheckCircle2 size={20} /> : '2'}
               </div>
               <span style={{ fontSize: '12px', fontWeight: step === 2 ? 700 : 500, color: step >= 2 ? 'var(--forest-900)' : 'var(--text-muted)' }}>
-                Trade & Experience
+                {t('provider.step2Title')}
               </span>
             </div>
 
@@ -477,7 +477,7 @@ export default function ProviderRegisterPage() {
                 3
               </div>
               <span style={{ fontSize: '12px', fontWeight: step === 3 ? 700 : 500, color: step >= 3 ? 'var(--forest-900)' : 'var(--text-muted)' }}>
-                ID Verification
+                {t('provider.step3Title')}
               </span>
             </div>
 
@@ -499,13 +499,13 @@ export default function ProviderRegisterPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                 <User size={22} color="var(--forest-700)" />
                 <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--forest-900)' }}>
-                  Step 1: Technician Identity & Service Area
+                  {t('provider.step1Heading')}
                 </h2>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div>
-                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Full Legal Name *</label>
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>{t('provider.fullNameLabel')}</label>
                   <input
                     type="text"
                     className="form-control"
@@ -517,7 +517,7 @@ export default function ProviderRegisterPage() {
                 </div>
 
                 <div>
-                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Direct Mobile Number *</label>
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>{t('provider.mobileLabel')}</label>
                   <input
                     type="tel"
                     className="form-control"
@@ -531,7 +531,7 @@ export default function ProviderRegisterPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div>
-                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Operating City *</label>
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>{t('provider.cityLabel')}</label>
                   <input
                     type="text"
                     className="form-control"
@@ -543,7 +543,7 @@ export default function ProviderRegisterPage() {
                 </div>
 
                 <div>
-                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Service Area / Localities *</label>
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>{t('provider.areaLabel')}</label>
                   <input
                     type="text"
                     className="form-control"
@@ -568,7 +568,7 @@ export default function ProviderRegisterPage() {
                 color: 'var(--forest-800)'
               }}>
                 <Info size={18} style={{ flexShrink: 0 }} />
-                <span>Your direct contact number is kept private and will only be shared with customers after you accept their job request.</span>
+                <span>{t('provider.privacyNotice')}</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '28px' }}>
@@ -580,7 +580,7 @@ export default function ProviderRegisterPage() {
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
-                  <span>Continue to Skills</span>
+                  <span>{t('provider.continueToSkills')}</span>
                   <ArrowRight size={16} />
                 </button>
               </div>
@@ -593,12 +593,12 @@ export default function ProviderRegisterPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                 <Briefcase size={22} color="var(--forest-700)" />
                 <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--forest-900)' }}>
-                  Step 2: Practical Trade & Experience
+                  {t('provider.step2Heading')}
                 </h2>
               </div>
 
               <div style={{ marginBottom: '16px' }}>
-                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Primary Service Category *</label>
+                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>{t('provider.primaryCategoryLabel')}</label>
                 <select
                   className="form-control"
                   value={formData.categoryId}
@@ -612,17 +612,17 @@ export default function ProviderRegisterPage() {
                   ))}
                   {categories.length === 0 && (
                     <>
-                      <option value="ac-cooling">Air Conditioner & Cooling</option>
-                      <option value="electrical">Electrician & Wiring</option>
-                      <option value="plumbing">Plumbing & Sanitary</option>
-                      <option value="appliances">Appliance Repair</option>
+                      <option value="ac-cooling">{t('categories.ac')}</option>
+                      <option value="electrical">{t('categories.electrician')}</option>
+                      <option value="plumbing">{t('categories.plumbing')}</option>
+                      <option value="appliances">{t('categories.appliances')}</option>
                     </>
                   )}
                 </select>
               </div>
 
               <div style={{ marginBottom: '16px' }}>
-                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>Specialty & Scope of Work *</label>
+                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>{t('provider.specialtyLabel')}</label>
                 <input
                   type="text"
                   className="form-control"
@@ -635,7 +635,7 @@ export default function ProviderRegisterPage() {
 
               <div style={{ marginBottom: '20px' }}>
                 <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>
-                  Years of Practical Field Experience: <strong>{formData.experienceYears} Years</strong>
+                  {t('provider.experienceYearsLabel')} <strong>{formData.experienceYears} {t('provider.yearsSuffix')}</strong>
                 </label>
                 <input
                   type="range"
@@ -646,9 +646,9 @@ export default function ProviderRegisterPage() {
                   style={{ width: '100%', accentColor: 'var(--forest-700)', cursor: 'pointer' }}
                 />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
-                  <span>Beginner (0 yrs)</span>
-                  <span>Skilled (5 yrs)</span>
-                  <span>Master (15+ yrs)</span>
+                  <span>{t('provider.beginner')}</span>
+                  <span>{t('provider.skilled')}</span>
+                  <span>{t('provider.master')}</span>
                 </div>
               </div>
 
@@ -664,7 +664,7 @@ export default function ProviderRegisterPage() {
                 color: '#1E40AF'
               }}>
                 <Award size={18} style={{ flexShrink: 0 }} />
-                <span>You will need to complete a 10-question practical safety exam for your selected category with at least 70% to receive verified status.</span>
+                <span>{t('provider.testNotice')}</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '28px' }}>
@@ -675,7 +675,7 @@ export default function ProviderRegisterPage() {
                   style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
                   <ArrowLeft size={16} />
-                  <span>Back</span>
+                  <span>{t('provider.backBtn')}</span>
                 </button>
                 <button
                   type="button"
@@ -685,7 +685,7 @@ export default function ProviderRegisterPage() {
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
-                  <span>Continue to Documents</span>
+                  <span>{t('provider.continueToDocs')}</span>
                   <ArrowRight size={16} />
                 </button>
               </div>
@@ -698,14 +698,14 @@ export default function ProviderRegisterPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                 <ShieldCheck size={22} color="var(--forest-700)" />
                 <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--forest-900)' }}>
-                  Step 3: Identity Verification (KYC)
+                  {t('provider.step3Heading')}
                 </h2>
               </div>
 
               {/* ID Proof Upload */}
               <div style={{ marginBottom: '24px' }}>
                 <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>
-                  Government Photo ID (Aadhaar / Voter ID / PAN) *
+                  {t('provider.govtIdLabel')}
                 </label>
                 <div style={{
                   border: '2px dashed var(--border-light)',
@@ -719,20 +719,20 @@ export default function ProviderRegisterPage() {
                     <div>
                       <div className="spinner" style={{ margin: '0 auto 12px' }} />
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--forest-800)' }}>
-                        Uploading private document securely...
+                        {t('provider.uploadingDoc')}
                       </div>
                     </div>
                   ) : idPreviewUrl ? (
                     <div>
                       <CheckCircle2 size={32} color="var(--forest-700)" style={{ margin: '0 auto 8px' }} />
                       <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)' }}>
-                        {idFileName || 'ID Proof Uploaded'}
+                        {idFileName || t('provider.docSecureVault')}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--forest-700)', marginTop: '4px' }}>
-                        Stored securely in your private KYC vault.
+                        {t('provider.docSecureVault')}
                       </div>
                       <label className="btn btn-outline btn-sm" style={{ marginTop: '12px', cursor: 'pointer' }}>
-                        <span>Change Document</span>
+                        <span>{t('provider.changeDoc')}</span>
                         <input
                           type="file"
                           accept=".jpg,.jpeg,.png,.webp,.pdf"
@@ -745,13 +745,13 @@ export default function ProviderRegisterPage() {
                     <div>
                       <Upload size={32} color="var(--text-muted)" style={{ margin: '0 auto 8px' }} />
                       <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>
-                        Upload Clear Photo or PDF of Government ID
+                        {t('provider.uploadIdPrompt')}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        JPG, PNG, WebP or PDF (Max 5 MB)
+                        {t('provider.formatLimit')}
                       </div>
                       <label className="btn btn-secondary btn-sm" style={{ marginTop: '14px', cursor: 'pointer' }}>
-                        <span>Select File</span>
+                        <span>{t('provider.selectFileBtn')}</span>
                         <input
                           type="file"
                           accept=".jpg,.jpeg,.png,.webp,.pdf"
@@ -767,7 +767,7 @@ export default function ProviderRegisterPage() {
               {/* Optional Trade Certificate */}
               <div style={{ marginBottom: '24px' }}>
                 <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>
-                  Trade Certificate or Diploma (Optional)
+                  {t('provider.tradeCertLabel')}
                 </label>
                 <div style={{
                   border: '1.5px dashed var(--border-light)',
@@ -779,7 +779,7 @@ export default function ProviderRegisterPage() {
                   {uploadingField === 'certificate' ? (
                     <div>
                       <div className="spinner" style={{ margin: '0 auto 10px' }} />
-                      <div style={{ fontSize: '13px', color: 'var(--forest-800)' }}>Uploading certificate...</div>
+                      <div style={{ fontSize: '13px', color: 'var(--forest-800)' }}>{t('provider.uploadingCert')}</div>
                     </div>
                   ) : certPreviewUrl ? (
                     <div>
@@ -788,7 +788,7 @@ export default function ProviderRegisterPage() {
                         {certFileName || 'Certificate Uploaded'}
                       </div>
                       <label className="btn btn-outline btn-sm" style={{ marginTop: '10px', cursor: 'pointer' }}>
-                        <span>Change</span>
+                        <span>{t('provider.change')}</span>
                         <input
                           type="file"
                           accept=".jpg,.jpeg,.png,.webp,.pdf"
@@ -801,13 +801,13 @@ export default function ProviderRegisterPage() {
                     <div>
                       <Award size={26} color="var(--text-muted)" style={{ margin: '0 auto 6px' }} />
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>
-                        Upload ITI, Polytechnic, or OEM Certificate
+                        {t('provider.uploadCertPrompt')}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        Boosts customer confidence and profile ranking
+                        {t('provider.certBoost')}
                       </div>
                       <label className="btn btn-outline btn-sm" style={{ marginTop: '10px', cursor: 'pointer' }}>
-                        <span>Upload Certificate</span>
+                        <span>{t('provider.uploadCertBtn')}</span>
                         <input
                           type="file"
                           accept=".jpg,.jpeg,.png,.webp,.pdf"
@@ -835,7 +835,7 @@ export default function ProviderRegisterPage() {
                     style={{ marginTop: '3px', accentColor: 'var(--forest-700)' }}
                   />
                   <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                    I agree to FixNear Trust safety standards, transparent rate card compliance, and identity verification. I understand that fraudulent finish codes or off-platform demands will result in permanent suspension.
+                    {t('provider.agreementText')}
                   </span>
                 </label>
               </div>
@@ -849,7 +849,7 @@ export default function ProviderRegisterPage() {
                   style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
                   <ArrowLeft size={16} />
-                  <span>Back</span>
+                  <span>{t('provider.backBtn')}</span>
                 </button>
                 <button
                   type="button"
@@ -861,11 +861,11 @@ export default function ProviderRegisterPage() {
                   {loading ? (
                     <>
                       <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
-                      <span>Saving Profile...</span>
+                      <span>{t('provider.savingProfile')}</span>
                     </>
                   ) : (
                     <>
-                      <span>Complete & Start Skill Test</span>
+                      <span>{t('provider.completeAndStartTest')}</span>
                       <ArrowRight size={16} />
                     </>
                   )}

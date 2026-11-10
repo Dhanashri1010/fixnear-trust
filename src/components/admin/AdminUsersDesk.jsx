@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { adminAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import {
   Users,
   UserPlus,
@@ -19,6 +20,7 @@ import {
 
 export default function AdminUsersDesk() {
   const { user: currentAdmin } = useAuth();
+  const { t } = useLanguage();
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -110,10 +112,10 @@ export default function AdminUsersDesk() {
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Users className="w-6 h-6 text-indigo-600" />
-            Administrator Access & Governance
+            <span>{t('admin.adminAccessGovernance')}</span>
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Manage administrative privilege holders, audit credentials, and provision verified administrative personnel.
+            {t('admin.adminAccessDesc')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -122,7 +124,7 @@ export default function AdminUsersDesk() {
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors"
           >
             <UserPlus className="w-3.5 h-3.5" />
-            Add New Admin
+            <span>{t('admin.addNewAdmin')}</span>
           </button>
           <button
             onClick={fetchAdmins}
@@ -130,7 +132,7 @@ export default function AdminUsersDesk() {
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            <span>{t('admin.refresh')}</span>
           </button>
         </div>
       </div>
@@ -155,12 +157,12 @@ export default function AdminUsersDesk() {
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
-                <th className="py-3 px-4">Administrator</th>
-                <th className="py-3 px-4">Email Address</th>
-                <th className="py-3 px-4">Role & Status</th>
-                <th className="py-3 px-4">Provisioned Date</th>
-                <th className="py-3 px-4">Security Policy</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4">{t('admin.administrator')}</th>
+                <th className="py-3 px-4">{t('admin.emailAddress')}</th>
+                <th className="py-3 px-4">{t('admin.roleAndStatus')}</th>
+                <th className="py-3 px-4">{t('admin.provisionedDate')}</th>
+                <th className="py-3 px-4">{t('admin.securityPolicy')}</th>
+                <th className="py-3 px-4 text-right">{t('admin.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -168,13 +170,13 @@ export default function AdminUsersDesk() {
                 <tr>
                   <td colSpan="6" className="py-12 text-center text-slate-400">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600" />
-                    Loading administrator accounts...
+                    <span>{t('admin.loadingApprovals', 'Loading...')}</span>
                   </td>
                 </tr>
               ) : admins.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="py-12 text-center text-slate-500">
-                    No administrators found.
+                    <span>{t('admin.noAdminsFound')}</span>
                   </td>
                 </tr>
               ) : (
@@ -194,11 +196,11 @@ export default function AdminUsersDesk() {
                               {adm.name}
                               {isCurrent && (
                                 <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-medium">
-                                  You
+                                  {t('admin.youLabel')}
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-slate-400 font-mono">ID: {adm._id}</div>
+                            <div className="text-[11px] text-slate-400 font-mono">{t('common.id', 'ID')}: {adm._id}</div>
                           </div>
                         </div>
                       </td>
@@ -209,12 +211,12 @@ export default function AdminUsersDesk() {
                         {isActive ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
                             <ShieldCheck className="w-3 h-3" />
-                            Active Admin
+                            <span>{t('admin.activeAdmin')}</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">
                             <Ban className="w-3 h-3" />
-                            Deactivated
+                            <span>{t('admin.deactivated')}</span>
                           </span>
                         )}
                       </td>
@@ -229,10 +231,10 @@ export default function AdminUsersDesk() {
                         {adm.mustChangePassword ? (
                           <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-medium">
                             <KeyRound className="w-3 h-3" />
-                            Change Required
+                            <span>{t('admin.changeRequired')}</span>
                           </span>
                         ) : (
-                          <span className="text-slate-400">Standard</span>
+                          <span className="text-slate-400">{t('admin.standardPolicy')}</span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">
@@ -243,12 +245,12 @@ export default function AdminUsersDesk() {
                             className="inline-flex items-center gap-1 px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
                           >
                             <Ban className="w-3 h-3" />
-                            {deactivatingId === adm._id ? 'Revoking...' : 'Deactivate'}
+                            <span>{deactivatingId === adm._id ? t('common.loading') : t('admin.delete', 'Deactivate')}</span>
                           </button>
                         ) : isCurrent ? (
-                          <span className="text-xs text-slate-400 italic">Self Account</span>
+                          <span className="text-xs text-slate-400 italic">{t('admin.selfAccount')}</span>
                         ) : (
-                          <span className="text-xs text-rose-500 font-medium">Revoked</span>
+                          <span className="text-xs text-rose-500 font-medium">{t('admin.revoked')}</span>
                         )}
                       </td>
                     </tr>
@@ -273,10 +275,10 @@ export default function AdminUsersDesk() {
 
             <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-1">
               <UserPlus className="w-5 h-5 text-indigo-600" />
-              Provision New Administrator
+              <span>{t('admin.provisionNewAdmin')}</span>
             </h3>
             <p className="text-xs text-slate-500 mb-4">
-              Create an administrative user with full governance access. The new user will be prompted to choose a new password upon first login.
+              {t('admin.provisionAdminDesc')}
             </p>
 
             {createError && (
@@ -288,7 +290,7 @@ export default function AdminUsersDesk() {
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Full Name
+                  {t('common.name', 'Full Name')}
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -297,7 +299,7 @@ export default function AdminUsersDesk() {
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g. Operations Manager"
+                    placeholder={t('common.details', 'Name')}
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -305,7 +307,7 @@ export default function AdminUsersDesk() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Corporate Email
+                  {t('admin.corporateEmail')}
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -314,7 +316,7 @@ export default function AdminUsersDesk() {
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="admin.ops@fixnear.com"
+                    placeholder={t('admin.emailLabel', 'Email')}
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -322,7 +324,7 @@ export default function AdminUsersDesk() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Temporary Password
+                  {t('admin.temporaryPassword')}
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -331,12 +333,12 @@ export default function AdminUsersDesk() {
                     required
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="Min 8 chars with letters & numbers"
+                    placeholder={t('admin.passwordLabel', 'Password')}
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500"
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Must contain at least 8 characters with at least one letter and one number.
+                  {t('admin.tempPasswordHint')}
                 </p>
               </div>
 
@@ -347,7 +349,7 @@ export default function AdminUsersDesk() {
                   disabled={creating}
                   className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -357,12 +359,12 @@ export default function AdminUsersDesk() {
                   {creating ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Creating...
+                      <span>{t('admin.creating')}</span>
                     </>
                   ) : (
                     <>
                       <UserPlus className="w-3.5 h-3.5" />
-                      Create Admin Account
+                      <span>{t('admin.createAdminAccount')}</span>
                     </>
                   )}
                 </button>

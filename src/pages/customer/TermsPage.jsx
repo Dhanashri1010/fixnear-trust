@@ -1,9 +1,11 @@
 import React from 'react';
-import { ShieldCheck, FileText, ChevronRight, Home, AlertCircle } from 'lucide-react';
+import { FileText, ChevronRight, Home, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function TermsPage() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   return (
     <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '85vh', padding: '36px 0 72px 0' }}>
@@ -27,10 +29,10 @@ export default function TermsPage() {
             style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, background: 'none' }}
           >
             <Home size={14} />
-            <span>Home</span>
+            <span>{t('nav.home', 'Home')}</span>
           </button>
           <ChevronRight size={13} />
-          <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>Terms of Service</span>
+          <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>{t('legal.termsTitle', 'Terms of Service')}</span>
         </nav>
 
         {/* Header Card */}
@@ -38,14 +40,14 @@ export default function TermsPage() {
           <div style={{ display: 'inline-flex', marginBottom: '12px' }}>
             <span className="badge badge-forest">
               <FileText size={13} />
-              Legal Agreement
+              {t('legal.termsTitle', 'Terms of Service')}
             </span>
           </div>
           <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: '12px', color: 'var(--forest-900)' }}>
-            Terms of Service
+            {t('legal.termsTitle', 'Terms of Service')}
           </h1>
           <p style={{ fontSize: '14.5px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Last updated: February 2026. Please read these terms carefully before booking any home repair services on FixNear Trust.
+            {t('legal.termsSubtitle', 'Legal framework governing customer and technician participation on FixNear Trust')}
           </p>
 
           <div style={{
@@ -60,7 +62,7 @@ export default function TermsPage() {
           }}>
             <AlertCircle size={18} color="#D97706" style={{ flexShrink: 0 }} />
             <span style={{ fontSize: '13px', color: '#92400E', fontWeight: 600 }}>
-              Draft notice: This document is a plain-language draft to be reviewed by a qualified lawyer.
+              {t('legal.draftNotice', 'Notice: This legal document is a draft version for demonstration and reference purposes only.')}
             </span>
           </div>
         </div>
@@ -68,38 +70,31 @@ export default function TermsPage() {
         {/* Content Body */}
         <div className="card" style={{ padding: '36px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-lg)', lineHeight: 1.8, fontSize: '14.5px', color: 'var(--text-secondary)' }}>
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '10px' }}>
-            1. Overview of Platform Services
+            {t('legal.section1Terms', '1. Acceptance of Terms: By accessing or using FixNear, you agree to comply with our verified service guidelines.')}
           </h2>
           <p style={{ marginBottom: '20px' }}>
-            FixNear Trust connects homeowners with verified independent service providers for appliance repair, plumbing, electrical, and maintenance needs. FixNear establishes standardized base pricing, enforces safety verifications, and facilitates payment protection.
+            {t('home.heroDesc', 'Explore transparent service rates, certified local specialists, and a 30-day workmanship guarantee. Zero hidden callout fees, zero surprise pricing.')}
           </p>
 
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '10px' }}>
-            2. Verified Booking & Quoting Standards
+            {t('legal.section2Terms', '2. Finish Code Escrow: Work is deemed accepted only when the customer provides their private 4-digit finish code.')}
           </h2>
           <p style={{ marginBottom: '20px' }}>
-            All bookings placed on FixNear Trust start at the published base diagnostic and service rate. If additional replacement components or extra labour are required, the provider must submit a digital quotation through the app. Work cannot proceed without explicit customer approval via the platform.
+            {t('tracking.finishCodeDesc', 'Give this 4-digit code to the specialist ONLY when you have inspected and accepted the completed work.')}
           </p>
 
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '10px' }}>
-            3. Job Completion & 4-Digit Finish Code
+            {t('legal.section3Terms', '3. Quotations: Any additional parts require explicit written digital approval from the customer.')}
           </h2>
           <p style={{ marginBottom: '20px' }}>
-            Every confirmed booking is assigned a confidential 4-digit finish code visible solely in the customer's portal. You must provide this finish code to the technician only after you have inspected and confirmed the work is satisfactorily completed.
+            {t('quotation.warningNotice', 'Work on extra parts will begin only after your approval. All approved parts are backed by the FixNear warranty.')}
           </p>
 
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '10px' }}>
-            4. User Responsibilities
+            {t('legal.refundTitle', 'Refund & Satisfaction Warranty Policy')}
           </h2>
           <p style={{ marginBottom: '20px' }}>
-            Customers must provide accurate address details, reasonable access to the service premises, and a safe work environment for the assigned service technician.
-          </p>
-
-          <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '10px' }}>
-            5. Contact Us
-          </h2>
-          <p>
-            For questions regarding these terms, contact our support desk directly through the Help section or email us at support@fixnear.com.
+            {t('legal.section1Refund', '1. 30-Day Workmanship Warranty: Any defective workmanship within 30 days is re-inspected and rectified at zero extra labor cost.')}
           </p>
         </div>
 
@@ -107,4 +102,3 @@ export default function TermsPage() {
     </div>
   );
 }
-

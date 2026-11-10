@@ -15,7 +15,8 @@ import { io } from '../server.js';
 import {
   sendBookingPlacedEmail,
   sendProviderAcceptedEmail,
-  sendJobCompletedEmail
+  sendJobCompletedEmail,
+  sendBookingCancelledEmail
 } from '../utils/emailHelper.js';
 
 export { toBookingPayload };
@@ -125,6 +126,7 @@ export const createBooking = async (req, res, next) => {
     if (!matchingProviders || matchingProviders.length === 0) {
       return res.status(400).json({
         success: false,
+        code: 'BOOKING_NO_PROVIDER',
         message: `We currently do not have a verified, online technician available in ${bookingCity} for ${service.title}. Please check back shortly or select another area.`,
       });
     }
@@ -205,6 +207,7 @@ export const createBooking = async (req, res, next) => {
       scheduledDate: newBooking.scheduledDate,
       timeSlot: newBooking.timeSlot,
       price: newBooking.basePrice,
+      lang: req.user.preferredLanguage || 'en',
     }).catch(() => { });
 
     // Notify & emit socket updates
@@ -431,6 +434,18 @@ export const cancelBooking = async (req, res, next) => {
       message: `Your booking #${booking.bookingId} has been successfully cancelled.`,
       link: `/bookings`,
     });
+
+    const customerUser = await User.findById(booking.customerId);
+    if (customerUser) {
+      sendBookingCancelledEmail({
+        customerEmail: customerUser.email,
+        customerName: booking.customerName,
+        bookingId: booking.bookingId,
+        serviceTitle: booking.serviceTitle,
+        reason: booking.cancellationReason,
+        lang: customerUser.preferredLanguage || 'en',
+      }).catch(() => {});
+    }
 
     // Notify provider on cancel if assigned
     if (booking.providerId) {
@@ -902,6 +917,7 @@ export const submitComplaint = async (req, res, next) => {
     if (!allowedStatuses.includes(booking.status)) {
       return res.status(400).json({
         success: false,
+        code: 'COMPLAINT_NOT_ALLOWED',
         message: `Complaints can only be filed once a booking has been accepted by a technician. Current status is '${booking.status}'.`,
       });
     }
@@ -914,6 +930,7 @@ export const submitComplaint = async (req, res, next) => {
     if (existingOpenDispute) {
       return res.status(400).json({
         success: false,
+        code: 'COMPLAINT_ALREADY_OPEN',
         message: 'There is already an open complaint for this booking under investigation.',
       });
     }
@@ -1181,6 +1198,7 @@ export const updateBookingStatus = async (req, res, next) => {
           providerPhone: providerDoc.phone,
           bookingId: acceptedBooking.bookingId,
           serviceTitle: acceptedBooking.serviceTitle,
+          lang: customerUser.preferredLanguage || 'en',
         }).catch(() => { });
       }
 
@@ -1198,6 +1216,7 @@ export const updateBookingStatus = async (req, res, next) => {
         const minutesLeft = Math.ceil((new Date(booking.finishCodeBlockedUntil) - new Date()) / (60 * 1000));
         return res.status(403).json({
           success: false,
+          code: 'FINISH_CODE_LOCKED',
           message: `Completion is blocked due to repeated incorrect finish code attempts. Please try again after ${minutesLeft} minutes or contact support.`,
         });
       }
@@ -1241,12 +1260,14 @@ export const updateBookingStatus = async (req, res, next) => {
         if (isBlockedNow) {
           return res.status(403).json({
             success: false,
+            code: 'FINISH_CODE_LOCKED',
             message: 'Completion is now blocked for 30 minutes after 5 failed finish code attempts. Customer and administrator have been alerted.',
           });
         }
 
         return res.status(400).json({
           success: false,
+          code: 'INVALID_FINISH_CODE',
           message: `Invalid 4-digit finish code. Attempt ${booking.failedFinishCodeAttempts} of 5. Please ask the customer to provide the code from their booking screen.`,
         });
       }

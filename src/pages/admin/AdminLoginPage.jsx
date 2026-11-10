@@ -7,12 +7,14 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { Shield, Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
   const { signInWithEmail } = useAuth();
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -79,10 +81,10 @@ export default function AdminLoginPage() {
             <Shield size={32} />
           </div>
           <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.02em' }}>
-            FixNear Administration
+            {t('admin.brandTitle')}
           </h1>
           <p style={{ fontSize: '13.5px', color: '#94A3B8', marginTop: '6px' }}>
-            Authorized Staff Sign-In
+            {t('admin.staffSignIn')}
           </p>
         </div>
 
@@ -107,7 +109,7 @@ export default function AdminLoginPage() {
         <form onSubmit={handleAdminLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#CBD5E1', marginBottom: '6px' }}>
-              Administrator Email
+              {t('admin.emailLabel')}
             </label>
             <div style={{ position: 'relative' }}>
               <Mail size={18} color="#64748B" style={{ position: 'absolute', left: '12px', top: '14px' }} />
@@ -135,7 +137,7 @@ export default function AdminLoginPage() {
 
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#CBD5E1', marginBottom: '6px' }}>
-              Secret Password
+              {t('admin.passwordLabel')}
             </label>
             <div style={{ position: 'relative' }}>
               <Lock size={18} color="#64748B" style={{ position: 'absolute', left: '12px', top: '14px' }} />
@@ -181,13 +183,13 @@ export default function AdminLoginPage() {
               marginTop: '8px'
             }}
           >
-            <span>{submitting ? 'Verifying...' : 'Access Admin Console'}</span>
+            <span>{submitting ? t('common.loading') : t('admin.adminLoginTitle')}</span>
             <ArrowRight size={16} />
           </button>
         </form>
 
         <div style={{ textAlign: 'center', marginTop: '24px', fontSize: '12px', color: '#64748B' }}>
-          This console is strictly monitored. All access attempts are cryptographically logged.
+          {t('admin.securityNotice')}
         </div>
       </div>
     </div>

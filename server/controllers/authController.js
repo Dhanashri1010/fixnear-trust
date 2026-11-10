@@ -19,7 +19,7 @@ import { Notification } from '../models/Notification.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { FailedCleanup } from '../models/FailedCleanup.js';
 import { offerBookingToNextProvider } from './bookingController.js';
-import { sendPasswordResetEmail, sendPasswordChangedEmail } from '../utils/emailHelper.js';
+import { sendPasswordResetEmail, sendPasswordChangedEmail, sendWelcomeEmail } from '../utils/emailHelper.js';
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -50,6 +50,7 @@ const sendTokenResponse = (user, statusCode, res, message = 'Success') => {
       phone: user.phone,
       city: user.city,
       avatar: user.avatar,
+      preferredLanguage: user.preferredLanguage || 'en',
       savedAddresses: user.savedAddresses,
     },
   });
@@ -58,12 +59,13 @@ const sendTokenResponse = (user, statusCode, res, message = 'Success') => {
 // Register
 export const register = async (req, res) => {
   try {
-    const { name, email, password, role = 'customer', phone, city } = req.body;
+    const { name, email, password, role = 'customer', phone, city, preferredLanguage = 'en' } = req.body;
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(400).json({
         success: false,
+        code: 'EMAIL_EXISTS',
         message: 'An account with this email address already exists.',
       });
     }
@@ -78,6 +80,7 @@ export const register = async (req, res) => {
       role: userRole,
       phone: phone || '',
       city: city || 'Mumbai',
+      preferredLanguage: ['en', 'hi', 'mr'].includes(preferredLanguage) ? preferredLanguage : 'en',
     });
 
     // If registering as a provider, create corresponding provider profile
@@ -92,24 +95,35 @@ export const register = async (req, res) => {
       });
     }
 
+    sendWelcomeEmail({
+      userEmail: newUser.email,
+      userName: newUser.name,
+      role: userRole,
+      lang: newUser.preferredLanguage || 'en',
+    }).catch(() => {});
+
     sendTokenResponse(newUser, 201, res, 'Account created successfully!');
   } catch (err) {
     console.error('Registration error:', err);
     if (err.name === 'ValidationError') {
       const messages = Object.values(err.errors).map((e) => e.message);
+      const isWeak = messages.some((m) => m.toLowerCase().includes('password'));
       return res.status(400).json({
         success: false,
+        code: isWeak ? 'PASSWORD_TOO_WEAK' : 'VALIDATION_ERROR',
         message: messages.join('. '),
       });
     }
     if (err.code === 11000) {
       return res.status(400).json({
         success: false,
+        code: 'EMAIL_EXISTS',
         message: 'An account with this email address already exists.',
       });
     }
     res.status(500).json({
       success: false,
+      code: 'SERVER_ERROR',
       message: err.message || 'Failed to create account. Please try again.',
     });
   }
@@ -123,6 +137,7 @@ export const login = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
+        code: 'MISSING_CREDENTIALS',
         message: 'Please provide both email and password.',
       });
     }
@@ -131,6 +146,7 @@ export const login = async (req, res) => {
     if (!user) {
       return res.status(401).json({
         success: false,
+        code: 'INVALID_CREDENTIALS',
         message: 'Invalid email or password.',
       });
     }
@@ -139,6 +155,7 @@ export const login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
+        code: 'INVALID_CREDENTIALS',
         message: 'Invalid email or password.',
       });
     }
@@ -146,6 +163,7 @@ export const login = async (req, res) => {
     if (user.isBlocked) {
       return res.status(403).json({
         success: false,
+        code: 'ACCOUNT_BLOCKED',
         message: 'Your account has been suspended by administration.',
       });
     }
@@ -155,6 +173,7 @@ export const login = async (req, res) => {
     console.error('Login error:', err);
     res.status(500).json({
       success: false,
+      code: 'SERVER_ERROR',
       message: 'Server error during sign in. Please try again.',
     });
   }
@@ -193,6 +212,7 @@ export const getMe = async (req, res) => {
         phone: user.phone,
         city: user.city,
         avatar: user.avatar,
+        preferredLanguage: user.preferredLanguage || 'en',
         mustChangePassword: Boolean(user.mustChangePassword),
         savedAddresses: user.savedAddresses,
       },
@@ -201,7 +221,40 @@ export const getMe = async (req, res) => {
   } catch (err) {
     res.status(500).json({
       success: false,
+      code: 'SERVER_ERROR',
       message: 'Could not fetch session profile.',
+    });
+  }
+};
+
+// Update Preferred Language
+export const updatePreferredLanguage = async (req, res) => {
+  try {
+    const { language } = req.body;
+    if (!['en', 'hi', 'mr'].includes(language)) {
+      return res.status(400).json({
+        success: false,
+        code: 'INVALID_LANGUAGE',
+        message: 'Invalid language selection. Choose en, hi, or mr.',
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { preferredLanguage: language },
+      { new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      preferredLanguage: user.preferredLanguage,
+      message: 'Language preference updated successfully.',
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      code: 'SERVER_ERROR',
+      message: 'Could not update language preference.',
     });
   }
 };
@@ -228,11 +281,12 @@ export const forgotPassword = async (req, res) => {
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const resetUrl = `${clientUrl}/reset-password?token=${resetToken}`;
 
-    // Send email using resilient helper
+    // Send email using resilient helper in user's preferred language
     await sendPasswordResetEmail({
       userEmail: user.email,
       userName: user.name,
       resetUrl,
+      lang: user.preferredLanguage || 'en',
     });
 
     res.status(200).json({
@@ -243,6 +297,7 @@ export const forgotPassword = async (req, res) => {
     console.error('Forgot password error:', err);
     res.status(500).json({
       success: false,
+      code: 'SERVER_ERROR',
       message: 'Error processing password reset request.',
     });
   }
@@ -263,6 +318,7 @@ export const resetPassword = async (req, res) => {
     if (!user) {
       return res.status(400).json({
         success: false,
+        code: 'RESET_TOKEN_INVALID',
         message: 'Password reset link is invalid or has expired.',
       });
     }
@@ -272,13 +328,18 @@ export const resetPassword = async (req, res) => {
     user.passwordResetExpires = undefined;
     await user.save();
 
-    sendPasswordChangedEmail({ userEmail: user.email, userName: user.name }).catch(() => {});
+    sendPasswordChangedEmail({
+      userEmail: user.email,
+      userName: user.name,
+      lang: user.preferredLanguage || 'en',
+    }).catch(() => {});
 
     sendTokenResponse(user, 200, res, 'Password updated successfully! You are now logged in.');
   } catch (err) {
     console.error('Reset password error:', err);
     res.status(500).json({
       success: false,
+      code: 'SERVER_ERROR',
       message: 'Failed to reset password. Please try again.',
     });
   }
@@ -293,6 +354,7 @@ export const changePassword = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
+        code: 'USER_NOT_FOUND',
         message: 'Account not found.',
       });
     }
@@ -301,6 +363,7 @@ export const changePassword = async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({
         success: false,
+        code: 'INVALID_CURRENT_PASSWORD',
         message: 'Current password does not match.',
       });
     }
@@ -309,13 +372,18 @@ export const changePassword = async (req, res) => {
     user.mustChangePassword = false;
     await user.save();
 
-    sendPasswordChangedEmail({ userEmail: user.email, userName: user.name }).catch(() => {});
+    sendPasswordChangedEmail({
+      userEmail: user.email,
+      userName: user.name,
+      lang: user.preferredLanguage || 'en',
+    }).catch(() => {});
 
     sendTokenResponse(user, 200, res, 'Password changed successfully! Other sessions have been logged out.');
   } catch (err) {
     console.error('Change password error:', err);
     res.status(500).json({
       success: false,
+      code: 'SERVER_ERROR',
       message: 'Failed to change password. Please try again.',
     });
   }

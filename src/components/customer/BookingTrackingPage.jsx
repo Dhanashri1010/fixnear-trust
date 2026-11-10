@@ -19,15 +19,16 @@ import {
   Home, 
   FileText, 
   Receipt, 
-  KeyRound,
-  Star,
-  ShieldAlert,
-  CreditCard,
-  Banknote
+  KeyRound, 
+  Star, 
+  ShieldAlert, 
+  CreditCard, 
+  Banknote 
 } from 'lucide-react';
 import { bookingsAPI, paymentsAPI, getSocket } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { loadRazorpayScript } from '../../utils/razorpay';
 import ReviewModal from './ReviewModal';
 import DisputeModal from './DisputeModal';
@@ -38,6 +39,7 @@ export default function BookingTrackingPage() {
   const { id } = useParams();
   const { currentUser } = useAuth();
   const { showToast } = useToast();
+  const { t, formatCurrency, getStatusLabel } = useLanguage();
 
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -57,11 +59,11 @@ export default function BookingTrackingPage() {
       if (res.success && res.booking) {
         setBooking(res.booking);
       } else {
-        setError('Booking not found.');
+        setError(t('tracking.bookingNotFound', 'Booking not found.'));
       }
     } catch (err) {
       console.warn('Failed to load tracking data:', err.message);
-      setError(err.message || 'Unable to retrieve booking details.');
+      setError(err.message || t('errors.bookingNotFound', 'Unable to retrieve booking details.'));
     } finally {
       setLoading(false);
     }
@@ -74,7 +76,6 @@ export default function BookingTrackingPage() {
     }
 
     if (!id) {
-      // If no ID provided in path, redirect to my bookings
       navigate('/bookings');
       return;
     }
@@ -97,13 +98,11 @@ export default function BookingTrackingPage() {
     const socket = getSocket();
     socket.emit('join_booking', id);
 
-    const handleStatusUpdate = (data) => {
-      console.log('[Socket.io] Booking status updated:', data);
+    const handleStatusUpdate = () => {
       fetchBooking();
     };
 
-    const handleBookingUpdate = (updatedBooking) => {
-      console.log('[Socket.io] Booking record refreshed:', updatedBooking);
+    const handleBookingUpdate = () => {
       fetchBooking();
     };
 
@@ -124,8 +123,8 @@ export default function BookingTrackingPage() {
       <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
           <Clock size={36} style={{ margin: '0 auto 12px auto', animation: 'spin 1.5s linear infinite' }} />
-          <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--forest-900)' }}>Connecting to Live Tracking...</h3>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>Syncing status with server</p>
+          <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--forest-900)' }}>{t('tracking.connecting')}</h3>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>{t('tracking.syncing')}</p>
         </div>
       </div>
     );
@@ -150,17 +149,17 @@ export default function BookingTrackingPage() {
             <AlertCircle size={28} />
           </div>
           <h2 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>
-            {error || 'Booking Not Found'}
+            {error || t('tracking.bookingNotFound')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px' }}>
-            We could not locate this appointment. It may have been removed or you do not have permission to view it.
+            {t('tracking.bookingNotFoundDesc')}
           </p>
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
             <Link to="/bookings" className="btn btn-outline">
-              My Bookings
+              {t('myBookings.title')}
             </Link>
             <Link to="/services" className="btn btn-primary">
-              Explore Services
+              {t('catalog.title')}
             </Link>
           </div>
         </div>
@@ -212,11 +211,11 @@ export default function BookingTrackingPage() {
             });
 
             if (verifyRes.success) {
-              showToast('Payment successful! Your warranty tax invoice has been generated.', 'success');
+              showToast(t('booking.paymentSuccess', 'Payment successful! Your warranty tax invoice has been generated.'), 'success');
               await fetchBooking();
             }
           } catch (verifyErr) {
-            showToast(verifyErr.message || 'Payment verification failed. Please contact support.', 'error');
+            showToast(verifyErr.message || t('common.errorGeneral', 'Payment verification failed. Please contact support.'), 'error');
           }
         },
         prefill: {
@@ -235,19 +234,19 @@ export default function BookingTrackingPage() {
       });
       razorpayInstance.open();
     } catch (err) {
-      showToast(err.message || 'Failed to initiate online checkout.', 'error');
+      showToast(err.message || t('common.errorGeneral', 'Failed to initiate online checkout.'), 'error');
     } finally {
       setPayingOnline(false);
     }
   };
 
   // 5 Steps Pipeline
-  const timelineSteps = booking.timeline && booking.timeline.length === 5 ? booking.timeline : [
-    { step: 'Booking Requested', time: 'Completed', done: true, current: booking.status === 'REQUESTED' },
-    { step: 'Technician Assigned', time: 'Pending', done: isAccepted, current: booking.status === 'ACCEPTED' },
-    { step: 'On The Way', time: 'Pending', done: ['ON_THE_WAY', 'WORKING', 'COMPLETED'].includes(booking.status), current: booking.status === 'ON_THE_WAY' },
-    { step: 'Service in Progress', time: 'Pending', done: ['WORKING', 'COMPLETED'].includes(booking.status), current: booking.status === 'WORKING' },
-    { step: 'Completed', time: 'Pending', done: isCompleted, current: isCompleted },
+  const timelineSteps = [
+    { step: t('tracking.step1Placed'), time: isAccepted ? '✓' : '', done: true, current: booking.status === 'REQUESTED' },
+    { step: t('tracking.step2Matched'), time: isAccepted ? '✓' : '', done: isAccepted, current: booking.status === 'ACCEPTED' },
+    { step: t('tracking.step3EnRoute'), time: ['ON_THE_WAY', 'WORKING', 'COMPLETED'].includes(booking.status) ? '✓' : '', done: ['ON_THE_WAY', 'WORKING', 'COMPLETED'].includes(booking.status), current: booking.status === 'ON_THE_WAY' },
+    { step: t('tracking.step4Working'), time: ['WORKING', 'COMPLETED'].includes(booking.status) ? '✓' : '', done: ['WORKING', 'COMPLETED'].includes(booking.status), current: booking.status === 'WORKING' },
+    { step: t('tracking.step5Finished'), time: isCompleted ? '✓' : '', done: isCompleted, current: isCompleted },
   ];
 
   return (
@@ -271,18 +270,18 @@ export default function BookingTrackingPage() {
             style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, textDecoration: 'none' }}
           >
             <Home size={14} />
-            <span>Home</span>
+            <span>{t('nav.home')}</span>
           </Link>
           <ChevronRight size={13} />
           <Link 
             to="/bookings"
             style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}
           >
-            My Bookings
+            {t('myBookings.title')}
           </Link>
           <ChevronRight size={13} />
           <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>
-            Live Tracking #{booking.bookingId}
+            {t('tracking.title')} #{booking.bookingId}
           </span>
         </nav>
 
@@ -304,10 +303,10 @@ export default function BookingTrackingPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
               <span className="badge badge-forest" style={{ fontSize: '12px' }}>
                 <ShieldCheck size={13} />
-                Live Socket Connection Active
+                {t('tracking.liveSocketActive')}
               </span>
               <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                Ref: <strong>#{booking.bookingId}</strong>
+                {t('tracking.refLabel')} <strong>#{booking.bookingId}</strong>
               </span>
             </div>
             <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--forest-900)' }}>
@@ -317,10 +316,10 @@ export default function BookingTrackingPage() {
 
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--forest-900)' }}>
-              ₹{booking.invoice?.totalAmount || booking.basePrice}
+              {formatCurrency(booking.invoice?.totalAmount || booking.basePrice)}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Payment Protection Active
+              {t('tracking.paymentProtectionActive')}
             </div>
           </div>
         </div>
@@ -343,10 +342,10 @@ export default function BookingTrackingPage() {
               <AlertCircle size={24} color="var(--yellow-800)" style={{ flexShrink: 0, marginTop: '2px' }} />
               <div>
                 <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--yellow-800)' }}>
-                  Action Required: Specialist Submitted Extra Parts Quotation
+                  {t('tracking.actionRequiredQuote')}
                 </h3>
                 <p style={{ fontSize: '13.5px', color: 'var(--yellow-800)', marginTop: '4px' }}>
-                  Additional required parts total: <strong>₹{booking.quotation.total}</strong>. Your approval is required before work continues.
+                  {t('tracking.extraPartsTotalLabel')} <strong>{formatCurrency(booking.quotation.total)}</strong>. {t('tracking.approvalRequiredNotice')}
                 </p>
               </div>
             </div>
@@ -357,7 +356,7 @@ export default function BookingTrackingPage() {
               style={{ backgroundColor: 'var(--forest-800)', padding: '10px 18px', whiteSpace: 'nowrap', textDecoration: 'none' }}
             >
               <FileText size={15} />
-              <span>Review Quotation</span>
+              <span>{t('tracking.reviewQuotationBtn')}</span>
             </Link>
           </div>
         )}
@@ -377,10 +376,10 @@ export default function BookingTrackingPage() {
             <ShieldAlert size={24} color="#DC2626" style={{ flexShrink: 0 }} />
             <div>
               <h3 style={{ fontSize: '15.5px', fontWeight: 800, color: '#991B1B' }}>
-                Service Dispute Registered
+                {t('tracking.disputeRegisteredTitle')}
               </h3>
               <p style={{ fontSize: '13px', color: '#991B1B', marginTop: '2px' }}>
-                Payment settlement is placed on protective hold while our customer trust desk reviews your report.
+                {t('tracking.disputeRegisteredDesc')}
               </p>
             </div>
           </div>
@@ -401,24 +400,24 @@ export default function BookingTrackingPage() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                       <span className="badge badge-yellow" style={{ fontSize: '11px', fontWeight: 800 }}>
-                        PAYMENT DUE
+                        {t('tracking.paymentDueBadge')}
                       </span>
                       <span className="badge badge-forest" style={{ fontSize: '11px' }}>
-                        30-Day Warranty Active
+                        {t('tracking.warrantyActiveBadge')}
                       </span>
                     </div>
                     <h3 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--forest-900)' }}>
-                      Service Completed — Final Settlement
+                      {t('tracking.finalSettlementTitle')}
                     </h3>
                     <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                      Specialist verified your completion code. Please choose your payment method below:
+                      {t('tracking.finalSettlementDesc')}
                     </p>
                   </div>
 
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Final Amount:</div>
+                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>{t('tracking.finalAmountLabel')}</div>
                     <div style={{ fontSize: '28px', fontWeight: 900, color: 'var(--forest-900)' }}>
-                      ₹{totalAmount}
+                      {formatCurrency(totalAmount)}
                     </div>
                   </div>
                 </div>
@@ -435,22 +434,22 @@ export default function BookingTrackingPage() {
                   gap: '6px'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Standard inspection & labor fee:</span>
-                    <strong>₹{basePrice}</strong>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t('tracking.laborFeeLabel')}</span>
+                    <strong>{formatCurrency(basePrice)}</strong>
                   </div>
                   {approvedExtra > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Approved extra spare parts & work:</span>
-                      <strong>₹{approvedExtra}</strong>
+                      <span style={{ color: 'var(--text-secondary)' }}>{t('tracking.approvedPartsLabel')}</span>
+                      <strong>{formatCurrency(approvedExtra)}</strong>
                     </div>
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Platform convenience fee:</span>
-                    <span>₹{platformFee}</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{t('tracking.convenienceFeeLabel')}</span>
+                    <span>{formatCurrency(platformFee)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid var(--border-light)', fontWeight: 800 }}>
-                    <span>Total Billed:</span>
-                    <span style={{ color: 'var(--forest-900)' }}>₹{totalAmount}</span>
+                    <span>{t('tracking.totalBilledLabel')}</span>
+                    <span style={{ color: 'var(--forest-900)' }}>{formatCurrency(totalAmount)}</span>
                   </div>
                 </div>
 
@@ -474,10 +473,10 @@ export default function BookingTrackingPage() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534', fontWeight: 800, fontSize: '15px' }}>
                           <CreditCard size={18} />
-                          <span>Pay Online</span>
+                          <span>{t('tracking.payOnlineTitle')}</span>
                         </div>
                         <p style={{ fontSize: '12.5px', color: '#15803D', marginTop: '6px', lineHeight: 1.4 }}>
-                          Instant checkout via UPI, Google Pay, PhonePe, Cards, or NetBanking.
+                          {t('tracking.payOnlineDesc')}
                         </p>
                       </div>
                       <button
@@ -487,7 +486,7 @@ export default function BookingTrackingPage() {
                         className="btn btn-primary"
                         style={{ marginTop: '14px', width: '100%', padding: '10px 16px', backgroundColor: '#15803D', fontWeight: 700 }}
                       >
-                        {payingOnline ? 'Opening Checkout...' : `Pay Online ₹${totalAmount}`}
+                        {payingOnline ? t('common.loading') : `${t('tracking.payOnlineBtn')} ${formatCurrency(totalAmount)}`}
                       </button>
                     </div>
                   )}
@@ -504,10 +503,10 @@ export default function BookingTrackingPage() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#334155', fontWeight: 800, fontSize: '15px' }}>
                         <Banknote size={18} />
-                        <span>Pay in Cash</span>
+                        <span>{t('tracking.payCashTitle')}</span>
                       </div>
                       <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: 1.4 }}>
-                        Hand ₹{totalAmount} in cash directly to your specialist. The specialist will confirm receipt in their app.
+                        {t('tracking.payCashDesc')}
                       </p>
                     </div>
                     <div style={{
@@ -520,7 +519,7 @@ export default function BookingTrackingPage() {
                       textAlign: 'center',
                       fontWeight: 600
                     }}>
-                      Specialist will confirm in app
+                      {t('tracking.specialistConfirmApp')}
                     </div>
                   </div>
                 </div>
@@ -528,7 +527,7 @@ export default function BookingTrackingPage() {
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                   <Link to={`/invoice/${booking._id}`} className="btn btn-outline btn-sm">
                     <Receipt size={14} />
-                    <span>View Full Itemized Tax Invoice</span>
+                    <span>{t('tracking.viewFullTaxInvoice')}</span>
                   </Link>
                 </div>
               </div>
@@ -549,14 +548,14 @@ export default function BookingTrackingPage() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                       <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#166534' }}>
-                        Service Completed & Paid
+                        {t('tracking.serviceCompletedPaidTitle')}
                       </h3>
                       <span className="badge badge-forest" style={{ fontSize: '11px' }}>
-                        {booking.paymentMethod === 'CASH' ? 'Cash Confirmed' : 'Paid Online'}
+                        {booking.paymentMethod === 'CASH' ? t('tracking.cashConfirmedBadge') : t('tracking.paidOnlineBadge')}
                       </span>
                     </div>
                     <p style={{ fontSize: '13.5px', color: '#166534', marginTop: '2px' }}>
-                      Invoice #{invoiceNumber} settled in full. Your 30-Day FixNear Workmanship Warranty is active.
+                      {invoiceNumber} · {t('tracking.invoiceSettledDesc')}
                     </p>
                   </div>
                 </div>
@@ -569,11 +568,11 @@ export default function BookingTrackingPage() {
                     style={{ backgroundColor: '#15803D', padding: '10px 18px' }}
                   >
                     <Star size={15} />
-                    <span>Rate & Review</span>
+                    <span>{t('tracking.rateAndReviewBtn')}</span>
                   </button>
                   <Link to={`/invoice/${booking._id}`} className="btn btn-secondary">
                     <Receipt size={15} />
-                    <span>View & Print Receipt</span>
+                    <span>{t('tracking.viewPrintReceiptBtn')}</span>
                   </Link>
                 </div>
               </div>
@@ -592,7 +591,7 @@ export default function BookingTrackingPage() {
           {/* Column 1: Live 5-Step Stepper */}
           <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
             <h2 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '20px' }}>
-              Live Service Progress
+              {t('tracking.liveProgressTitle')}
             </h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
@@ -642,7 +641,7 @@ export default function BookingTrackingPage() {
                           color: 'var(--forest-800)',
                           fontWeight: 700
                         }}>
-                          Live Step
+                          {t('tracking.liveStepBadge')}
                         </div>
                       )}
                     </div>
@@ -667,7 +666,7 @@ export default function BookingTrackingPage() {
                 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--forest-700)', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
               >
                 <Receipt size={15} />
-                <span>Inspect Invoice & Protection Breakdown →</span>
+                <span>{t('tracking.inspectInvoiceLink')}</span>
               </Link>
 
               {!isDisputed && (
@@ -688,7 +687,7 @@ export default function BookingTrackingPage() {
                   }}
                 >
                   <ShieldAlert size={15} color="#DC2626" />
-                  <span>Report Issue</span>
+                  <span>{t('tracking.reportIssueBtn')}</span>
                 </button>
               )}
             </div>
@@ -701,11 +700,11 @@ export default function BookingTrackingPage() {
             <div className="card" style={{ padding: '24px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Assigned Specialist
+                  {t('tracking.specialistCardTitle')}
                 </span>
                 <span className="badge badge-forest" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '3px' }}>
                   <ShieldCheck size={12} />
-                  <span>Skill Verified</span>
+                  <span>{t('tracking.skillVerifiedBadge')}</span>
                 </span>
               </div>
 
@@ -718,13 +717,13 @@ export default function BookingTrackingPage() {
                     />
                     <div>
                       <h3 style={{ fontSize: '16.5px', fontWeight: 700, color: 'var(--forest-900)' }}>
-                        {booking.providerName || 'Assigned Specialist'}
+                        {booking.providerName || t('tracking.specialistCardTitle')}
                       </h3>
                       <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                        Verified FixNear Partner
+                        {t('tracking.verifiedPartnerText')}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--forest-700)', fontWeight: 600, marginTop: '2px' }}>
-                        City: {booking.city}
+                        {t('tracking.cityLabel')} {booking.city}
                       </div>
                     </div>
                   </div>
@@ -736,16 +735,16 @@ export default function BookingTrackingPage() {
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%', textDecoration: 'none' }}
                     >
                       <Phone size={14} color="var(--forest-700)" />
-                      <span>Call {booking.providerPhone}</span>
+                      <span>{t('tracking.callBtn')} {booking.providerPhone}</span>
                     </a>
                   )}
                 </>
               ) : (
                 <div style={{ padding: '16px', backgroundColor: 'var(--bg-warm)', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
                   <Clock size={28} color="var(--forest-700)" style={{ margin: '0 auto 8px auto' }} />
-                  <div style={{ fontWeight: 700, fontSize: '14px' }}>Finding Certified Specialist</div>
+                  <div style={{ fontWeight: 700, fontSize: '14px' }}>{t('tracking.findingSpecialistTitle')}</div>
                   <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                    We are pairing your request with an available technician in {booking.city}. Details will appear as soon as accepted.
+                    {t('tracking.findingSpecialistCityDesc')}
                   </div>
                 </div>
               )}
@@ -762,7 +761,7 @@ export default function BookingTrackingPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                   <KeyRound size={18} color="var(--forest-700)" />
                   <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--forest-900)' }}>
-                    4-Digit Work Finish Code
+                    {t('tracking.finishCodeTitle')}
                   </h3>
                 </div>
 
@@ -785,9 +784,9 @@ export default function BookingTrackingPage() {
 
                 <p style={{ fontSize: '12px', color: 'var(--forest-800)', lineHeight: 1.5 }}>
                   {isCompleted ? (
-                    <span>This code was verified by the specialist upon completion. 30-Day Warranty is now running.</span>
+                    <span>{t('tracking.verifiedCodeDesc')}</span>
                   ) : (
-                    <span><strong>Security Protection:</strong> Share this 4-digit code with your technician ONLY after the service is completely finished to your satisfaction.</span>
+                    <span><strong>{t('tracking.securityNoticeHeading')}</strong> {t('tracking.securityNoticeText')}</span>
                   )}
                 </p>
               </div>
@@ -797,14 +796,14 @@ export default function BookingTrackingPage() {
             <div className="card" style={{ padding: '20px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-lg)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px' }}>
                 <MapPin size={14} color="var(--forest-700)" />
-                <span>Service Address</span>
+                <span>{t('tracking.serviceAddressTitle')}</span>
               </div>
               <div style={{ fontSize: '13.5px', color: 'var(--text-primary)', lineHeight: 1.5 }}>
                 {booking.address} ({booking.city})
               </div>
               {booking.notes && (
                 <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-light)', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-                  <strong>Notes:</strong> {booking.notes}
+                  <strong>{t('tracking.notesLabel')}</strong> {booking.notes}
                 </div>
               )}
             </div>

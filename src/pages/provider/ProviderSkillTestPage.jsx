@@ -27,12 +27,14 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { skillTestAPI, servicesAPI, providersAPI } from '../../services/api';
 
 export default function ProviderSkillTestPage() {
   const { categoryId: urlCategory } = useParams();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const { t } = useLanguage();
   const { showToast } = useToast();
 
   const [categoryId, setCategoryId] = useState(urlCategory || 'ac-cooling');
@@ -228,7 +230,7 @@ export default function ProviderSkillTestPage() {
       <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div className="spinner" style={{ margin: '0 auto 16px' }} />
-          <p style={{ color: 'var(--text-muted)' }}>Loading skill test session...</p>
+          <p style={{ color: 'var(--text-muted)' }}>{t('providerTest.loadingSession')}</p>
         </div>
       </div>
     );
@@ -261,10 +263,10 @@ export default function ProviderSkillTestPage() {
             </div>
 
             <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
-              Skill Test Cooldown Active
+              {t('providerTest.cooldownActive')}
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: 1.6, marginBottom: '24px' }}>
-              To uphold high workmanship and customer safety standards on FixNear Trust, a mandatory <strong>24-hour study and preparation cooldown</strong> is enforced following an unsuccessful test attempt.
+              {t('providerTest.cooldownNotice')}
             </p>
 
             <div style={{
@@ -276,15 +278,15 @@ export default function ProviderSkillTestPage() {
               fontSize: '13px',
               color: 'var(--forest-800)'
             }}>
-              Please review standard safety codes, manufacturer technical specifications, and diagnostic procedures. You will be able to retake the test once the cooldown timer elapses.
+              {t('providerTest.cooldownAdvice')}
             </div>
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <Link to="/provider" className="btn btn-secondary">
-                <span>Go to Dashboard</span>
+                <span>{t('providerTest.goToDashboard')}</span>
               </Link>
               <Link to="/services" className="btn btn-outline">
-                <span>Browse Service Rate Cards</span>
+                <span>{t('providerTest.browseRateCards')}</span>
               </Link>
             </div>
           </div>
@@ -322,10 +324,10 @@ export default function ProviderSkillTestPage() {
                 <ShieldCheck size={32} />
               </div>
               <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--forest-900)', margin: '0 0 6px' }}>
-                Practical Safety Skill Assessment
+                {t('providerTest.assessmentHeading')}
               </h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
-                Category: <strong>{categoryName}</strong>
+                {t('providerTest.categoryLabel')} <strong>{categoryName}</strong>
               </p>
             </div>
 
@@ -338,15 +340,15 @@ export default function ProviderSkillTestPage() {
               border: '1px solid var(--forest-100)'
             }}>
               <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)', margin: '0 0 12px' }}>
-                Exam Structure & Anti-Cheat Rules:
+                {t('providerTest.rulesHeading')}
               </h3>
               <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: 'var(--forest-800)', lineHeight: 1.8 }}>
-                <li><strong>10 Shuffled Questions</strong> pulled dynamically from the server question bank.</li>
-                <li><strong>15 Minutes Countdown</strong> (starts immediately when you click Start).</li>
-                <li><strong>Pass Mark: 70%</strong> (at least 7 correct answers).</li>
-                <li><strong>Badges:</strong> Bronze (70-79%), Silver (80-89%), Gold (90-100%).</li>
-                <li><strong>24-Hour Cooldown:</strong> Enforced automatically if the pass mark is not met.</li>
-                <li><strong>Browser Tab Switches:</strong> Recorded as informational integrity checks.</li>
+                <li>{t('providerTest.rule1')}</li>
+                <li>{t('providerTest.rule2')}</li>
+                <li>{t('providerTest.rule3')}</li>
+                <li>{t('providerTest.rule4')}</li>
+                <li>{t('providerTest.rule5')}</li>
+                <li>{t('providerTest.rule6')}</li>
               </ul>
             </div>
 
@@ -357,7 +359,7 @@ export default function ProviderSkillTestPage() {
                 onClick={handleStartExam}
                 style={{ padding: '12px 32px', fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}
               >
-                <span>Start 15-Minute Exam</span>
+                <span>{t('providerTest.startExamBtn')}</span>
                 <ArrowRight size={18} />
               </button>
             </div>
@@ -424,7 +426,7 @@ export default function ProviderSkillTestPage() {
                   {testResult.score}%
                 </div>
                 <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>
-                  {testResult.correctAnswers} / {testResult.totalQuestions} Correct
+                  {testResult.correctAnswers} / {testResult.totalQuestions} {t('providerTest.correctLabel')}
                 </div>
               </div>
               {testResult.badge && testResult.badge !== 'None' && (
@@ -434,10 +436,10 @@ export default function ProviderSkillTestPage() {
                   textAlign: 'left'
                 }}>
                   <div style={{ fontSize: '14px', fontWeight: 800, color: 'var(--forest-900)' }}>
-                    {testResult.badge} Badge
+                    {testResult.badge} {t('providerTest.badgeLabel')}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--forest-700)' }}>
-                    Verified Safety Rating
+                    {t('providerTest.verifiedRating')}
                   </div>
                 </div>
               )}
@@ -454,7 +456,7 @@ export default function ProviderSkillTestPage() {
                 marginBottom: '28px',
                 fontSize: '13px'
               }}>
-                <div style={{ fontWeight: 700, color: '#92400E', marginBottom: '6px' }}>Areas to Improve:</div>
+                <div style={{ fontWeight: 700, color: '#92400E', marginBottom: '6px' }}>{t('providerTest.areasToImprove')}</div>
                 <ul style={{ margin: 0, paddingLeft: '20px', color: '#78350F' }}>
                   {testResult.weakTopics.map((topic, i) => (
                     <li key={i}>{topic}</li>
@@ -466,7 +468,7 @@ export default function ProviderSkillTestPage() {
             {/* Action buttons */}
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <Link to="/provider" className="btn btn-primary" style={{ padding: '10px 24px' }}>
-                <span>Go to Provider Dashboard</span>
+                <span>{t('providerTest.goToDashboard')}</span>
               </Link>
             </div>
 
@@ -499,10 +501,10 @@ export default function ProviderSkillTestPage() {
         }}>
           <div>
             <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--forest-700)', textTransform: 'uppercase' }}>
-              Skill Test • {categoryName}
+              {t('providerTest.assessmentHeading')} • {categoryName}
             </div>
             <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)' }}>
-              Question {currentIndex + 1} of {questions.length}
+              {t('providerTest.questionLabel')} {currentIndex + 1} {t('providerTest.ofLabel')} {questions.length}
             </div>
           </div>
 
@@ -623,11 +625,11 @@ export default function ProviderSkillTestPage() {
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <ArrowLeft size={16} />
-            <span>Previous</span>
+            <span>{t('providerTest.previousBtn')}</span>
           </button>
 
           <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            {Object.keys(answers).length} of {questions.length} Answered
+            {Object.keys(answers).length} {t('providerTest.ofLabel')} {questions.length} {t('providerTest.answeredLabel')}
           </div>
 
           {currentIndex < questions.length - 1 ? (
@@ -637,7 +639,7 @@ export default function ProviderSkillTestPage() {
               onClick={() => setCurrentIndex((prev) => Math.min(questions.length - 1, prev + 1))}
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             >
-              <span>Next</span>
+              <span>{t('providerTest.nextBtn')}</span>
               <ArrowRight size={16} />
             </button>
           ) : (
@@ -651,11 +653,11 @@ export default function ProviderSkillTestPage() {
               {submitting ? (
                 <>
                   <div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} />
-                  <span>Submitting...</span>
+                  <span>{t('providerTest.submittingExam')}</span>
                 </>
               ) : (
                 <>
-                  <span>Submit Exam</span>
+                  <span>{t('providerTest.submitExamBtn')}</span>
                   <CheckCircle2 size={16} />
                 </>
               )}
@@ -686,10 +688,10 @@ export default function ProviderSkillTestPage() {
             }}>
               <AlertTriangle size={42} color="#D97706" style={{ margin: '0 auto 12px' }} />
               <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: '0 0 8px' }}>
-                Tab Switch Detected
+                {t('providerTest.tabSwitchTitle')}
               </h3>
               <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.5, marginBottom: '20px' }}>
-                You navigated away from the assessment window. Anti-cheat integrity tracking has logged <strong>{tabSwitches}</strong> window change(s) for audit. Please keep this tab focused.
+                {t('providerTest.tabSwitchNotice')}
               </p>
               <button
                 type="button"
@@ -697,7 +699,7 @@ export default function ProviderSkillTestPage() {
                 onClick={() => setShowWarningModal(false)}
                 style={{ width: '100%' }}
               >
-                Return to Assessment
+                {t('providerTest.returnToTestBtn')}
               </button>
             </div>
           </div>

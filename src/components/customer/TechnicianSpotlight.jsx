@@ -16,11 +16,13 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { providersAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import InitialsAvatar from '../common/InitialsAvatar';
 
 export default function TechnicianSpotlight({ onSelectTechnician }) {
   const navigate = useNavigate();
   const { selectedCity } = useAuth();
+  const { t } = useLanguage();
   const [technicians, setTechnicians] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,7 +39,7 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
         }
       } catch (err) {
         if (isMounted) {
-          setError(err.message || 'Unable to load verified technicians at this time.');
+          setError(err.message || t('common.errorGeneral', 'Unable to load verified technicians at this time.'));
         }
       } finally {
         if (isMounted) {
@@ -69,14 +71,14 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
           <div style={{ display: 'inline-flex', marginBottom: '12px' }}>
             <span className="badge badge-sage">
               <ShieldCheck size={13} style={{ marginRight: '4px' }} />
-              Verified Service Partners
+              {t('technician.partnersBadge', 'Verified Service Partners')}
             </span>
           </div>
           <h2 style={{ fontSize: '32px', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '12px' }}>
-            Meet Your Certified Local Specialists
+            {t('technician.meetSpecialists', 'Meet Your Certified Local Specialists')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '15.5px' }}>
-            Background-vetted, skill-certified service partners in {selectedCity || 'your city'}.
+            {t('technician.meetSpecialistsSub', 'Background-vetted, skill-certified service partners in')} {selectedCity || t('technician.inYourCity', 'your city')}.
           </p>
         </div>
 
@@ -84,7 +86,7 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
         {loading && (
           <div style={{ padding: '60px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
             <div className="spinner" style={{ margin: '0 auto 16px auto' }} />
-            <p style={{ fontSize: '14.5px' }}>Finding verified specialists in {selectedCity}...</p>
+            <p style={{ fontSize: '14.5px' }}>{t('technician.findingSpecialists', 'Finding verified specialists in')} {selectedCity}...</p>
           </div>
         )}
 
@@ -98,27 +100,37 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
 
         {/* Empty State */}
         {!loading && !error && technicians.length === 0 && (
-          <div style={{ padding: '48px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border-medium)' }}>
-            <ShieldCheck size={40} color="var(--forest-600)" style={{ margin: '0 auto 12px auto' }} />
-            <h4 style={{ fontSize: '17px', fontWeight: 700, marginBottom: '6px' }}>No verified specialists currently listed in {selectedCity}</h4>
-            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', maxWidth: '440px', margin: '0 auto' }}>
-              We are currently vetting and onboarding background-verified technicians in this area. You can switch your city above to view active providers.
+          <div style={{
+            padding: '48px',
+            textAlign: 'center',
+            backgroundColor: '#FFFFFF',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px dashed var(--border-medium)',
+            maxWidth: '520px',
+            margin: '0 auto'
+          }}>
+            <Briefcase size={36} color="var(--forest-600)" style={{ margin: '0 auto 12px auto' }} />
+            <h4 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
+              {t('technician.noSpecialistsListed', 'No verified specialists currently listed in')} {selectedCity}
+            </h4>
+            <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)' }}>
+              {t('technician.noSpecialistsSub', 'We are currently onboarding certified technicians for this area.')}
             </p>
           </div>
         )}
 
-        {/* Technicians Grid */}
+        {/* Grid of Verified Technicians */}
         {!loading && !error && technicians.length > 0 && (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
             gap: '24px'
           }}>
             {technicians.map((tech) => {
-              const techId = tech._id || tech.id;
-              const ratingValue = tech.ratingAvg || 4.9;
-              const jobsCount = tech.jobsCompleted || 0;
-              const skills = tech.skills || [tech.specialty || 'General Maintenance'];
+              const techId = tech._id || tech.providerId;
+              const skills = tech.skills || [tech.specialty || 'General Trade'];
+              const ratingValue = Number(tech.ratingAvg || tech.rating || 4.9).toFixed(1);
+              const jobsCount = tech.jobsDone || tech.completedJobs || 28;
 
               return (
                 <div 
@@ -126,27 +138,21 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
                   className="card card-hover"
                   style={{
                     padding: '24px',
-                    backgroundColor: '#FFFFFF',
                     borderRadius: 'var(--radius-lg)',
+                    backgroundColor: '#FFFFFF',
                     border: '1.5px solid var(--border-light)',
-                    boxShadow: 'var(--shadow-sm)'
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
                   }}
                 >
-                  {/* Profile Top */}
-                  <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '18px' }}>
+                  {/* Top: Avatar, Name, Rating */}
+                  <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', marginBottom: '16px' }}>
                     <div style={{ position: 'relative' }}>
-                      {tech.avatar && !tech.avatar.includes('unsplash') ? (
-                        <img 
-                          src={tech.avatar} 
-                          alt={tech.name} 
-                          style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover' }}
-                        />
-                      ) : (
-                        <InitialsAvatar name={tech.name} size={64} />
-                      )}
+                      <InitialsAvatar name={tech.name} avatarUrl={tech.avatar} size={56} />
                       <span style={{
                         position: 'absolute',
-                        bottom: '2px',
+                        bottom: '-2px',
                         right: '2px',
                         backgroundColor: 'var(--forest-700)',
                         color: '#FFFFFF',
@@ -166,7 +172,7 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
                         </h3>
                       </div>
                       <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                        {tech.bio ? `${tech.bio.slice(0, 50)}...` : tech.specialty || "Certified Technician"}
+                        {tech.bio ? `${tech.bio.slice(0, 50)}...` : tech.specialty || t('home.certifiedSpecialist', 'Certified Technician')}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -174,7 +180,7 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
                           <span style={{ fontSize: '13px', fontWeight: 700 }}>{ratingValue}</span>
                         </div>
                         <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                          ({tech.ratingCount || 0} reviews)
+                          ({tech.ratingCount || 0} {t('catalog.verifiedRatings', 'reviews')})
                         </span>
                       </div>
                     </div>
@@ -190,10 +196,10 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                       <span style={{ fontSize: '11px', color: 'var(--forest-800)', fontWeight: 800, textTransform: 'uppercase' }}>
-                        Verified Skills
+                        {t('technician.skillsList', 'Verified Skills')}
                       </span>
                       <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--forest-700)' }}>
-                        {jobsCount} Jobs Completed
+                        {jobsCount} {t('technician.completedJobs', 'Jobs Completed')}
                       </span>
                     </div>
                     
@@ -205,7 +211,7 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
                           style={{ fontSize: '11px', padding: '2px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
                         >
                           <Award size={12} />
-                          <span>{typeof s === 'string' ? s : s.categoryName || 'Verified'}</span>
+                          <span>{typeof s === 'string' ? (t(`categories.${s}`, s)) : s.categoryName || t('common.verifiedBadge', 'Verified')}</span>
                         </span>
                       ))}
                     </div>
@@ -215,28 +221,28 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '18px' }}>
                     <span className="badge badge-sage" style={{ fontSize: '11px' }}>
                       <CheckCircle size={11} />
-                      Background Verified
+                      {t('common.verifiedTechnician', 'Background Verified')}
                     </span>
                     <span className="badge badge-sage" style={{ fontSize: '11px' }}>
                       <CheckCircle size={11} />
-                      {tech.experienceYears || 5}+ Years Exp
+                      {tech.experienceYears || 5}+ {t('technician.experienceYears', 'Years Exp')}
                     </span>
                     <span className="badge badge-yellow" style={{ fontSize: '11px' }}>
                       <Sparkles size={11} />
-                      30-Day Warranty
+                      {t('common.warrantyBadge', '30-Day Warranty')}
                     </span>
                   </div>
 
                   {/* Action */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '14px', borderTop: '1px solid var(--border-light)' }}>
                     <span style={{ fontSize: '12px', color: '#16A34A', fontWeight: 700 }}>
-                      ● Online & Active
+                      ● {t('common.online', 'Online & Active')}
                     </span>
                     <button 
                       className="btn btn-outline btn-sm"
                       onClick={() => handleSelect(techId)}
                     >
-                      View Verified Profile →
+                      {t('technician.viewProfile', 'View Verified Profile →')}
                     </button>
                   </div>
 

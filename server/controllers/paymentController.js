@@ -113,7 +113,8 @@ export const markBookingPaidHelper = async ({
   }
 
   // Send receipt email to customer
-  const customerEmail = req?.user?.email || (await User.findById(updatedBooking.customerId))?.email;
+  const customerUser = req?.user?.preferredLanguage ? req.user : await User.findById(updatedBooking.customerId);
+  const customerEmail = customerUser?.email;
   if (customerEmail) {
     sendJobCompletedEmail({
       customerEmail,
@@ -123,6 +124,7 @@ export const markBookingPaidHelper = async ({
       totalAmount: finalAmount,
       invoiceNumber,
       paymentMethod: paymentMethod === 'ONLINE' ? 'Online (Razorpay Verified)' : 'Cash to Specialist',
+      lang: customerUser?.preferredLanguage || 'en',
     }).catch(() => {});
   }
 
@@ -532,6 +534,7 @@ export const confirmCashPayment = async (req, res, next) => {
         totalAmount,
         invoiceNumber,
         paymentMethod: 'Cash to Specialist',
+        lang: customer.preferredLanguage || 'en',
       }).catch(() => {});
     }
 

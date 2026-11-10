@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { LanguageProvider } from './context/LanguageContext';
+import { t } from './i18n/translations';
 
 // Common Components (Eager loaded for immediate structure)
 import Navbar from './components/common/Navbar';
@@ -28,7 +29,7 @@ const PageLoadingFallback = () => (
     color: 'var(--forest-800)'
   }}>
     <div className="spinner" />
-    <span style={{ fontSize: '14px', fontWeight: 600 }}>Loading FixNear Trust...</span>
+    <span style={{ fontSize: '14px', fontWeight: 600 }}>{t('common.loading', 'Loading...')}</span>
   </div>
 );
 

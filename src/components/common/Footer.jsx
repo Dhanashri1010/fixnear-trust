@@ -1,8 +1,11 @@
 import React from 'react';
-import { ShieldCheck, Heart, Lock, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function Footer() {
+  const { t } = useLanguage();
+
   return (
     <footer style={{
       backgroundColor: '#FFFFFF',
@@ -34,16 +37,16 @@ export default function Footer() {
                 <ShieldCheck size={20} />
               </div>
               <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)' }}>
-                FixNear <span style={{ fontSize: '12px', color: 'var(--forest-600)' }}>TRUST</span>
+                {t('brand.name', 'FixNear')} <span style={{ fontSize: '12px', color: 'var(--forest-600)' }}>{t('brand.tagline', 'TRUST')}</span>
               </span>
             </div>
             <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '16px' }}>
-              Home service booking built on transparent itemized pricing, verified specialists, and guaranteed payment protection.
+              {t('footer.tagline', 'Verified local home repairs and maintenance with upfront pricing, certified technicians, and a 30-day warranty.')}
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span className="badge badge-sage" style={{ fontSize: '11px' }}>
                 <CheckCircle2 size={12} />
-                30-Day Workmanship Warranty Included
+                {t('common.warrantyBadge', '30-Day FixNear Warranty')}
               </span>
             </div>
           </div>
@@ -51,38 +54,38 @@ export default function Footer() {
           {/* Col 2: Services */}
           <div>
             <h4 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-primary)' }}>
-              Popular Services
+              {t('footer.servicesCol', 'Popular Services')}
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px', color: 'var(--text-secondary)' }}>
-              <Link to="/services?category=air-conditioning">Air Conditioning Servicing</Link>
-              <Link to="/services?category=plumbing">Plumbing & Leak Repairs</Link>
-              <Link to="/services?category=electrical">Electrical Safety & Wiring</Link>
-              <Link to="/services?category=appliances">Appliance Repairs</Link>
-              <Link to="/services">View Complete Catalog</Link>
+              <Link to="/services?category=ac-cooling">{t('categories.ac-cooling', 'Air Conditioner')}</Link>
+              <Link to="/services?category=plumbing">{t('categories.plumbing', 'Plumbing Repairs')}</Link>
+              <Link to="/services?category=electrical">{t('categories.electrical', 'Electrical Safety')}</Link>
+              <Link to="/services?category=appliances">{t('categories.appliances', 'Home Appliances')}</Link>
+              <Link to="/services">{t('catalog.title', 'Complete Catalog')}</Link>
             </div>
           </div>
 
           {/* Col 3: Support & Help */}
           <div>
             <h4 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-primary)' }}>
-              Help & Support
+              {t('nav.help', 'Help & Support')}
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px', color: 'var(--text-secondary)' }}>
-              <Link to="/support">Support Desk & Tickets</Link>
-              <Link to="/my-bookings">Track Your Booking</Link>
-              <Link to="/refund-policy">Refund & Cancellation Policy</Link>
-              <Link to="/terms">Terms of Service</Link>
-              <Link to="/privacy">Privacy Policy</Link>
+              <Link to="/support">{t('support.title', 'Support Desk')}</Link>
+              <Link to="/bookings">{t('nav.myBookings', 'My Bookings')}</Link>
+              <Link to="/refund-policy">{t('footer.refundPolicy', 'Refund Policy')}</Link>
+              <Link to="/terms">{t('footer.terms', 'Terms of Service')}</Link>
+              <Link to="/privacy">{t('footer.privacy', 'Privacy Policy')}</Link>
             </div>
           </div>
 
           {/* Col 4: Trust Standard */}
           <div>
             <h4 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-primary)' }}>
-              FixNear Trust Promise
+              {t('home.howItWorks', 'How FixNear Works')}
             </h4>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '14px' }}>
-              Every partner is police-verified and tested for skill certification. With digital finish codes, money is released only after your personal satisfaction.
+              {t('home.heroDesc', 'Explore transparent service rates, certified local specialists, and a 30-day workmanship guarantee. Zero hidden callout fees.')}
             </p>
             <div style={{
               display: 'inline-flex',
@@ -97,7 +100,7 @@ export default function Footer() {
               fontWeight: 600
             }}>
               <ShieldCheck size={14} color="var(--forest-700)" />
-              <span>100% Verified Partners</span>
+              <span>{t('common.verifiedTechnician', 'Background-Verified Specialist')}</span>
             </div>
           </div>
         </div>
@@ -115,12 +118,12 @@ export default function Footer() {
           color: 'var(--text-muted)'
         }}>
           <div>
-            © {new Date().getFullYear()} FixNear Trust Technologies Inc. All rights reserved.
+            {t('footer.copyright', '© 2026 FixNear Trust. All rights reserved.')}
           </div>
           <div style={{ display: 'flex', gap: '16px' }}>
-            <Link to="/terms" style={{ color: 'var(--text-muted)' }}>Terms of Service</Link>
-            <Link to="/privacy" style={{ color: 'var(--text-muted)' }}>Privacy Policy</Link>
-            <Link to="/refund-policy" style={{ color: 'var(--text-muted)' }}>Refund Policy</Link>
+            <Link to="/terms" style={{ color: 'var(--text-muted)' }}>{t('footer.terms', 'Terms of Service')}</Link>
+            <Link to="/privacy" style={{ color: 'var(--text-muted)' }}>{t('footer.privacy', 'Privacy Policy')}</Link>
+            <Link to="/refund-policy" style={{ color: 'var(--text-muted)' }}>{t('footer.refundPolicy', 'Refund Policy')}</Link>
           </div>
         </div>
 

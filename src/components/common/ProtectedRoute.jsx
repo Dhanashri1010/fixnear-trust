@@ -6,10 +6,12 @@
 import React from 'react';
 import { Navigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { ShieldAlert, ArrowLeft, LogIn } from 'lucide-react';
 
 export default function ProtectedRoute({ allowedRoles, children }) {
   const { currentUser, role, loading } = useAuth();
+  const { t } = useLanguage();
   const location = useLocation();
 
   if (loading) {
@@ -23,7 +25,7 @@ export default function ProtectedRoute({ allowedRoles, children }) {
         gap: '12px'
       }}>
         <div className="skeleton" style={{ width: '48px', height: '48px', borderRadius: '50%' }} />
-        <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>Checking portal security clearance...</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>{t('common.checkingAuth', 'Checking portal security clearance...')}</p>
       </div>
     );
   }
@@ -59,20 +61,20 @@ export default function ProtectedRoute({ allowedRoles, children }) {
           </div>
 
           <h2 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '8px', color: 'var(--forest-900)' }}>
-            Access Restricted
+            {t('common.accessRestricted', 'Access Restricted')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '15px', marginBottom: '24px', lineHeight: 1.5 }}>
-            This portal is reserved for <strong>{allowedRoles.join(' or ')}</strong> accounts. You are currently logged in as a <strong>{role}</strong>.
+            {t('common.portalReservedFor', 'This portal is reserved for authorized accounts.')}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <Link to="/" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
               <ArrowLeft size={16} />
-              <span>Return to Home</span>
+              <span>{t('common.backToHome', 'Return to Home')}</span>
             </Link>
             <Link to="/login" className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }}>
               <LogIn size={16} />
-              <span>Sign in with Authorized Account</span>
+              <span>{t('common.signInAuthorized', 'Sign in with Authorized Account')}</span>
             </Link>
           </div>
         </div>

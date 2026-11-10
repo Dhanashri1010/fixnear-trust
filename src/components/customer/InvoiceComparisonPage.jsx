@@ -7,17 +7,18 @@ import {
   ChevronRight, 
   Home, 
   FileText, 
-  Clock,
-  ShieldAlert,
-  Printer,
-  CreditCard,
-  Banknote,
-  Star
+  Clock, 
+  ShieldAlert, 
+  Printer, 
+  CreditCard, 
+  Banknote, 
+  Star 
 } from 'lucide-react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { bookingsAPI, paymentsAPI, getSocket } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { loadRazorpayScript } from '../../utils/razorpay';
 import ReviewModal from './ReviewModal';
 import DisputeModal from './DisputeModal';
@@ -27,6 +28,7 @@ export default function InvoiceComparisonPage() {
   const { id } = useParams();
   const { currentUser } = useAuth();
   const { showToast } = useToast();
+  const { t, formatCurrency } = useLanguage();
 
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -45,10 +47,10 @@ export default function InvoiceComparisonPage() {
       if (res.success && res.booking) {
         setBooking(res.booking);
       } else {
-        setError('Booking not found.');
+        setError(t('errors.bookingNotFound', 'Booking not found.'));
       }
     } catch (err) {
-      setError(err.message || 'Could not fetch invoice details.');
+      setError(err.message || t('invoice.loadingInvoice', 'Could not fetch invoice details.'));
     } finally {
       setLoading(false);
     }
@@ -115,11 +117,11 @@ export default function InvoiceComparisonPage() {
             });
 
             if (verifyRes.success) {
-              showToast('Payment successful! Your warranty tax invoice has been generated.', 'success');
+              showToast(t('booking.paymentSuccess', 'Payment successful! Your warranty tax invoice has been generated.'), 'success');
               await fetchBooking();
             }
           } catch (verifyErr) {
-            showToast(verifyErr.message || 'Payment verification failed. Please contact support.', 'error');
+            showToast(verifyErr.message || t('common.errorGeneral', 'Payment verification failed. Please contact support.'), 'error');
           }
         },
         prefill: {
@@ -138,7 +140,7 @@ export default function InvoiceComparisonPage() {
       });
       razorpayInstance.open();
     } catch (err) {
-      showToast(err.message || 'Failed to initiate online checkout.', 'error');
+      showToast(err.message || t('common.errorGeneral', 'Failed to initiate online checkout.'), 'error');
     } finally {
       setPayingOnline(false);
     }
@@ -149,7 +151,7 @@ export default function InvoiceComparisonPage() {
       <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
           <Clock size={32} style={{ margin: '0 auto 12px auto', animation: 'spin 1.5s linear infinite' }} />
-          <div>Loading warranty receipt...</div>
+          <div>{t('invoice.loadingInvoice')}</div>
         </div>
       </div>
     );
@@ -159,10 +161,10 @@ export default function InvoiceComparisonPage() {
     return (
       <div style={{ backgroundColor: 'var(--bg-warm)', minHeight: '80vh', padding: '60px 20px', textAlign: 'center' }}>
         <div className="container" style={{ maxWidth: '480px' }}>
-          <h2>{error || 'No invoice available for this appointment'}</h2>
+          <h2>{error || t('invoice.noInvoiceAvailable', 'No invoice available for this appointment')}</h2>
           <div style={{ marginTop: '20px' }}>
             <Link to="/bookings" className="btn btn-primary">
-              Return to Bookings
+              {t('invoice.returnToBookingsBtn')}
             </Link>
           </div>
         </div>
@@ -200,17 +202,17 @@ export default function InvoiceComparisonPage() {
             style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600, textDecoration: 'none' }}
           >
             <Home size={14} />
-            <span>Home</span>
+            <span>{t('nav.home')}</span>
           </Link>
           <ChevronRight size={13} />
           <Link 
             to={`/track/${booking._id}`}
             style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}
           >
-            Tracking #{booking.bookingId}
+            {t('tracking.title')} #{booking.bookingId}
           </Link>
           <ChevronRight size={13} />
-          <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>Warranty Tax Invoice</span>
+          <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>{t('invoice.taxInvoiceCashReceipt')}</span>
         </nav>
 
         {/* Invoice Header Card */}
@@ -227,28 +229,28 @@ export default function InvoiceComparisonPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                 <span className="badge badge-forest">
                   <ShieldCheck size={13} />
-                  30-Day Workmanship Warranty Active
+                  {t('invoice.workmanshipWarrantyActive')}
                 </span>
                 <span className={`badge ${isPaid ? 'badge-forest' : 'badge-yellow'}`} style={{ fontSize: '11px', fontWeight: 800 }}>
-                  {isPaid ? `PAID (${booking.paymentMethod || 'VERIFIED'})` : 'PAYMENT DUE'}
+                  {isPaid ? `${t('tracking.paidOnlineBadge')} (${booking.paymentMethod || 'VERIFIED'})` : t('tracking.paymentDueBadge')}
                 </span>
               </div>
               <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--forest-900)' }}>
-                Official Service Invoice #{invoiceNumber}
+                {t('invoice.taxInvoiceCashReceipt')} #{invoiceNumber}
               </h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
-                Booking Ref: <strong>#{booking.bookingId}</strong> · Specialist: <strong>{booking.providerName || 'Certified Partner'}</strong>
+                {t('disputes.bookingRefLabel')}: <strong>#{booking.bookingId}</strong> · {t('common.verifiedTechnician')}: <strong>{booking.providerName || t('technician.certifiedBadge')}</strong>
               </p>
             </div>
 
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Total Amount:</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('invoice.grandTotal')}:</div>
               <div style={{ fontSize: '32px', fontWeight: 900, color: 'var(--forest-900)' }}>
-                ₹{totalAmount}
+                {formatCurrency(totalAmount)}
               </div>
               {isPaid && (
                 <div style={{ fontSize: '12px', color: '#16A34A', fontWeight: 700, marginTop: '2px' }}>
-                  ✓ Settled in Full
+                  ✓ {t('tracking.invoiceSettledDesc')}
                 </div>
               )}
             </div>
@@ -258,7 +260,7 @@ export default function InvoiceComparisonPage() {
         {/* Line Items Breakdown Card */}
         <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)', marginBottom: '24px' }}>
           <h2 style={{ fontSize: '17px', fontWeight: 800, marginBottom: '16px' }}>
-            Itemized Charge Breakdown
+            {t('invoice.serviceBreakdown')}
           </h2>
 
           <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginBottom: '20px' }}>
@@ -271,9 +273,9 @@ export default function InvoiceComparisonPage() {
             }}>
               <div>
                 <strong>{booking.serviceTitle}</strong>
-                <div style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Standard inspection & labor fee</div>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>{t('invoice.laborCharge')}</div>
               </div>
-              <strong>₹{basePrice}</strong>
+              <strong>{formatCurrency(basePrice)}</strong>
             </div>
 
             {approvedExtra > 0 && (
@@ -286,17 +288,16 @@ export default function InvoiceComparisonPage() {
                 backgroundColor: '#FAF5FF'
               }}>
                 <div>
-                  <strong>Approved Additional Spare Parts & Work</strong>
+                  <strong>{t('invoice.approvedPartsCharges')}</strong>
                   <div style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
-                    Customer pre-approved quotation
                     {booking.quotation?.items?.length > 0 && (
                       <span style={{ display: 'block', marginTop: '4px', fontSize: '12px', color: '#6B21A8' }}>
-                        {booking.quotation.items.map(i => `${i.desc} (₹${i.amount})`).join(', ')}
+                        {booking.quotation.items.map(i => `${i.desc} (${formatCurrency(i.amount)})`).join(', ')}
                       </span>
                     )}
                   </div>
                 </div>
-                <strong>₹{approvedExtra}</strong>
+                <strong>{formatCurrency(approvedExtra)}</strong>
               </div>
             )}
 
@@ -308,10 +309,9 @@ export default function InvoiceComparisonPage() {
               fontSize: '13.5px'
             }}>
               <div>
-                <span>Platform Convenience Fee</span>
-                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>Secure match, background check, digital warranty protection</div>
+                <span>{t('invoice.convenienceFee')}</span>
               </div>
-              <span>₹{platformFee}</span>
+              <span>{formatCurrency(platformFee)}</span>
             </div>
 
             <div style={{
@@ -322,8 +322,8 @@ export default function InvoiceComparisonPage() {
               fontSize: '13px',
               color: 'var(--forest-700)'
             }}>
-              <span>30-Day Workmanship Warranty</span>
-              <strong>INCLUDED (₹0)</strong>
+              <span>{t('invoice.warrantyCardHeading')}</span>
+              <strong>{t('common.included', 'INCLUDED')}</strong>
             </div>
 
             <div style={{
@@ -334,8 +334,8 @@ export default function InvoiceComparisonPage() {
               fontSize: '17px',
               fontWeight: 800
             }}>
-              <span>Total Billed</span>
-              <span style={{ color: 'var(--forest-900)' }}>₹{totalAmount}</span>
+              <span>{t('invoice.grandTotal')}</span>
+              <span style={{ color: 'var(--forest-900)' }}>{formatCurrency(totalAmount)}</span>
             </div>
           </div>
 
@@ -349,10 +349,10 @@ export default function InvoiceComparisonPage() {
               marginBottom: '20px'
             }}>
               <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '8px' }}>
-                Select Your Payment Method
+                {t('invoice.selectPaymentMethod', 'Select Your Payment Method')}
               </h3>
               <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                Please choose how you would like to settle the final balance of <strong>₹{totalAmount}</strong>:
+                {t('tracking.finalSettlementDesc')} <strong>{formatCurrency(totalAmount)}</strong>:
               </p>
 
               <div style={{
@@ -374,10 +374,10 @@ export default function InvoiceComparisonPage() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--forest-800)', fontWeight: 700, fontSize: '15px' }}>
                         <CreditCard size={18} />
-                        <span>Pay Online</span>
+                        <span>{t('tracking.payOnlineTitle')}</span>
                       </div>
                       <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: 1.5 }}>
-                        Instant & contactless via UPI (GPay, PhonePe, Paytm), Credit/Debit Cards, or NetBanking.
+                        {t('tracking.payOnlineDesc')}
                       </p>
                     </div>
                     <button
@@ -387,7 +387,7 @@ export default function InvoiceComparisonPage() {
                       className="btn btn-primary"
                       style={{ marginTop: '16px', width: '100%', padding: '10px 16px', fontWeight: 700 }}
                     >
-                      {payingOnline ? 'Opening Checkout...' : `Pay Online ₹${totalAmount}`}
+                      {payingOnline ? t('common.loading') : `${t('tracking.payOnlineBtn')} ${formatCurrency(totalAmount)}`}
                     </button>
                   </div>
                 ) : null}
@@ -405,10 +405,10 @@ export default function InvoiceComparisonPage() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#334155', fontWeight: 700, fontSize: '15px' }}>
                       <Banknote size={18} />
-                      <span>Pay in Cash</span>
+                      <span>{t('tracking.payCashTitle')}</span>
                     </div>
                     <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '6px', lineHeight: 1.5 }}>
-                      Hand ₹{totalAmount} directly to your specialist. The specialist will confirm receipt in their app, immediately updating your status to Paid.
+                      {t('tracking.payCashDesc')}
                     </p>
                   </div>
                   <div style={{
@@ -421,7 +421,7 @@ export default function InvoiceComparisonPage() {
                     textAlign: 'center',
                     fontWeight: 600
                   }}>
-                    Cash on service available
+                    {t('tracking.specialistConfirmApp')}
                   </div>
                 </div>
               </div>
@@ -438,7 +438,7 @@ export default function InvoiceComparisonPage() {
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 <Printer size={14} />
-                <span>Print Tax Invoice</span>
+                <span>{t('invoice.printInvoice')}</span>
               </button>
 
               <button
@@ -448,7 +448,7 @@ export default function InvoiceComparisonPage() {
                 style={{ color: '#DC2626', borderColor: '#FCA5A5', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 <ShieldAlert size={14} />
-                <span>Report Issue</span>
+                <span>{t('tracking.reportIssueBtn')}</span>
               </button>
             </div>
 
@@ -460,7 +460,7 @@ export default function InvoiceComparisonPage() {
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 <Star size={14} />
-                <span>Rate Specialist Experience</span>
+                <span>{t('myBookings.reviewBtn')}</span>
               </button>
             )}
           </div>

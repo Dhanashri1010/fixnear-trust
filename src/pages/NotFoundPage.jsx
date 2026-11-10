@@ -1,8 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Home, ArrowLeft } from 'lucide-react';
+import { Home } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function NotFoundPage() {
+  const { t } = useLanguage();
+
   return (
     <div style={{
       minHeight: '70vh',
@@ -30,14 +33,14 @@ export default function NotFoundPage() {
           404
         </div>
         <h1 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '8px', color: 'var(--forest-900)' }}>
-          Page Not Found
+          {t('common.pageNotFound', 'Page Not Found')}
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '15px', marginBottom: '28px', lineHeight: 1.5 }}>
-          The page you are looking for does not exist or has been moved.
+          {t('common.pageNotFoundDesc', 'The page you are looking for does not exist or has been moved.')}
         </p>
         <Link to="/" className="btn btn-primary" style={{ display: 'inline-flex', width: '100%', justifyContent: 'center' }}>
           <Home size={16} />
-          <span>Return to Homepage</span>
+          <span>{t('common.backToHome', 'Return to Homepage')}</span>
         </Link>
       </div>
     </div>

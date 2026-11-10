@@ -76,6 +76,11 @@ const userSchema = new mongoose.Schema(
     passwordChangedAt: {
       type: Date,
     },
+    preferredLanguage: {
+      type: String,
+      enum: ['en', 'hi', 'mr'],
+      default: 'en',
+    },
     passwordResetToken: String,
     passwordResetExpires: Date,
   },

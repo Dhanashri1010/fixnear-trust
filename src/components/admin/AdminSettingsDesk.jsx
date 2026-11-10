@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminAPI } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 import { 
   Settings, 
   Save, 
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 
 export default function AdminSettingsDesk() {
+  const { t } = useLanguage();
   const [settings, setSettings] = useState({
     platformFee: 49,
     commissionRate: 15,
@@ -107,7 +109,7 @@ export default function AdminSettingsDesk() {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-slate-500">
         <RefreshCw className="w-8 h-8 animate-spin text-blue-600 mb-4" />
-        <p className="font-medium text-sm">Loading platform operational settings...</p>
+        <p className="font-medium text-sm">{t('admin.loadingSettings')}</p>
       </div>
     );
   }
@@ -119,10 +121,10 @@ export default function AdminSettingsDesk() {
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Settings className="w-6 h-6 text-blue-600" />
-            Global Platform Settings
+            <span>{t('admin.globalPlatformSettings')}</span>
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Configure financial parameters, technician qualification thresholds, and operational rules.
+            {t('admin.globalPlatformDesc')}
           </p>
         </div>
         <button
@@ -132,7 +134,7 @@ export default function AdminSettingsDesk() {
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
         >
           <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
+          <span>{t('admin.refresh')}</span>
         </button>
       </div>
 
@@ -156,17 +158,17 @@ export default function AdminSettingsDesk() {
           <div className="border-b border-slate-100 pb-3">
             <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
               <IndianRupee className="w-5 h-5 text-emerald-600" />
-              Financial & Fee Parameters
+              <span>{t('admin.financialFeeParameters')}</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              These values calculate booking receipts for customers and platform commissions for providers.
+              {t('admin.financialFeeDesc')}
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Customer Platform Convenience Fee (₹)
+                {t('admin.convenienceFeeLabel')} (₹)
               </label>
               <div className="relative rounded-lg shadow-sm">
                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 font-medium">
@@ -183,12 +185,12 @@ export default function AdminSettingsDesk() {
                   required
                 />
               </div>
-              <p className="text-xs text-slate-400 mt-1">Allowed range: ₹0 to ₹500</p>
+              <p className="text-xs text-slate-400 mt-1">{t('admin.convenienceFeeRange')}</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Platform Commission Rate (%)
+                {t('admin.commissionRateLabel')} (%)
               </label>
               <div className="relative rounded-lg shadow-sm">
                 <input
@@ -205,7 +207,7 @@ export default function AdminSettingsDesk() {
                   <Percent className="w-4 h-4" />
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-1">Deducted from technician payout (0% to 40%)</p>
+              <p className="text-xs text-slate-400 mt-1">{t('admin.deductedFromPayout')}</p>
             </div>
           </div>
         </div>
@@ -215,17 +217,17 @@ export default function AdminSettingsDesk() {
           <div className="border-b border-slate-100 pb-3">
             <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
               <Award className="w-5 h-5 text-blue-600" />
-              Technician Skill Assessment & Verification
+              <span>{t('admin.techAssessmentVerification')}</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Governs qualification difficulty, timing constraints, and retake frequency.
+              {t('admin.governsDifficulty')}
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Pass Mark Threshold (%)
+                {t('admin.passMarkThreshold')}
               </label>
               <div className="relative rounded-lg shadow-sm">
                 <input
@@ -242,12 +244,12 @@ export default function AdminSettingsDesk() {
                   <Percent className="w-4 h-4" />
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-1">Minimum score to qualify (50% - 100%)</p>
+              <p className="text-xs text-slate-400 mt-1">{t('admin.minScoreToQualify')}</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Exam Time Limit (Minutes)
+                {t('admin.examTimeLimit')}
               </label>
               <div className="relative rounded-lg shadow-sm">
                 <input
@@ -264,12 +266,12 @@ export default function AdminSettingsDesk() {
                   <Clock className="w-4 h-4" />
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-1">Allowed duration (5 - 60 minutes)</p>
+              <p className="text-xs text-slate-400 mt-1">{t('admin.allowedDuration')}</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Retake Cooldown (Hours)
+                {t('admin.retakeCooldown')}
               </label>
               <div className="relative rounded-lg shadow-sm">
                 <input
@@ -286,7 +288,7 @@ export default function AdminSettingsDesk() {
                   <RotateCcw className="w-4 h-4" />
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-1">Wait time after failing (1 - 168 hours)</p>
+              <p className="text-xs text-slate-400 mt-1">{t('admin.waitTimeFailing')}</p>
             </div>
           </div>
         </div>
@@ -295,7 +297,7 @@ export default function AdminSettingsDesk() {
         <div className="flex items-start gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
           <ShieldAlert className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
           <p>
-            <strong>Audit Logging Notice:</strong> Any adjustment to global parameters will be recorded in the system audit log with your administrative user credentials, timestamp, and IP address for compliance and governance tracking.
+            <strong>{t('admin.auditLoggingNotice')}</strong> {t('admin.auditNoticeDesc')}
           </p>
         </div>
 
@@ -309,12 +311,12 @@ export default function AdminSettingsDesk() {
             {saving ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                Saving Changes...
+                <span>{t('common.saving')}</span>
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                Save & Apply Settings
+                <span>{t('admin.saveApplySettings')}</span>
               </>
             )}
           </button>

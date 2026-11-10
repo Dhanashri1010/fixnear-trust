@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminAPI } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react';
 
 export default function AdminDisputesDesk() {
+  const { t } = useLanguage();
   const [disputes, setDisputes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -158,10 +160,10 @@ export default function AdminDisputesDesk() {
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Scale className="w-6 h-6 text-purple-600" />
-            Complaints & Dispute Mediation Desk
+            <span>{t('admin.deskDisputesTitle')}</span>
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Impartial adjudication desk for service defects, customer disputes, and escrow funds reconciliation.
+            {t('admin.deskDisputesDesc')}
           </p>
         </div>
         <button
@@ -170,7 +172,7 @@ export default function AdminDisputesDesk() {
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          <span>{t('admin.refresh')}</span>
         </button>
       </div>
 
@@ -195,7 +197,7 @@ export default function AdminDisputesDesk() {
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by ticket #, customer, tech..."
+              placeholder={t('common.searchPlaceholder', 'Search by ticket #, customer, tech...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-purple-500"
@@ -205,7 +207,7 @@ export default function AdminDisputesDesk() {
             type="submit"
             className="px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800"
           >
-            Search
+            {t('admin.search')}
           </button>
         </form>
 
@@ -216,9 +218,9 @@ export default function AdminDisputesDesk() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-purple-500 bg-white"
           >
-            <option value="all">All Statuses</option>
-            <option value="OPEN">Open (Requires Action)</option>
-            <option value="RESOLVED">Resolved</option>
+            <option value="all">{t('admin.allStatuses')}</option>
+            <option value="OPEN">{t('admin.openRequiresAction')}</option>
+            <option value="RESOLVED">{t('admin.resolvedDisputes')}</option>
           </select>
         </div>
       </div>
@@ -229,13 +231,13 @@ export default function AdminDisputesDesk() {
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
-                <th className="py-3 px-4">Ticket / Booking</th>
-                <th className="py-3 px-4">Customer</th>
-                <th className="py-3 px-4">Technician</th>
-                <th className="py-3 px-4">Claim Reason</th>
-                <th className="py-3 px-4">Disputed Amt</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4">{t('admin.ticketBooking')}</th>
+                <th className="py-3 px-4">{t('admin.customers')}</th>
+                <th className="py-3 px-4">{t('admin.providers')}</th>
+                <th className="py-3 px-4">{t('admin.claimReason')}</th>
+                <th className="py-3 px-4">{t('admin.disputedAmt')}</th>
+                <th className="py-3 px-4">{t('admin.status')}</th>
+                <th className="py-3 px-4 text-right">{t('admin.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -243,14 +245,14 @@ export default function AdminDisputesDesk() {
                 <tr>
                   <td colSpan="7" className="py-12 text-center text-slate-400">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-purple-600" />
-                    Loading dispute cases...
+                    <span>{t('admin.dossierLoading')}</span>
                   </td>
                 </tr>
               ) : disputes.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="py-12 text-center text-slate-500">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                    No dispute tickets found. All completed jobs are healthy!
+                    <span>{t('admin.zeroDisputes')}</span>
                   </td>
                 </tr>
               ) : (
@@ -263,7 +265,7 @@ export default function AdminDisputesDesk() {
                           {disp.disputeId}
                         </div>
                         <div className="text-xs text-slate-400 font-mono">
-                          Booking #{disp.bookingNumber}
+                          {t('common.bookingDetails', 'Booking')} {'#'}{disp.bookingNumber}
                         </div>
                       </td>
                       <td className="py-3 px-4">
@@ -287,12 +289,12 @@ export default function AdminDisputesDesk() {
                         {isOpen ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
                             <Clock className="w-3 h-3" />
-                            OPEN
+                            <span>{t('status.OPEN', 'OPEN')}</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
                             <CheckCircle2 className="w-3 h-3" />
-                            RESOLVED
+                            <span>{t('status.RESOLVED', 'RESOLVED')}</span>
                           </span>
                         )}
                       </td>
@@ -302,7 +304,7 @@ export default function AdminDisputesDesk() {
                           className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          Inspect & Rule
+                          <span>{t('admin.inspectAndRule')}</span>
                         </button>
                       </td>
                     </tr>
@@ -331,7 +333,7 @@ export default function AdminDisputesDesk() {
             {detailLoading || !disputeDetail ? (
               <div className="py-16 text-center text-slate-500">
                 <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-purple-600" />
-                <p className="text-sm font-medium">Loading dispute dossier and booking timeline...</p>
+                <p className="text-sm font-medium">{t('admin.dossierLoading')}</p>
               </div>
             ) : (
               <div className="space-y-6">
@@ -346,14 +348,14 @@ export default function AdminDisputesDesk() {
                         ? 'bg-amber-100 text-amber-800'
                         : 'bg-emerald-100 text-emerald-800'
                     }`}>
-                      {disputeDetail.dispute?.status}
+                      {disputeDetail.dispute?.status === 'OPEN' ? t('status.OPEN', 'OPEN') : t('status.RESOLVED', 'RESOLVED')}
                     </span>
                   </div>
                   <h3 className="text-lg font-bold text-slate-900">
-                    Dispute: {disputeDetail.dispute?.reason}
+                    <span>{t('admin.disputes', 'Dispute')}:</span> {disputeDetail.dispute?.reason}
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    Filed on {new Date(disputeDetail.dispute?.createdAt).toLocaleString('en-IN')}
+                    {t('common.date', 'Filed on')} {new Date(disputeDetail.dispute?.createdAt).toLocaleString('en-IN')}
                   </p>
                 </div>
 
@@ -361,13 +363,13 @@ export default function AdminDisputesDesk() {
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                   <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wide mb-1 flex items-center gap-1.5">
                     <ShieldAlert className="w-4 h-4 text-amber-600" />
-                    Customer Grievance Statement
+                    <span>{t('admin.customerGrievance')}</span>
                   </h4>
                   <p className="text-sm text-amber-950 font-medium">
                     "{disputeDetail.dispute?.notes}"
                   </p>
                   <div className="mt-2 text-xs text-amber-800 font-semibold">
-                    Claim Amount: ₹{disputeDetail.dispute?.claimAmount?.toLocaleString('en-IN')}
+                    <span>{t('admin.claimAmountLabel')}: ₹</span>{disputeDetail.dispute?.claimAmount?.toLocaleString('en-IN')}
                   </div>
                 </div>
 
@@ -377,7 +379,7 @@ export default function AdminDisputesDesk() {
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase mb-2">
                       <User className="w-4 h-4 text-blue-600" />
-                      Complainant (Customer)
+                      <span>{t('admin.complainantCustomer')}</span>
                     </div>
                     <div className="text-sm font-semibold text-slate-900">{disputeDetail.customer?.name || disputeDetail.dispute?.customerName}</div>
                     <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
@@ -394,7 +396,7 @@ export default function AdminDisputesDesk() {
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase mb-2">
                       <Wrench className="w-4 h-4 text-emerald-600" />
-                      Assigned Technician
+                      <span>{t('admin.assignedTechnician')}</span>
                     </div>
                     <div className="text-sm font-semibold text-slate-900">{disputeDetail.provider?.name || disputeDetail.dispute?.providerName}</div>
                     <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
@@ -413,25 +415,25 @@ export default function AdminDisputesDesk() {
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
                     <h4 className="text-xs font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
                       <Receipt className="w-4 h-4 text-slate-500" />
-                      Associated Booking #{disputeDetail.booking.bookingId}
+                      <span>{t('admin.associatedBooking')} {'#'}{disputeDetail.booking.bookingId}</span>
                     </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                       <div>
-                        <span className="text-slate-400 block">Service:</span>
+                        <span className="text-slate-400 block">{t('common.details', 'Service')}:</span>
                         <span className="font-semibold text-slate-800">{disputeDetail.booking.serviceTitle}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block">Job Status:</span>
+                        <span className="text-slate-400 block">{t('common.status', 'Job Status')}:</span>
                         <span className="font-semibold text-slate-800">{disputeDetail.booking.status}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block">Price Billed:</span>
+                        <span className="text-slate-400 block">{t('common.price', 'Price Billed')}:</span>
                         <span className="font-semibold text-slate-800">
                           ₹{(disputeDetail.booking.invoice?.totalAmount || disputeDetail.booking.basePrice || 0).toLocaleString('en-IN')}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block">Scheduled Date:</span>
+                        <span className="text-slate-400 block">{t('common.date', 'Scheduled Date')}:</span>
                         <span className="font-semibold text-slate-800">{disputeDetail.booking.scheduledDate}</span>
                       </div>
                     </div>
@@ -443,14 +445,14 @@ export default function AdminDisputesDesk() {
                   <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
                     <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 uppercase">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      Adjudication Decision: {disputeDetail.dispute.decision}
+                      <span>{t('admin.adjudicationDecision')}: {disputeDetail.dispute.decision}</span>
                     </div>
                     <p className="text-sm text-emerald-950 font-medium">
-                      Admin Note: "{disputeDetail.dispute.adminNote}"
+                      <span>{t('admin.adminNoteLabel')}: "{disputeDetail.dispute.adminNote}"</span>
                     </p>
                     <div className="flex gap-4 text-xs font-semibold text-emerald-800 pt-1">
-                      <span>Refund to Customer: ₹{disputeDetail.dispute.refundAmount || 0}</span>
-                      <span>Technician Payout: ₹{disputeDetail.dispute.providerPayout || 0}</span>
+                      <span>{t('admin.refundAmount')}: ₹{disputeDetail.dispute.refundAmount || 0}</span>
+                      <span>{t('admin.providerPayout')}: ₹{disputeDetail.dispute.providerPayout || 0}</span>
                     </div>
                   </div>
                 )}
@@ -464,7 +466,7 @@ export default function AdminDisputesDesk() {
                     }}
                     className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50"
                   >
-                    Close
+                    {t('common.close')}
                   </button>
                   {disputeDetail.dispute?.status === 'OPEN' && (
                     <button
@@ -472,7 +474,7 @@ export default function AdminDisputesDesk() {
                       className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-sm"
                     >
                       <Scale className="w-4 h-4" />
-                      Adjudicate & Issue Ruling
+                      <span>{t('admin.adjudicateRuling')}</span>
                     </button>
                   )}
                 </div>
@@ -495,10 +497,10 @@ export default function AdminDisputesDesk() {
 
             <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-1">
               <Scale className="w-5 h-5 text-purple-600" />
-              Administrative Mediation Ruling
+              <span>{t('admin.adminMediationRuling')}</span>
             </h3>
             <p className="text-xs text-slate-500 mb-5">
-              Decide on fund disbursement between customer and technician.
+              {t('admin.decideDisbursement')}
             </p>
 
             {rulingError && (
@@ -510,14 +512,14 @@ export default function AdminDisputesDesk() {
             <form onSubmit={handleConfirmRuling} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
-                  Ruling Decision
+                  {t('admin.rulingDecision')}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { id: 'REFUND_CUSTOMER', label: '100% Refund Customer', desc: 'Fault lies with technician' },
-                    { id: 'PAY_PROVIDER', label: '100% Pay Technician', desc: 'Service completed properly' },
-                    { id: 'PARTIAL_SPLIT', label: 'Split Disputed Amount', desc: 'Compromise settlement' },
-                    { id: 'REJECT_COMPLAINT', label: 'Reject Grievance', desc: 'Invalid or frivolous claim' },
+                    { id: 'REFUND_CUSTOMER', label: t('admin.rulingRefundCustomer'), desc: t('admin.rulingFaultTechnician') },
+                    { id: 'PAY_PROVIDER', label: t('admin.rulingPayTechnician'), desc: t('admin.rulingServiceCompleted') },
+                    { id: 'PARTIAL_SPLIT', label: t('admin.rulingSplitDisputed'), desc: t('admin.rulingCompromise') },
+                    { id: 'REJECT_COMPLAINT', label: t('admin.rulingRejectGrievance'), desc: t('admin.rulingInvalidClaim') },
                   ].map((opt) => (
                     <button
                       type="button"
@@ -540,7 +542,7 @@ export default function AdminDisputesDesk() {
                 <div className="grid grid-cols-2 gap-3 p-3 bg-purple-50/50 border border-purple-100 rounded-xl">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Customer Refund (₹)
+                      {t('admin.refundAmount')} (₹)
                     </label>
                     <input
                       type="number"
@@ -553,7 +555,7 @@ export default function AdminDisputesDesk() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Technician Payout (₹)
+                      {t('admin.providerPayout')} (₹)
                     </label>
                     <input
                       type="number"
@@ -569,13 +571,13 @@ export default function AdminDisputesDesk() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Ruling Justification Note (Sent to both parties)
+                  {t('admin.rulingJustification')}
                 </label>
                 <textarea
                   rows="3"
                   value={adminNote}
                   onChange={(e) => setAdminNote(e.target.value)}
-                  placeholder="Explain why this decision was reached (minimum 5 characters)..."
+                  placeholder={t('admin.decisionReason', 'Explain reason...')}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-purple-500"
                   required
                 />
@@ -588,7 +590,7 @@ export default function AdminDisputesDesk() {
                   disabled={isResolving}
                   className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -598,12 +600,12 @@ export default function AdminDisputesDesk() {
                   {isResolving ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Recording Ruling...
+                      <span>{t('admin.recordingRuling')}</span>
                     </>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      Confirm & Issue Ruling
+                      <span>{t('admin.recordDecision')}</span>
                     </>
                   )}
                 </button>

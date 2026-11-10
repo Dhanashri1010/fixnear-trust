@@ -126,7 +126,7 @@ export default function Navbar() {
               </span>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>
-              Verified Home Services
+              {t('nav.tagline', 'Verified Home Services')}
             </div>
           </div>
         </Link>
@@ -173,7 +173,7 @@ export default function Navbar() {
               zIndex: 1000,
             }}>
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '6px 8px' }}>
-                Select Your Service City
+                {t('nav.selectCity', 'Select Your Service City')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 {MAJOR_CITIES.map((c) => (

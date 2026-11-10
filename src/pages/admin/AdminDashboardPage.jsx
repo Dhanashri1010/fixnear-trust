@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { Shield, LogOut, KeyRound } from 'lucide-react';
 
 // Admin Sub-Components (12 Complete Real MongoDB Desks)
@@ -21,6 +22,7 @@ import AdminAuditLogDesk from '../../components/admin/AdminAuditLogDesk';
 export default function AdminDashboardPage() {
   const location = useLocation();
   const { user, logOut } = useAuth();
+  const { t } = useLanguage();
 
   const pathname = location.pathname.replace(/\/$/, '');
 
@@ -68,14 +70,14 @@ export default function AdminDashboardPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900">
-                  {user?.name || 'Administrator Console'}
+                  {user?.name || t('admin.deskTitle')}
                 </h1>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wide">
-                  Central Ops
+                  {t('admin.centralOps')}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Central Operations & Trust Mediation Desk • FixNear Trust Platform Governance
+                {t('admin.governanceTitle')}
               </p>
             </div>
           </div>
@@ -86,7 +88,7 @@ export default function AdminDashboardPage() {
               className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-semibold transition-colors"
             >
               <KeyRound className="w-3.5 h-3.5 text-slate-500" />
-              <span>Change Password</span>
+              <span>{t('admin.changePassword')}</span>
             </Link>
             <button 
               type="button" 
@@ -94,7 +96,7 @@ export default function AdminDashboardPage() {
               className="inline-flex items-center gap-1.5 px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold transition-colors"
             >
               <LogOut className="w-4 h-4" />
-              <span>Sign Out</span>
+              <span>{t('admin.signOut')}</span>
             </button>
           </div>
         </div>

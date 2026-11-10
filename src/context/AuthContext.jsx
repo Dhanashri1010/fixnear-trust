@@ -5,6 +5,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI, getSocket } from '../services/api';
+import { setLanguage } from '../i18n/translations';
 
 const AuthContext = createContext(null);
 
@@ -34,6 +35,9 @@ export function AuthProvider({ children }) {
           setCurrentUser(res.user);
           setUserProfile(res.user);
           setRole(res.user.role || 'customer');
+          if (res.user.preferredLanguage) {
+            setLanguage(res.user.preferredLanguage);
+          }
           if (res.provider) {
             setProviderProfile(res.provider);
           }
@@ -75,6 +79,9 @@ export function AuthProvider({ children }) {
         setCurrentUser(res.user);
         setUserProfile(res.user);
         setRole(res.user.role || 'customer');
+        if (res.user.preferredLanguage) {
+          setLanguage(res.user.preferredLanguage);
+        }
 
         // Connect socket
         const socket = getSocket();
@@ -104,6 +111,9 @@ export function AuthProvider({ children }) {
         setCurrentUser(res.user);
         setUserProfile(res.user);
         setRole(res.user.role || 'customer');
+        if (res.user.preferredLanguage) {
+          setLanguage(res.user.preferredLanguage);
+        }
 
         const socket = getSocket();
         socket.emit('join_user', res.user.id);

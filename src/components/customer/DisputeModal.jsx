@@ -7,9 +7,11 @@ import React, { useState } from 'react';
 import { ShieldAlert, AlertTriangle, X, CheckCircle2, AlertCircle } from 'lucide-react';
 import { bookingsAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function DisputeModal({ isOpen, onClose, booking, onDisputeCreated }) {
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const [reasonCategory, setReasonCategory] = useState("Workmanship defect / recurring fault");
   const [details, setDetails] = useState("");
@@ -23,7 +25,7 @@ export default function DisputeModal({ isOpen, onClose, booking, onDisputeCreate
     setErrorMsg("");
 
     if (!details.trim() || details.length < 15) {
-      setErrorMsg("Please provide at least 15 characters describing the issue.");
+      setErrorMsg(t('disputes.minCharsRequired', 'Please provide at least 15 characters describing the issue.'));
       return;
     }
 
@@ -36,12 +38,12 @@ export default function DisputeModal({ isOpen, onClose, booking, onDisputeCreate
         claimAmount: booking.basePrice || booking.price || 499,
       });
 
-      showToast("Complaint registered. Trust & Safety team will review within 24 hours.", "success");
+      showToast(t('disputes.complaintSuccess', 'Complaint registered. Trust & Safety team will review within 24 hours.'), "success");
       if (onDisputeCreated) onDisputeCreated();
       onClose();
     } catch (err) {
       console.error("Dispute submission error:", err);
-      const msg = err.message || "Failed to submit complaint. Please try again.";
+      const msg = err.message || t('disputes.submitFailed', 'Failed to submit complaint. Please try again.');
       setErrorMsg(msg);
       showToast(msg, "error");
     } finally {
@@ -98,9 +100,9 @@ export default function DisputeModal({ isOpen, onClose, booking, onDisputeCreate
               <ShieldAlert size={20} />
             </div>
             <div>
-              <h3 style={{ fontSize: '18px', fontWeight: 800 }}>File a Service Dispute</h3>
+              <h3 style={{ fontSize: '18px', fontWeight: 800 }}>{t('disputes.modalTitle')}</h3>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Booking Ref: #{booking.bookingId || booking.id}
+                {t('disputes.bookingRefLabel')} #{booking.bookingId || booking.id}
               </div>
             </div>
           </div>
@@ -147,7 +149,7 @@ export default function DisputeModal({ isOpen, onClose, booking, onDisputeCreate
 
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-              Reason for Dispute:
+              {t('disputes.reasonHeading')}
             </label>
             <select
               value={reasonCategory}
@@ -161,23 +163,23 @@ export default function DisputeModal({ isOpen, onClose, booking, onDisputeCreate
                 backgroundColor: '#FFFFFF'
               }}
             >
-              <option value="Workmanship defect / recurring fault">Workmanship defect / recurring fault</option>
-              <option value="Technician did not complete agreed scope">Technician did not complete agreed scope</option>
-              <option value="Damage caused to property during repair">Damage caused to property during repair</option>
-              <option value="Disagreement on extra quotation or parts">Disagreement on extra quotation or parts</option>
-              <option value="Unprofessional conduct">Unprofessional conduct</option>
+              <option value="Workmanship defect / recurring fault">{t('disputes.optDefect')}</option>
+              <option value="Technician did not complete agreed scope">{t('disputes.optIncomplete')}</option>
+              <option value="Damage caused to property during repair">{t('disputes.optDamage')}</option>
+              <option value="Disagreement on extra quotation or parts">{t('disputes.optQuoteDisagreement')}</option>
+              <option value="Unprofessional conduct">{t('disputes.optConduct')}</option>
             </select>
           </div>
 
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-              Detailed Explanation:
+              {t('disputes.explanationHeading')}
             </label>
             <textarea
               rows={4}
               value={details}
               onChange={(e) => setDetails(e.target.value)}
-              placeholder="Please provide specific details about what occurred, technician communication, and what resolution you are requesting..."
+              placeholder={t('disputes.explanationPlaceholder')}
               style={{
                 width: '100%',
                 padding: '12px',
@@ -200,7 +202,7 @@ export default function DisputeModal({ isOpen, onClose, booking, onDisputeCreate
             marginBottom: '20px',
             lineHeight: 1.5
           }}>
-            🛡️ <strong>FixNear Guarantee:</strong> When a dispute is lodged, payment settlement is placed on protective hold until our mediation desk investigates and resolves the claim.
+            🛡️ <strong>{t('disputes.guaranteeNoticeHeading')}</strong> {t('disputes.guaranteeNoticeText')}
           </div>
 
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -211,7 +213,7 @@ export default function DisputeModal({ isOpen, onClose, booking, onDisputeCreate
               disabled={isSubmitting}
               style={{ flex: 1 }}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
@@ -219,7 +221,7 @@ export default function DisputeModal({ isOpen, onClose, booking, onDisputeCreate
               disabled={isSubmitting}
               style={{ flex: 1.5, backgroundColor: '#B91C1C' }}
             >
-              {isSubmitting ? 'Filing Complaint...' : 'Submit Official Dispute'}
+              {isSubmitting ? t('disputes.filingComplaintBtn') : t('disputes.submitOfficialBtn')}
             </button>
           </div>
 

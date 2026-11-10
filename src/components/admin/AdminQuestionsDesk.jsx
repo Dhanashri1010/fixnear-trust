@@ -19,9 +19,11 @@ import {
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function AdminQuestionsDesk() {
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const [questions, setQuestions] = useState([]);
   const [counts, setCounts] = useState([]);
@@ -192,10 +194,10 @@ export default function AdminQuestionsDesk() {
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <HelpCircle size={20} color="var(--forest-700)" />
-            <span>Specialist Skill Exam Question Bank & Curated Criteria</span>
+            <span>{t('admin.deskQuestionsTitle')}</span>
           </h2>
           <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Curate objective examination questions with answer keys. Correct options are strictly hidden from examinees.
+            {t('admin.deskQuestionsDesc')}
           </div>
         </div>
 
@@ -210,7 +212,7 @@ export default function AdminQuestionsDesk() {
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
             <Plus size={15} />
-            <span>Add Question</span>
+            <span>{t('admin.addQuestion')}</span>
           </button>
         </div>
       </div>
@@ -228,8 +230,8 @@ export default function AdminQuestionsDesk() {
         }}>
           <AlertTriangle size={20} color="#D97706" style={{ flexShrink: 0 }} />
           <div style={{ fontSize: '13px', color: '#92400E' }}>
-            <strong>Exam Bank Warning:</strong> The following trade categories have fewer than 12 questions:{' '}
-            {deficientCategories.map((c) => `${c.categoryName || c.categoryId} (${c.count}/12)`).join(', ')}. Each applicant test generates 10 questions at random, so having fewer than 12 questions reduces test variability.
+            <strong>{t('admin.examBankWarning')}</strong> {t('admin.examBankWarningDesc', 'The following trade categories have fewer than 12 questions:')}{' '}
+            {deficientCategories.map((c) => `${c.categoryName || c.categoryId} (${c.count}/12)`).join(', ')}. {t('admin.examBankWarningDesc')}
           </div>
         </div>
       )}
@@ -262,7 +264,7 @@ export default function AdminQuestionsDesk() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '4px' }}>
                 <span style={{ fontSize: '20px', fontWeight: 800, color: hasWarning ? '#D97706' : '#16A34A' }}>
-                  {c.count} Qs
+                  {c.count} {'Qs'}
                 </span>
                 {hasWarning && (
                   <span className="badge badge-warning" style={{ fontSize: '10px', padding: '2px 5px' }}>
@@ -292,7 +294,7 @@ export default function AdminQuestionsDesk() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search questions by text or topic..."
+            placeholder={t('common.searchPlaceholder', 'Search questions...')}
             className="form-control"
             style={{ width: '100%', paddingLeft: '36px', fontSize: '13px', height: '38px', borderRadius: '8px' }}
           />
@@ -304,7 +306,7 @@ export default function AdminQuestionsDesk() {
           className="form-control"
           style={{ fontSize: '13px', height: '38px', borderRadius: '8px', padding: '0 12px' }}
         >
-          <option value="all">All Categories ({questions.length})</option>
+          <option value="all">{t('admin.allCategories')} ({questions.length})</option>
           {counts.map((c) => (
             <option key={c.categoryId} value={c.categoryId}>
               {c.categoryName || c.categoryId} ({c.count})
@@ -318,13 +320,13 @@ export default function AdminQuestionsDesk() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', backgroundColor: '#FFFFFF', borderRadius: '16px' }}>
             <div className="spinner" style={{ margin: '0 auto 12px auto' }} />
-            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Querying question bank...</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('admin.aggregatingOps')}</span>
           </div>
         ) : filteredQuestions.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', backgroundColor: '#FFFFFF', borderRadius: '16px', color: 'var(--text-muted)' }}>
             <BookOpen size={36} color="var(--forest-300)" style={{ margin: '0 auto 12px auto' }} />
-            <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)', margin: '0 0 6px 0' }}>No Questions Found</h4>
-            <p style={{ fontSize: '13px', margin: 0 }}>No questions matched your search or category filter.</p>
+            <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)', margin: '0 0 6px 0' }}>{t('admin.noQuestionsFound')}</h4>
+            <p style={{ fontSize: '13px', margin: 0 }}>{t('common.noResults', 'No questions matched your search or category filter.')}</p>
           </div>
         ) : (
           filteredQuestions.map((q, idx) => (
@@ -359,7 +361,7 @@ export default function AdminQuestionsDesk() {
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                   >
                     <Edit3 size={13} />
-                    <span>Edit</span>
+                    <span>{t('admin.edit')}</span>
                   </button>
                   <button
                     type="button"
@@ -410,7 +412,7 @@ export default function AdminQuestionsDesk() {
 
               {q.explanation && (
                 <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-warm)', padding: '10px 12px', borderRadius: '8px' }}>
-                  <strong>Key Rationale:</strong> {q.explanation}
+                  <strong>{t('admin.keyRationale')}</strong> {q.explanation}
                 </div>
               )}
             </div>
@@ -445,7 +447,7 @@ export default function AdminQuestionsDesk() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
-                {editingQuestionId ? 'Edit Exam Question' : 'Add Question to Examination Bank'}
+                {editingQuestionId ? t('admin.edit') : t('admin.addQuestion')}
               </h3>
               <button
                 type="button"
@@ -459,7 +461,7 @@ export default function AdminQuestionsDesk() {
             <form onSubmit={handleSubmitQuestion} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>Category</label>
+                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>{t('admin.category')}</label>
                   <select
                     value={formData.categoryId}
                     onChange={(e) => {
@@ -482,12 +484,12 @@ export default function AdminQuestionsDesk() {
                 </div>
 
                 <div>
-                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>Topic</label>
+                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>{t('admin.topic')}</label>
                   <input
                     type="text"
                     value={formData.topic}
                     onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
-                    placeholder="e.g. Electrical Safety, Pipe Flare"
+                    placeholder={t('common.details', 'Topic')}
                     className="form-control"
                     style={{ width: '100%', fontSize: '13px' }}
                   />
@@ -495,13 +497,13 @@ export default function AdminQuestionsDesk() {
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>Question Text</label>
+                <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>{t('admin.questionText')}</label>
                 <textarea
                   rows={3}
                   required
                   value={formData.questionText}
                   onChange={(e) => setFormData({ ...formData, questionText: e.target.value })}
-                  placeholder="Enter the technical scenario or diagnostic question..."
+                  placeholder={t('common.details', 'Question...')}
                   className="form-control"
                   style={{ width: '100%', fontSize: '13px', padding: '8px' }}
                 />
@@ -509,7 +511,7 @@ export default function AdminQuestionsDesk() {
 
               <div>
                 <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700, marginBottom: '6px' }}>
-                  Options (Mark the single correct option)
+                  {t('admin.optionsPrompt')}
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[0, 1, 2, 3].map((idx) => {
@@ -533,7 +535,7 @@ export default function AdminQuestionsDesk() {
                           required
                           value={formData[key]}
                           onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
-                          placeholder={`Option ${String.fromCharCode(65 + idx)} text...`}
+                          placeholder={`${t('common.details', 'Option')} ${String.fromCharCode(65 + idx)}`}
                           className="form-control"
                           style={{ flex: 1, fontSize: '13px' }}
                         />
@@ -545,13 +547,13 @@ export default function AdminQuestionsDesk() {
 
               <div>
                 <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>
-                  Explanation & Reference Rationale (Admin internal)
+                  {t('admin.explanationPrompt')}
                 </label>
                 <textarea
                   rows={2}
                   value={formData.explanation}
                   onChange={(e) => setFormData({ ...formData, explanation: e.target.value })}
-                  placeholder="Explain why this option is correct based on Indian Standards / industry practice..."
+                  placeholder={t('common.details', 'Rationale...')}
                   className="form-control"
                   style={{ width: '100%', fontSize: '13px', padding: '8px' }}
                 />
@@ -563,14 +565,14 @@ export default function AdminQuestionsDesk() {
                   onClick={() => setModalOpen(false)}
                   className="btn btn-outline btn-sm"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={processing}
                   className="btn btn-primary btn-sm"
                 >
-                  {processing ? 'Saving...' : editingQuestionId ? 'Update Question' : 'Save Question'}
+                  {processing ? t('common.saving') : editingQuestionId ? t('admin.edit') : t('common.confirm')}
                 </button>
               </div>
             </form>

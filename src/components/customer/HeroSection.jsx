@@ -36,10 +36,10 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
   }, [selectedCity]);
 
   const quickPills = [
-    { label: "AC Jet Service", category: "ac-cooling" },
-    { label: "Tap & Pipe Leak", category: "plumbing" },
-    { label: "MCB Tripping Fix", category: "electrical" },
-    { label: "RO Water Filter", category: "appliances" }
+    { labelKey: "ac-cooling", defaultLabel: "AC Jet Service", category: "ac-cooling" },
+    { labelKey: "plumbing", defaultLabel: "Tap & Pipe Leak", category: "plumbing" },
+    { labelKey: "electrical", defaultLabel: "MCB Tripping Fix", category: "electrical" },
+    { labelKey: "appliances", defaultLabel: "RO Water Filter", category: "appliances" }
   ];
 
   return (
@@ -137,7 +137,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
 
             {/* Quick Search Shortcut Tags */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>Popular:</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>{t('home.popularLabel', 'Popular:')}</span>
               {quickPills.map((pill, i) => (
                 <button
                   key={i}
@@ -153,7 +153,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                     cursor: 'pointer'
                   }}
                 >
-                  {pill.label}
+                  {t(`categories.${pill.labelKey}`, pill.defaultLabel)}
                 </button>
               ))}
             </div>
@@ -170,19 +170,19 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <CheckCircle2 size={18} color="var(--forest-700)" />
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Upfront Rate Card
+                  {t('home.upfrontRateCard', 'Upfront Rate Card')}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <BadgeCheck size={18} color="var(--forest-700)" />
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  KYC Verified
+                  {t('home.kycVerified', 'KYC Verified')}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Clock size={18} color="var(--forest-700)" />
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  30-Day Warranty
+                  {t('home.warrantyBadgeHero', '30-Day Warranty')}
                 </span>
               </div>
             </div>
@@ -210,11 +210,11 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                     backgroundColor: '#10B981'
                   }} />
                   <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-800)' }}>
-                    Verified Specialists Available
+                    {t('home.specialistsAvailable', 'Verified Specialists Available')}
                   </span>
                 </div>
                 <span className="badge badge-forest">
-                  ⭐ 4.95 / 5 Trust Rating
+                  {t('home.trustRatingBadge', '⭐ 4.95 / 5 Trust Rating')}
                 </span>
               </div>
 
@@ -235,14 +235,14 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                         <ShieldCheck size={16} color="var(--forest-700)" />
                       </div>
                       <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                        {topProvider.specialty || 'Certified Specialist'} · {topProvider.city}
+                        {topProvider.specialty || t('home.certifiedSpecialist', 'Certified Specialist')} · {topProvider.city}
                       </div>
                       <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                         <span className="badge badge-forest" style={{ fontSize: '11px', padding: '1px 6px' }}>
-                          ★ {topProvider.ratingAvg} Rating
+                          ★ {topProvider.ratingAvg} {t('home.ratingLabel', 'Rating')}
                         </span>
                         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          {topProvider.jobsDone || 42}+ jobs completed
+                          {topProvider.jobsDone || 42} {t('home.jobsCompleted', '+ jobs completed')}
                         </span>
                       </div>
                     </div>
@@ -259,10 +259,10 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                 }}>
                   <ShieldCheck size={36} color="var(--forest-700)" style={{ margin: '0 auto 8px auto' }} />
                   <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)' }}>
-                    Certified Trade Specialists
+                    {t('home.tradeSpecialists', 'Certified Trade Specialists')}
                   </h4>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                    Air Conditioning, Plumbing, Electrical & Home Care
+                    {t('home.tradeCategoriesSub', 'Air Conditioning, Plumbing, Electrical & Home Care')}
                   </p>
                 </div>
               )}
@@ -277,25 +277,25 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Transparent Standard Rate Card
+                    {t('home.transparentRateTitle', 'Transparent Standard Rate Card')}
                   </span>
                   <span className="badge badge-forest" style={{ fontSize: '11px' }}>
-                    Fixed Standard
+                    {t('home.fixedStandard', 'Fixed Standard')}
                   </span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                    <span>Standard Inspection & Repair</span>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Starting ₹299</span>
+                    <span>{t('home.inspectionRepair', 'Standard Inspection & Repair')}</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{t('home.startingFrom299', 'Starting ₹299')}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                    <span>Doorstep Visit & Evaluation</span>
-                    <span style={{ color: 'var(--forest-700)', fontWeight: 600 }}>Included (₹0)</span>
+                    <span>{t('home.doorstepEvaluation', 'Doorstep Visit & Evaluation')}</span>
+                    <span style={{ color: 'var(--forest-700)', fontWeight: 600 }}>{t('home.includedFree', 'Included (₹0)')}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                    <span>30-Day Workmanship Warranty</span>
-                    <span style={{ color: 'var(--forest-700)', fontWeight: 600 }}>Included (₹0)</span>
+                    <span>{t('home.workmanshipWarranty', '30-Day Workmanship Warranty')}</span>
+                    <span style={{ color: 'var(--forest-700)', fontWeight: 600 }}>{t('home.includedFree', 'Included (₹0)')}</span>
                   </div>
                 </div>
               </div>
@@ -314,7 +314,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                   fontWeight: 700
                 }}
               >
-                <span>Book a Verified Specialist</span>
+                <span>{t('home.bookVerifiedSpecialist', 'Book a Verified Specialist')}</span>
                 <ArrowRight size={16} />
               </button>
 

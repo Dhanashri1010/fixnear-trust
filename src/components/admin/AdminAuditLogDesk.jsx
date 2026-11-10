@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminAPI } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 import {
   FileText,
   Search,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 
 export default function AdminAuditLogDesk() {
+  const { t } = useLanguage();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -89,15 +91,15 @@ export default function AdminAuditLogDesk() {
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Shield className="w-6 h-6 text-slate-800" />
-            Immutable Audit Trail & Governance Logs
+            {t('admin.deskAuditLogTitle')}
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Tamper-proof administrative event log. Every privileged state modification is recorded with timestamp, operator credentials, and full payload details.
+            {t('admin.deskAuditLogDesc')}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-mono font-medium">
-            {total} Total Audit Records
+            {total} {t('admin.totalAuditRecords')}
           </span>
           <button
             onClick={() => fetchLogs(page)}
@@ -105,7 +107,7 @@ export default function AdminAuditLogDesk() {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            <span>{t('admin.refresh')}</span>
           </button>
         </div>
       </div>
@@ -125,7 +127,7 @@ export default function AdminAuditLogDesk() {
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by admin email, action..."
+              placeholder={t('admin.search') + '...'}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-slate-500"
@@ -135,7 +137,7 @@ export default function AdminAuditLogDesk() {
             type="submit"
             className="px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800"
           >
-            Search
+            {t('admin.search')}
           </button>
         </form>
 
@@ -146,20 +148,20 @@ export default function AdminAuditLogDesk() {
             onChange={(e) => setActionFilter(e.target.value)}
             className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 outline-none focus:border-slate-500 bg-white"
           >
-            <option value="all">All Actions</option>
-            <option value="APPROVE_PROVIDER">Approve Provider</option>
-            <option value="REJECT_PROVIDER">Reject Provider</option>
-            <option value="REQUEST_PROVIDER_INFO">Request Provider Info</option>
-            <option value="SUSPEND_PROVIDER">Suspend Provider</option>
-            <option value="REINSTATE_PROVIDER">Reinstate Provider</option>
-            <option value="BLOCK_CUSTOMER">Block Customer</option>
-            <option value="UNBLOCK_CUSTOMER">Unblock Customer</option>
-            <option value="CANCEL_BOOKING">Cancel Booking</option>
-            <option value="UPDATE_SETTINGS">Update Settings</option>
-            <option value="RESOLVE_DISPUTE">Resolve Dispute</option>
-            <option value="TOGGLE_REVIEW_VISIBILITY">Toggle Review</option>
-            <option value="CREATE_ADMIN">Create Admin</option>
-            <option value="DEACTIVATE_ADMIN">Deactivate Admin</option>
+            <option value="all">{t('admin.allActions')}</option>
+            <option value="APPROVE_PROVIDER">{t('admin.approveBtn')}</option>
+            <option value="REJECT_PROVIDER">{t('admin.rejectBtn')}</option>
+            <option value="REQUEST_PROVIDER_INFO">{t('admin.requestMoreInfo')}</option>
+            <option value="SUSPEND_PROVIDER">{t('admin.suspendBtn')}</option>
+            <option value="REINSTATE_PROVIDER">{t('admin.reinstateBtn')}</option>
+            <option value="BLOCK_CUSTOMER">{t('admin.blockBtn')}</option>
+            <option value="UNBLOCK_CUSTOMER">{t('admin.unblockBtn')}</option>
+            <option value="CANCEL_BOOKING">{t('admin.cancelBookingBtn')}</option>
+            <option value="UPDATE_SETTINGS">{t('admin.saveSettingsBtn')}</option>
+            <option value="RESOLVE_DISPUTE">{t('admin.recordDecision')}</option>
+            <option value="TOGGLE_REVIEW_VISIBILITY">{t('admin.hideReview')}</option>
+            <option value="CREATE_ADMIN">{t('admin.addNewAdmin')}</option>
+            <option value="DEACTIVATE_ADMIN">{t('admin.delete')}</option>
           </select>
 
           <select
@@ -167,17 +169,17 @@ export default function AdminAuditLogDesk() {
             onChange={(e) => setTargetTypeFilter(e.target.value)}
             className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 outline-none focus:border-slate-500 bg-white"
           >
-            <option value="all">All Targets</option>
-            <option value="Provider">Provider</option>
-            <option value="Customer">Customer</option>
-            <option value="Booking">Booking</option>
-            <option value="Setting">Setting</option>
-            <option value="Dispute">Dispute</option>
-            <option value="Review">Review</option>
-            <option value="Service">Service</option>
-            <option value="Category">Category</option>
-            <option value="Question">Question</option>
-            <option value="Admin">Admin</option>
+            <option value="all">{t('admin.allActions')}</option>
+            <option value="Provider">{t('admin.provider')}</option>
+            <option value="Customer">{t('admin.customer')}</option>
+            <option value="Booking">{t('admin.booking')}</option>
+            <option value="Setting">{t('admin.settings')}</option>
+            <option value="Dispute">{t('admin.disputes')}</option>
+            <option value="Review">{t('admin.reviews')}</option>
+            <option value="Service">{t('admin.services')}</option>
+            <option value="Category">{t('admin.category')}</option>
+            <option value="Question">{t('admin.questions')}</option>
+            <option value="Admin">{t('admin.administrator')}</option>
           </select>
         </div>
       </div>
@@ -188,12 +190,12 @@ export default function AdminAuditLogDesk() {
           <table className="w-full text-left border-collapse text-xs font-mono">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-sans font-bold uppercase tracking-wider">
-                <th className="py-3 px-4">Timestamp</th>
-                <th className="py-3 px-4">Administrator</th>
-                <th className="py-3 px-4">Action</th>
-                <th className="py-3 px-4">Target Entity</th>
-                <th className="py-3 px-4">Summary</th>
-                <th className="py-3 px-4 text-right">Details</th>
+                <th className="py-3 px-4">{t('admin.timestamp')}</th>
+                <th className="py-3 px-4">{t('admin.administrator')}</th>
+                <th className="py-3 px-4">{t('admin.action')}</th>
+                <th className="py-3 px-4">{t('admin.target')}</th>
+                <th className="py-3 px-4">{t('admin.details')}</th>
+                <th className="py-3 px-4 text-right">{t('admin.view')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-mono">
@@ -201,13 +203,13 @@ export default function AdminAuditLogDesk() {
                 <tr>
                   <td colSpan="6" className="py-12 text-center text-slate-400 font-sans">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-600" />
-                    Fetching cryptographic audit ledger...
+                    <span>{t('admin.aggregatingOps')}</span>
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="py-12 text-center text-slate-500 font-sans">
-                    No audit records found matching the filter criteria.
+                    <span>{t('admin.noAuditLogs')}</span>
                   </td>
                 </tr>
               ) : (
@@ -249,7 +251,7 @@ export default function AdminAuditLogDesk() {
                         className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-sans font-semibold transition-colors"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        Inspect
+                        <span>{t('admin.details')}</span>
                       </button>
                     </td>
                   </tr>
@@ -263,8 +265,7 @@ export default function AdminAuditLogDesk() {
         {pages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs font-sans text-slate-600">
             <div>
-              Showing page <span className="font-semibold text-slate-900">{page}</span> of{' '}
-              <span className="font-semibold text-slate-900">{pages}</span> ({total} entries)
+              {`${page} / ${pages} (${total})`}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -273,14 +274,14 @@ export default function AdminAuditLogDesk() {
                 className="inline-flex items-center gap-1 px-3 py-1.5 border border-slate-300 rounded-lg bg-white disabled:opacity-40 hover:bg-slate-50 font-medium"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
-                Previous
+                <span>{'←'}</span>
               </button>
               <button
                 onClick={() => fetchLogs(page + 1)}
                 disabled={page >= pages || loading}
                 className="inline-flex items-center gap-1 px-3 py-1.5 border border-slate-300 rounded-lg bg-white disabled:opacity-40 hover:bg-slate-50 font-medium"
               >
-                Next
+                <span>{'→'}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -304,34 +305,34 @@ export default function AdminAuditLogDesk() {
                 {activeLog.action}
               </span>
               <span className="text-xs text-slate-500 font-mono">
-                Log ID: {activeLog._id}
+                #{activeLog._id}
               </span>
             </div>
 
             <h3 className="text-base font-bold text-slate-900 mb-4">
-              Audit Event Dossier
+              {t('admin.details')}
             </h3>
 
             <div className="space-y-3 text-xs mb-4">
               <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
-                  <span className="text-slate-400 block font-sans">Timestamp:</span>
+                  <span className="text-slate-400 block font-sans">{t('admin.timestamp')}:</span>
                   <span className="font-mono text-slate-800 font-semibold">
                     {new Date(activeLog.createdAt).toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-sans">Admin Operator:</span>
+                  <span className="text-slate-400 block font-sans">{t('admin.administrator')}:</span>
                   <span className="font-semibold text-slate-800 font-mono">{activeLog.adminEmail}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-sans">Target Entity:</span>
+                  <span className="text-slate-400 block font-sans">{t('admin.target')}:</span>
                   <span className="font-mono text-slate-800 font-semibold">
                     {activeLog.targetType} ({String(activeLog.targetId)})
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-sans">Source IP / Agent:</span>
+                  <span className="text-slate-400 block font-sans">{'IP:'}</span>
                   <span className="font-mono text-slate-800">
                     {activeLog.ipAddress || '127.0.0.1'}
                   </span>
@@ -340,7 +341,7 @@ export default function AdminAuditLogDesk() {
 
               <div>
                 <span className="text-xs font-bold text-slate-700 uppercase tracking-wide block mb-1 font-sans">
-                  Audit Payload (Old & New State Delta)
+                  {t('admin.auditDetails')}
                 </span>
                 <pre className="p-3 bg-slate-900 text-emerald-400 rounded-xl overflow-x-auto text-[11px] font-mono leading-relaxed max-h-60">
                   {JSON.stringify(activeLog.details || {}, null, 2)}
@@ -354,7 +355,7 @@ export default function AdminAuditLogDesk() {
                 onClick={() => setActiveLog(null)}
                 className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
               >
-                Close Dossier
+                {t('common.close')}
               </button>
             </div>
           </div>

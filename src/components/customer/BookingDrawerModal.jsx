@@ -12,11 +12,13 @@ import {
 } from 'lucide-react';
 import { bookingsAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 
 export default function BookingDrawerModal({ isOpen, service, onClose }) {
   const navigate = useNavigate();
   const { currentUser, userProfile, selectedCity } = useAuth();
+  const { t, formatCurrency, getErrorMessage } = useLanguage();
   const { showToast } = useToast();
 
   const [step, setStep] = useState(1);
@@ -38,13 +40,13 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
     duration: '60 mins'
   };
 
-  const serviceTitle = currentService.title || currentService.name || 'Home Service';
+  const serviceTitle = currentService.title || currentService.name || t('home.browseCategories', 'Home Service');
   const servicePrice = currentService.startingPrice || currentService.basePrice || 499;
 
   const slots = [
-    "Morning (09:00 AM - 12:00 PM)",
-    "Afternoon (12:00 PM - 03:00 PM)",
-    "Evening (03:00 PM - 06:00 PM)"
+    t('booking.slotMorning', 'Morning (09:00 AM - 12:00 PM)'),
+    t('booking.slotAfternoon', 'Afternoon (12:00 PM - 03:00 PM)'),
+    t('booking.slotEvening', 'Evening (03:00 PM - 06:00 PM)')
   ];
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -60,20 +62,23 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
     }
 
     if (!selectedDate) {
-      setSubmitError('Please select a preferred service date.');
-      showToast('Please select a preferred service date.', 'error');
+      const msg = t('booking.selectDateSlotError', 'Please select a preferred service date.');
+      setSubmitError(msg);
+      showToast(msg, 'error');
       return;
     }
 
     if (!selectedSlot) {
-      setSubmitError('Please choose an arrival time window.');
-      showToast('Please choose an arrival time window.', 'error');
+      const msg = t('booking.selectSlotPrompt', 'Please choose an arrival time window.');
+      setSubmitError(msg);
+      showToast(msg, 'error');
       return;
     }
 
     if (!address.trim()) {
-      setSubmitError('Please enter your service address.');
-      showToast('Please enter your service address.', 'error');
+      const msg = t('booking.fillAddressPrompt', 'Please enter your service address.');
+      setSubmitError(msg);
+      showToast(msg, 'error');
       return;
     }
 
@@ -91,15 +96,15 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
       const res = await bookingsAPI.createBooking(payload);
 
       if (!res.success || !res.booking) {
-        throw new Error(res.message || 'Server did not return a valid booking');
+        throw new Error(res.message || t('common.errorGeneral', 'Server did not return a valid booking'));
       }
 
       setConfirmedBooking(res.booking);
       setIsSuccess(true);
-      showToast('Booking placed successfully! Your technician will be confirmed shortly.', 'success');
+      showToast(t('booking.successModalTitle', 'Booking placed successfully! Your technician will be confirmed shortly.'), 'success');
     } catch (err) {
       console.error('Booking creation error:', err);
-      const msg = err.message || 'We could not place your booking. Please try again.';
+      const msg = getErrorMessage(err, t('common.errorGeneral', 'We could not place your booking. Please try again.'));
       setSubmitError(msg);
       showToast(msg, 'error');
     } finally {
@@ -118,32 +123,33 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(14, 27, 21, 0.65)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '16px'
-    }}>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px'
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) resetAndClose();
+      }}
+    >
       <div
-        className="card"
         style={{
           width: '100%',
           maxWidth: '520px',
-          maxHeight: '90vh',
-          overflowY: 'auto',
           backgroundColor: '#FFFFFF',
           borderRadius: 'var(--radius-xl)',
-          boxShadow: 'var(--shadow-lg)',
-          border: '1px solid var(--border-light)',
-          animation: 'fadeInSlide 180ms ease'
+          boxShadow: 'var(--shadow-xl)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: '90vh'
         }}
       >
         {/* Modal Header */}
@@ -161,10 +167,10 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="badge badge-forest" style={{ fontSize: '11px' }}>
               <ShieldCheck size={12} />
-              Verified Booking
+              {t('booking.drawerTitle', 'Verified Booking')}
             </span>
             <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-              Step {step} of 2
+              {step === 1 ? t('booking.step1', 'Step 1 of 2') : t('booking.step2', 'Step 2 of 2')}
             </span>
           </div>
 
@@ -188,7 +194,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
         </div>
 
         {/* Modal Content */}
-        <div style={{ padding: '24px' }}>
+        <div style={{ padding: '24px', overflowY: 'auto' }}>
 
           {isSuccess && confirmedBooking ? (
             /* Booking Confirmed Screen */
@@ -208,15 +214,15 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
               </div>
 
               <span className="badge badge-forest" style={{ marginBottom: '8px' }}>
-                Booking Placed
+                {t('booking.successModalTitle', 'Booking Placed')}
               </span>
 
               <h3 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '6px' }}>
-                Appointment Confirmed!
+                {t('booking.successModalDesc', 'Appointment Confirmed!')}
               </h3>
 
               <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                Booking Reference: <strong style={{ color: 'var(--forest-900)' }}>#{confirmedBooking.bookingId}</strong>
+                {t('booking.bookingIdLabel', 'Booking Reference:')} <strong style={{ color: 'var(--forest-900)' }}>#{confirmedBooking.bookingId}</strong>
               </p>
 
               <div style={{
@@ -231,20 +237,20 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                 gap: '8px'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Service:</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{t('common.details', 'Service:')}</span>
                   <strong>{confirmedBooking.serviceTitle}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Arrival:</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{t('common.time', 'Arrival:')}</span>
                   <strong>{confirmedBooking.scheduledDate} ({confirmedBooking.timeSlot})</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>City:</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{t('common.city', 'City:')}</span>
                   <strong>{confirmedBooking.city}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '8px' }}>
-                  <span style={{ fontWeight: 700 }}>Total Billed:</span>
-                  <strong style={{ color: 'var(--forest-800)' }}>₹{confirmedBooking.basePrice}</strong>
+                  <span style={{ fontWeight: 700 }}>{t('common.total', 'Total Billed:')}</span>
+                  <strong style={{ color: 'var(--forest-800)' }}>{formatCurrency(confirmedBooking.basePrice)}</strong>
                 </div>
                 {confirmedBooking.completionOtp && (
                   <div style={{
@@ -257,7 +263,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                     justifyContent: 'space-between',
                     alignItems: 'center'
                   }}>
-                    <span style={{ fontSize: '12.5px', color: 'var(--forest-900)', fontWeight: 600 }}>Your Finish Code:</span>
+                    <span style={{ fontSize: '12.5px', color: 'var(--forest-900)', fontWeight: 600 }}>{t('booking.finishCode4Digit', 'Your Finish Code:')}</span>
                     <strong style={{ fontSize: '16px', color: 'var(--forest-800)', letterSpacing: '2px' }}>{confirmedBooking.completionOtp}</strong>
                   </div>
                 )}
@@ -270,7 +276,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                   onClick={resetAndClose}
                   style={{ flex: 1 }}
                 >
-                  Done
+                  {t('common.close', 'Done')}
                 </button>
                 <button
                   type="button"
@@ -281,7 +287,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                   }}
                   style={{ flex: 1 }}
                 >
-                  Track Live →
+                  {t('booking.trackBookingBtn', 'Track Live →')}
                 </button>
               </div>
             </div>
@@ -305,11 +311,11 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                     {serviceTitle}
                   </h4>
                   <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    {currentService.duration || '45 - 60 mins'} · City: {selectedCity || 'Mumbai'}
+                    {currentService.duration || '45 - 60 mins'} · {t('common.city', 'City:')} {selectedCity || 'Mumbai'}
                   </div>
                 </div>
                 <span style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-800)' }}>
-                  ₹{servicePrice}
+                  {formatCurrency(servicePrice)}
                 </span>
               </div>
 
@@ -336,7 +342,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                      Preferred Service Date:
+                      {t('booking.chooseDate', 'Preferred Service Date:')}
                     </label>
                     <input
                       type="date"
@@ -357,7 +363,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                      Arrival Time Window:
+                      {t('booking.chooseTime', 'Arrival Time Window:')}
                     </label>
                     <select
                       value={selectedSlot}
@@ -372,7 +378,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                       }}
                       required
                     >
-                      <option value="" disabled>-- Select Arrival Window --</option>
+                      <option value="" disabled>{t('booking.selectSlotPrompt', '-- Select Arrival Window --')}</option>
                       {slots.map((s, idx) => (
                         <option key={idx} value={s}>{s}</option>
                       ))}
@@ -381,13 +387,13 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                      Complete Service Address:
+                      {t('booking.serviceAddress', 'Complete Service Address:')}
                     </label>
                     <textarea
                       rows={3}
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Flat/House No, Building, Landmark, Area and City..."
+                      placeholder={t('booking.addressPlaceholder', 'Flat/House No, Building, Landmark, Area and City...')}
                       style={{
                         width: '100%',
                         padding: '10px 12px',
@@ -402,13 +408,13 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                      Problem Note (Optional):
+                      {t('booking.describeProblem', 'Problem Note (Optional):')}
                     </label>
                     <input
                       type="text"
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      placeholder="e.g., cooling low, water leaking from pipe"
+                      placeholder={t('booking.describeProblemPlaceholder', 'e.g., cooling low, water leaking from pipe')}
                       style={{
                         width: '100%',
                         padding: '10px 12px',
@@ -426,14 +432,14 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                       onClick={resetAndClose}
                       style={{ flex: 1 }}
                     >
-                      Cancel
+                      {t('common.cancel', 'Cancel')}
                     </button>
                     <button
                       type="button"
                       className="btn btn-primary"
                       onClick={() => {
                         if (!selectedDate || !selectedSlot || !address.trim()) {
-                          setSubmitError('Please complete the date, time slot, and address fields.');
+                          setSubmitError(t('booking.selectDateSlotError', 'Please complete the date, time slot, and address fields.'));
                           return;
                         }
                         setSubmitError('');
@@ -441,7 +447,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                       }}
                       style={{ flex: 1 }}
                     >
-                      Next: Review →
+                      {t('common.next', 'Next: Review →')}
                     </button>
                   </div>
                 </div>
@@ -461,20 +467,20 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                     gap: '8px'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Standard Inspection & Labor</span>
-                      <span>₹{servicePrice}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{t('home.inspectionRepair', 'Standard Inspection & Labor')}</span>
+                      <span>{formatCurrency(servicePrice)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--forest-700)' }}>
-                      <span>Doorstep Visit & Inspection Fee</span>
-                      <strong>FREE (₹0)</strong>
+                      <span>{t('home.doorstepEvaluation', 'Doorstep Visit & Inspection Fee')}</span>
+                      <strong>{t('home.includedFree', 'FREE (₹0)')}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--forest-700)' }}>
-                      <span>30-Day Workmanship Warranty</span>
-                      <strong>INCLUDED</strong>
+                      <span>{t('home.workmanshipWarranty', '30-Day Workmanship Warranty')}</span>
+                      <strong>{t('home.includedFree', 'INCLUDED')}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--border-light)', paddingTop: '8px', fontWeight: 800, fontSize: '15px' }}>
-                      <span>Total (Payment Protection)</span>
-                      <span style={{ color: 'var(--forest-800)' }}>₹{servicePrice}</span>
+                      <span>{t('booking.totalPayable', 'Total (Payment Protection)')}</span>
+                      <span style={{ color: 'var(--forest-800)' }}>{formatCurrency(servicePrice)}</span>
                     </div>
                   </div>
 
@@ -488,7 +494,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                     marginBottom: '20px',
                     lineHeight: 1.5
                   }}>
-                    🛡️ <strong>Payment Protection:</strong> You only pay after the specialist completes the work and you provide your 4-digit finish code.
+                    🛡️ <strong>{t('common.paymentProtection', 'Payment Protection:')}</strong> {t('home.escrowProtectionDesc', 'You only pay after the specialist completes the work and you provide your 4-digit finish code.')}
                   </div>
 
                   <div style={{ display: 'flex', gap: '10px' }}>
@@ -499,7 +505,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                       disabled={isSubmitting}
                       style={{ flex: 1 }}
                     >
-                      ← Edit Details
+                      {t('common.back', '← Edit Details')}
                     </button>
                     <button
                       type="submit"
@@ -507,7 +513,7 @@ export default function BookingDrawerModal({ isOpen, service, onClose }) {
                       disabled={isSubmitting}
                       style={{ flex: 1.5 }}
                     >
-                      {isSubmitting ? 'Placing Booking...' : 'Confirm & Book'}
+                      {isSubmitting ? t('booking.submittingBooking', 'Placing Booking...') : t('booking.confirmBookingBtn', 'Confirm & Book')}
                     </button>
                   </div>
                 </div>

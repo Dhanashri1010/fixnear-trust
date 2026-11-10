@@ -9,20 +9,22 @@ import {
   Home, 
   Upload, 
   ArrowLeft, 
-  ArrowRight,
-  AlertCircle,
-  X,
-  FileText
+  ArrowRight, 
+  AlertCircle, 
+  X, 
+  FileText 
 } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { servicesAPI, bookingsAPI, uploadAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 
 export default function BookingFlowPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser, userProfile, selectedCity } = useAuth();
+  const { t, formatCurrency, getErrorMessage } = useLanguage();
   const { showToast } = useToast();
 
   const [services, setServices] = useState([]);
@@ -113,7 +115,7 @@ export default function BookingFlowPage() {
       })
       .catch((err) => {
         console.warn('Failed to load services:', err.message);
-        setServicesError('We could not connect. Please try again.');
+        setServicesError(t('common.errorGeneral', 'We could not connect. Please try again.'));
       })
       .finally(() => {
         setLoadingServices(false);
@@ -133,31 +135,31 @@ export default function BookingFlowPage() {
   };
 
   const slotOptions = [
-    "Morning (09:00 AM - 12:00 PM)",
-    "Afternoon (12:00 PM - 03:00 PM)",
-    "Evening (03:00 PM - 06:00 PM)",
-    "Night (06:00 PM - 09:00 PM)"
+    t('booking.slotMorning', 'Morning (09:00 AM - 12:00 PM)'),
+    t('booking.slotAfternoon', 'Afternoon (12:00 PM - 03:00 PM)'),
+    t('booking.slotEvening', 'Evening (03:00 PM - 06:00 PM)'),
+    t('booking.slotNight', 'Night (06:00 PM - 09:00 PM)')
   ];
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Photo upload using uploadAPI (multer + Cloudinary / graceful fallback)
+  // Photo upload using uploadAPI
   const handlePhotoUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
     if (uploadedPhotos.length + files.length > 3) {
-      showToast('You can attach a maximum of 3 photos.', 'error');
+      showToast(t('booking.photosUploadLabel', 'You can attach a maximum of 3 photos.'), 'error');
       return;
     }
 
     for (const file of files) {
       if (!file.type.startsWith('image/')) {
-        showToast('Only image files (JPG, PNG, WebP) are allowed.', 'error');
+        showToast(t('common.errorGeneral', 'Only image files (JPG, PNG, WebP) are allowed.'), 'error');
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        showToast('Image file size must be less than 5 MB.', 'error');
+        showToast(t('common.errorGeneral', 'Image file size must be less than 5 MB.'), 'error');
         return;
       }
     }
@@ -169,12 +171,12 @@ export default function BookingFlowPage() {
       const res = await uploadAPI.uploadPhotos(files);
       if (res.success && res.urls) {
         setUploadedPhotos(prev => [...prev, ...res.urls].slice(0, 3));
-        showToast('Photos uploaded successfully.', 'success');
+        showToast(t('common.successGeneral', 'Photos uploaded successfully.'), 'success');
       }
     } catch (err) {
       console.warn('Upload API message:', err.message);
-      setPhotoErrorNotice('Photo upload is not available right now. You may proceed with your booking without photos.');
-      showToast('Photo upload is not available right now. You can continue without photos.', 'info');
+      setPhotoErrorNotice(t('common.errorGeneral', 'Photo upload is not available right now. You may proceed with your booking without photos.'));
+      showToast(t('common.errorGeneral', 'Photo upload is not available right now. You can continue without photos.'), 'info');
     } finally {
       setUploadingPhotos(false);
     }
@@ -188,25 +190,25 @@ export default function BookingFlowPage() {
     setSubmitError('');
     if (currentStep === 1) {
       if (!selectedServiceId) {
-        setSubmitError('Please select a service.');
+        setSubmitError(t('booking.selectServicePrompt', 'Please select a service.'));
         return;
       }
       if (!problemNotes.trim()) {
-        setSubmitError('Please provide a brief description of the problem.');
+        setSubmitError(t('booking.describeProblem', 'Please provide a brief description of the problem.'));
         return;
       }
       setCurrentStep(2);
     } else if (currentStep === 2) {
       if (!addressLine.trim()) {
-        setSubmitError('Please enter your complete service address.');
+        setSubmitError(t('booking.fillAddressPrompt', 'Please enter your complete service address.'));
         return;
       }
       if (!selectedDate) {
-        setSubmitError('Please pick a preferred service date.');
+        setSubmitError(t('booking.selectDateSlotError', 'Please pick a preferred service date.'));
         return;
       }
       if (!selectedSlot) {
-        setSubmitError('Please select a preferred arrival time window.');
+        setSubmitError(t('booking.selectSlotPrompt', 'Please select a preferred arrival time window.'));
         return;
       }
       setCurrentStep(3);
@@ -231,7 +233,7 @@ export default function BookingFlowPage() {
       const res = await bookingsAPI.createBooking(payload);
 
       if (!res.success || !res.booking) {
-        throw new Error(res.message || 'We could not place your booking. Please try again.');
+        throw new Error(res.message || t('common.errorGeneral', 'We could not place your booking. Please try again.'));
       }
 
       setBookingConfirmed({
@@ -250,13 +252,12 @@ export default function BookingFlowPage() {
         sessionStorage.removeItem('fixnear_booking_draft');
       } catch (_) {}
 
-      showToast('Booking placed successfully! Your technician will be confirmed shortly.', 'success');
+      showToast(t('booking.successModalTitle', 'Booking placed successfully! Your technician will be confirmed shortly.'), 'success');
     } catch (err) {
       console.error('Booking placement error:', err);
-      const msg = err.message || 'We could not place your booking. Please try again.';
+      const msg = getErrorMessage(err, t('common.errorGeneral', 'We could not place your booking. Please try again.'));
       setSubmitError(msg);
       showToast(msg, 'error');
-      // Keep what the user typed in the form!
     } finally {
       setIsSubmitting(false);
     }
@@ -283,13 +284,13 @@ export default function BookingFlowPage() {
             </div>
 
             <span className="badge badge-forest" style={{ marginBottom: '12px', fontSize: '13px' }}>
-              Booking Placed
+              {t('booking.successModalTitle', 'Booking Placed')}
             </span>
             <h1 style={{ fontSize: '26px', fontWeight: 800, marginBottom: '8px' }}>
-              Your Booking is Confirmed!
+              {t('booking.successModalDesc', 'Your Booking is Confirmed!')}
             </h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '15px', marginBottom: '24px' }}>
-              Booking Reference: <strong style={{ color: 'var(--forest-900)', fontSize: '17px' }}>#{bookingConfirmed.bookingNumber}</strong>
+              {t('booking.bookingIdLabel', 'Booking Reference:')} <strong style={{ color: 'var(--forest-900)', fontSize: '17px' }}>#{bookingConfirmed.bookingNumber}</strong>
             </p>
 
             <div style={{
@@ -304,24 +305,24 @@ export default function BookingFlowPage() {
               fontSize: '14px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Service:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{t('common.details', 'Service:')}</span>
                 <strong>{bookingConfirmed.service}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Scheduled Arrival:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{t('common.time', 'Scheduled Arrival:')}</span>
                 <strong>{bookingConfirmed.date} ({bookingConfirmed.slot})</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>City:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{t('common.city', 'City:')}</span>
                 <strong>{bookingConfirmed.city}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Address:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{t('common.address', 'Address:')}</span>
                 <span style={{ maxWidth: '320px', textAlign: 'right' }}>{bookingConfirmed.address}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '10px' }}>
-                <span style={{ fontWeight: 700 }}>Total (Payment Protection):</span>
-                <strong style={{ color: 'var(--forest-800)', fontSize: '16px' }}>₹{bookingConfirmed.price}</strong>
+                <span style={{ fontWeight: 700 }}>{t('booking.totalPayable', 'Total (Payment Protection):')}</span>
+                <strong style={{ color: 'var(--forest-800)', fontSize: '16px' }}>{formatCurrency(bookingConfirmed.price)}</strong>
               </div>
               {bookingConfirmed.finishCode && (
                 <div style={{
@@ -335,8 +336,8 @@ export default function BookingFlowPage() {
                   alignItems: 'center'
                 }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: 'var(--forest-900)', fontWeight: 700 }}>Your 4-Digit Finish Code:</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Share with technician ONLY after job is finished</div>
+                    <div style={{ fontSize: '12px', color: 'var(--forest-900)', fontWeight: 700 }}>{t('booking.finishCode4Digit', 'Your 4-Digit Finish Code:')}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t('tracking.finishCodeDesc', 'Share with technician ONLY after job is finished')}</div>
                   </div>
                   <strong style={{ fontSize: '20px', color: 'var(--forest-800)', letterSpacing: '3px' }}>{bookingConfirmed.finishCode}</strong>
                 </div>
@@ -350,7 +351,7 @@ export default function BookingFlowPage() {
                 onClick={() => navigate(`/track/${bookingConfirmed.id}`)}
                 style={{ minWidth: '180px', padding: '12px 20px' }}
               >
-                Track Live →
+                {t('booking.trackBookingBtn', 'Track Live →')}
               </button>
               <button
                 type="button"
@@ -358,7 +359,7 @@ export default function BookingFlowPage() {
                 onClick={() => navigate('/bookings')}
                 style={{ minWidth: '160px', padding: '12px 20px' }}
               >
-                View My Bookings
+                {t('booking.viewMyBookingsBtn', 'View My Bookings')}
               </button>
             </div>
           </div>
@@ -388,17 +389,17 @@ export default function BookingFlowPage() {
             style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--forest-700)', fontWeight: 600 }}
           >
             <Home size={14} />
-            <span>Home</span>
+            <span>{t('nav.home', 'Home')}</span>
           </Link>
           <ChevronRight size={13} />
           <Link 
             to="/services"
             style={{ color: 'var(--text-secondary)' }}
           >
-            Services
+            {t('nav.catalog', 'Services')}
           </Link>
           <ChevronRight size={13} />
-          <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>Book Service</span>
+          <span style={{ color: 'var(--forest-800)', fontWeight: 700 }}>{t('common.bookNow', 'Book Service')}</span>
         </nav>
 
         {/* Header & 3-Step Stepper Progress Bar */}
@@ -414,22 +415,22 @@ export default function BookingFlowPage() {
             <div>
               <span className="badge badge-forest" style={{ fontSize: '12px', marginBottom: '6px' }}>
                 <ShieldCheck size={13} />
-                FixNear 3-Step Booking
+                {t('brand.name', 'FixNear')} {t('booking.pageTitle', '3-Step Booking')}
               </span>
-              <h1 style={{ fontSize: '24px', fontWeight: 800 }}>Schedule Verified Service</h1>
+              <h1 style={{ fontSize: '24px', fontWeight: 800 }}>{t('booking.pageTitle', 'Schedule Verified Service')}</h1>
             </div>
 
             <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              Step <strong style={{ color: 'var(--forest-800)' }}>{currentStep}</strong> of 3
+              {t('booking.step1', 'Step')} <strong style={{ color: 'var(--forest-800)' }}>{currentStep}</strong> {t('providerTest.ofLabel', 'of')} 3
             </div>
           </div>
 
           {/* Stepper Progress Bar (3 Steps) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
             {[
-              "1. Service & Problem", 
-              "2. Address & Time", 
-              "3. Review & Confirm"
+              t('booking.step1TitleBooking', '1. Service & Problem'), 
+              t('booking.step2TitleBooking', '2. Address & Time'), 
+              t('booking.step3TitleBooking', '3. Review & Confirm')
             ].map((stepName, i) => (
               <div key={i} style={{ textAlign: 'center' }}>
                 <div style={{
@@ -476,15 +477,15 @@ export default function BookingFlowPage() {
           {currentStep === 1 && (
             <div>
               <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '6px' }}>
-                1. Choose Service & Describe the Problem
+                {t('booking.step1TitleBooking', '1. Choose Service & Describe the Problem')}
               </h2>
               <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                Select what needs fixing and provide details so the technician comes equipped.
+                {t('booking.describeProblem', 'Select what needs fixing and provide details so the technician comes equipped.')}
               </p>
 
               <div style={{ marginBottom: '20px' }}>
                 <label htmlFor="service-select" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                  Select Service:
+                  {t('booking.selectService', 'Select Service:')}
                 </label>
                 {servicesError ? (
                   <div style={{
@@ -505,11 +506,11 @@ export default function BookingFlowPage() {
                       className="btn btn-outline btn-sm"
                       style={{ backgroundColor: '#FFFFFF', minHeight: '38px', padding: '6px 14px' }}
                     >
-                      Retry
+                      {t('common.refresh', 'Retry')}
                     </button>
                   </div>
                 ) : loadingServices ? (
-                  <div style={{ padding: '12px', fontSize: '13.5px', color: 'var(--text-muted)' }}>Loading services from server...</div>
+                  <div style={{ padding: '12px', fontSize: '13.5px', color: 'var(--text-muted)' }}>{t('catalog.loadingServices', 'Loading services from server...')}</div>
                 ) : (
                   <select
                     id="service-select"
@@ -527,7 +528,7 @@ export default function BookingFlowPage() {
                   >
                     {services.map(s => (
                       <option key={s.serviceId || s._id} value={s.serviceId || s._id}>
-                        {s.title} — ₹{s.startingPrice} ({s.category})
+                        {s.title} — {formatCurrency(s.startingPrice)} ({t(`categories.${s.category}`, s.category)})
                       </option>
                     ))}
                   </select>
@@ -536,14 +537,14 @@ export default function BookingFlowPage() {
 
               <div style={{ marginBottom: '20px' }}>
                 <label htmlFor="problem-notes" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                  Describe the Issue:
+                  {t('booking.describeProblem', 'Describe the Issue:')}
                 </label>
                 <textarea
                   id="problem-notes"
                   rows={4}
                   value={problemNotes}
                   onChange={(e) => setProblemNotes(e.target.value)}
-                  placeholder="Describe what is wrong (e.g. AC cooling low, unusual sound, pipe leak under sink)..."
+                  placeholder={t('booking.describeProblemPlaceholder', 'Describe what is wrong (e.g. AC cooling low, unusual sound, pipe leak under sink)...')}
                   style={{
                     width: '100%',
                     padding: '12px 14px',
@@ -558,7 +559,7 @@ export default function BookingFlowPage() {
 
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                  Attach Photos of the Issue (Optional, max 3):
+                  {t('booking.photosUploadLabel', 'Attach Photos of the Issue (Optional, max 3):')}
                 </label>
 
                 {photoErrorNotice && (
@@ -576,7 +577,7 @@ export default function BookingFlowPage() {
                   marginBottom: '16px'
                 }}>
                   <Upload size={24} color="var(--forest-700)" style={{ margin: '0 auto 8px auto' }} />
-                  <div style={{ fontSize: '13px', fontWeight: 600 }}>Click to attach photos (PNG, JPG up to 5 MB)</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600 }}>{t('booking.uploadPhotoBtn', 'Click to attach photos (PNG, JPG up to 5 MB)')}</div>
                   <input
                     type="file"
                     accept="image/*"
@@ -586,7 +587,7 @@ export default function BookingFlowPage() {
                     style={{ marginTop: '10px', fontSize: '13px' }}
                   />
                   <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    {uploadingPhotos ? 'Uploading photos...' : `${uploadedPhotos.length} / 3 photos attached`}
+                    {uploadingPhotos ? t('common.loading', 'Uploading photos...') : `${uploadedPhotos.length} / 3`}
                   </div>
                 </div>
 
@@ -632,15 +633,15 @@ export default function BookingFlowPage() {
           {currentStep === 2 && (
             <div>
               <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '6px' }}>
-                2. Service Address, City & Arrival Window
+                {t('booking.step2TitleBooking', '2. Service Address, City & Arrival Window')}
               </h2>
               <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                Tell us where and when the verified specialist should arrive.
+                {t('booking.serviceAddress', 'Tell us where and when the verified specialist should arrive.')}
               </p>
 
               <div style={{ marginBottom: '16px' }}>
                 <label htmlFor="service-city" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                  Service City:
+                  {t('common.city', 'Service City:')}
                 </label>
                 <input
                   id="service-city"
@@ -665,7 +666,7 @@ export default function BookingFlowPage() {
               {userProfile?.savedAddresses && userProfile.savedAddresses.length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px' }}>
-                    Or select from saved addresses:
+                    {t('booking.serviceAddress', 'Or select from saved addresses:')}
                   </label>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     {userProfile.savedAddresses.map((addr) => (
@@ -693,14 +694,14 @@ export default function BookingFlowPage() {
 
               <div style={{ marginBottom: '20px' }}>
                 <label htmlFor="street-address" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                  Complete Street Address & Landmark:
+                  {t('booking.serviceAddress', 'Complete Street Address & Landmark:')}
                 </label>
                 <textarea
                   id="street-address"
                   rows={3}
                   value={addressLine}
                   onChange={(e) => setAddressLine(e.target.value)}
-                  placeholder="Enter house/flat number, apartment/building name, street, landmark, area..."
+                  placeholder={t('booking.addressPlaceholder', 'Enter house/flat number, apartment/building name, street, landmark, area...')}
                   style={{
                     width: '100%',
                     padding: '12px 14px',
@@ -715,7 +716,7 @@ export default function BookingFlowPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
                 <div>
                   <label htmlFor="service-date" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                    Select Preferred Date:
+                    {t('booking.chooseDate', 'Select Preferred Date:')}
                   </label>
                   <input
                     id="service-date"
@@ -737,7 +738,7 @@ export default function BookingFlowPage() {
 
                 <div>
                   <label htmlFor="service-slot" style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                    Preferred Arrival Window:
+                    {t('booking.chooseTime', 'Preferred Arrival Window:')}
                   </label>
                   <select
                     id="service-slot"
@@ -753,7 +754,7 @@ export default function BookingFlowPage() {
                       backgroundColor: '#FFFFFF'
                     }}
                   >
-                    <option value="" disabled>-- Choose time slot --</option>
+                    <option value="" disabled>{t('booking.selectSlotPrompt', '-- Choose time slot --')}</option>
                     {slotOptions.map((s, idx) => (
                       <option key={idx} value={s}>{s}</option>
                     ))}
@@ -767,10 +768,10 @@ export default function BookingFlowPage() {
           {currentStep === 3 && (
             <div>
               <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '6px' }}>
-                3. Check Price & Confirm
+                {t('booking.step3TitleBooking', '3. Check Price & Confirm')}
               </h2>
               <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                Transparent pricing with no doorstep surprises. Payment Protection is active.
+                {t('catalog.guaranteeBanner', 'Transparent pricing with no doorstep surprises. Payment Protection is active.')}
               </p>
 
               {/* Itemized Price Breakdown */}
@@ -785,26 +786,26 @@ export default function BookingFlowPage() {
                   <div>
                     <h3 style={{ fontSize: '17px', fontWeight: 800 }}>{selectedService.title}</h3>
                     <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                      Arrival: <strong>{selectedDate} ({selectedSlot})</strong> in <strong>{bookingCity}</strong>
+                      {t('common.time', 'Arrival:')} <strong>{selectedDate} ({selectedSlot})</strong> {t('common.city', 'in')} <strong>{bookingCity}</strong>
                     </div>
                   </div>
                   <span style={{ fontSize: '22px', fontWeight: 800, color: 'var(--forest-800)' }}>
-                    ₹{selectedService.startingPrice}
+                    {formatCurrency(selectedService.startingPrice)}
                   </span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13.5px', paddingTop: '14px', borderTop: '1px solid var(--border-light)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                    <span>Standard Inspection & Diagnosis</span>
-                    <span>₹{selectedService.startingPrice}</span>
+                    <span>{t('home.inspectionRepair', 'Standard Inspection & Diagnosis')}</span>
+                    <span>{formatCurrency(selectedService.startingPrice)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--forest-700)' }}>
-                    <span>Doorstep Visit & Travel Fee</span>
-                    <strong>FREE (₹0)</strong>
+                    <span>{t('home.doorstepEvaluation', 'Doorstep Visit & Travel Fee')}</span>
+                    <strong>{t('home.includedFree', 'FREE (₹0)')}</strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--forest-700)' }}>
-                    <span>30-Day Free Workmanship Warranty</span>
-                    <strong>INCLUDED (₹0)</strong>
+                    <span>{t('home.workmanshipWarranty', '30-Day Free Workmanship Warranty')}</span>
+                    <strong>{t('home.includedFree', 'INCLUDED (₹0)')}</strong>
                   </div>
                   <div style={{
                     display: 'flex',
@@ -815,8 +816,8 @@ export default function BookingFlowPage() {
                     borderTop: '1px dashed var(--border-light)',
                     color: 'var(--forest-900)'
                   }}>
-                    <span>Total Estimated Amount</span>
-                    <span>₹{selectedService.startingPrice}</span>
+                    <span>{t('booking.estimatedTotal', 'Total Estimated Amount')}</span>
+                    <span>{formatCurrency(selectedService.startingPrice)}</span>
                   </div>
                 </div>
               </div>
@@ -830,11 +831,11 @@ export default function BookingFlowPage() {
                 marginBottom: '20px',
                 fontSize: '13.5px'
               }}>
-                <div style={{ fontWeight: 700, marginBottom: '4px' }}>Service Location ({bookingCity}):</div>
+                <div style={{ fontWeight: 700, marginBottom: '4px' }}>{t('booking.serviceAddress', 'Service Location')} ({bookingCity}):</div>
                 <div style={{ color: 'var(--text-secondary)' }}>{addressLine}</div>
                 {problemNotes && (
                   <div style={{ marginTop: '8px', color: 'var(--text-secondary)' }}>
-                    <strong>Reported issue:</strong> {problemNotes}
+                    <strong>{t('booking.describeProblem', 'Reported issue:')}</strong> {problemNotes}
                   </div>
                 )}
               </div>
@@ -850,7 +851,7 @@ export default function BookingFlowPage() {
                 marginBottom: '24px',
                 lineHeight: 1.5
               }}>
-                <strong>FixNear Payment Protection:</strong> You only pay after the repair is completed to your satisfaction and you share your 4-digit finish code. Any extra parts require your explicit in-app approval beforehand.
+                <strong>{t('common.paymentProtection', 'FixNear Payment Protection:')}</strong> {t('home.escrowProtectionDesc', 'You only pay after the repair is completed to your satisfaction and you share your 4-digit finish code. Any extra parts require your explicit in-app approval beforehand.')}
               </div>
             </div>
           )}
@@ -866,7 +867,7 @@ export default function BookingFlowPage() {
                 style={{ minHeight: '44px', fontSize: '15px' }}
               >
                 <ArrowLeft size={16} />
-                <span>Back</span>
+                <span>{t('common.back', 'Back')}</span>
               </button>
             ) : (
               <button
@@ -875,7 +876,7 @@ export default function BookingFlowPage() {
                 onClick={() => navigate('/services')}
                 style={{ minHeight: '44px', fontSize: '15px' }}
               >
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </button>
             )}
 
@@ -886,7 +887,7 @@ export default function BookingFlowPage() {
                 onClick={handleNextStep}
                 style={{ minHeight: '44px', fontSize: '15px' }}
               >
-                <span>Continue</span>
+                <span>{t('common.next', 'Continue')}</span>
                 <ArrowRight size={16} />
               </button>
             ) : (
@@ -898,7 +899,7 @@ export default function BookingFlowPage() {
                 style={{ minHeight: '44px', fontSize: '16px', padding: '12px 24px' }}
               >
                 <ShieldCheck size={18} />
-                <span>{isSubmitting ? 'Placing Booking...' : 'Confirm & Place Booking'}</span>
+                <span>{isSubmitting ? t('booking.submittingBooking', 'Placing Booking...') : t('booking.confirmBookingBtn', 'Confirm & Place Booking')}</span>
               </button>
             )}
           </div>

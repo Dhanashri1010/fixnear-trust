@@ -8,13 +8,11 @@ import { useNavigate } from 'react-router-dom';
 import { 
   User, 
   CalendarDays, 
-  History, 
   Bell, 
   Settings, 
   LogOut, 
   ShieldCheck,
   ChevronRight,
-  Shield,
   Wrench,
   KeyRound,
   Download,
@@ -61,6 +59,12 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
     navigate(path);
   };
 
+  const getRoleLabel = () => {
+    if (role === 'admin') return `🛡️ ${t('roles.admin', 'Administrator')}`;
+    if (role === 'provider') return `🔧 ${t('roles.provider', 'Service Partner')}`;
+    return `👤 ${t('roles.customer', 'Customer Account')}`;
+  };
+
   return (
     <div 
       ref={dropdownRef}
@@ -98,20 +102,19 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
             </div>
           </div>
         </div>
+
         <div style={{ marginTop: '8px' }}>
-          <span className="badge badge-sage" style={{ fontSize: '11px', padding: '2px 8px', textTransform: 'capitalize' }}>
-            {role === 'admin' ? '🛡️ Administrator' : role === 'provider' ? '🔧 Service Partner' : '👤 Customer Account'}
+          <span className="badge badge-sage" style={{ fontSize: '11px', padding: '2px 8px' }}>
+            {getRoleLabel()}
           </span>
         </div>
       </div>
-
-
 
       {role === 'provider' && (
         <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border-light)' }}>
           <button
             type="button"
-            onClick={() => handleNavigate('/provider')}
+            onClick={() => handleNavigate('/provider/dashboard')}
             style={{
               ...menuItemStyle,
               backgroundColor: 'var(--forest-50)',
@@ -122,7 +125,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Wrench size={16} color="var(--forest-700)" />
-              <span>Provider Console</span>
+              <span>{t('nav.dashboard', 'Provider Console')}</span>
             </div>
             <ChevronRight size={14} />
           </button>
@@ -133,7 +136,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border-light)' }}>
           <button
             type="button"
-            onClick={() => handleNavigate('/provider/register')}
+            onClick={() => handleNavigate('/signup?role=provider')}
             style={{
               ...menuItemStyle,
               backgroundColor: 'var(--yellow-50)',
@@ -144,7 +147,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Wrench size={16} color="var(--yellow-800)" />
-              <span>Become a Service Partner</span>
+              <span>{t('nav.joinPartner', 'Join as Service Partner')}</span>
             </div>
             <ChevronRight size={14} />
           </button>
@@ -171,7 +174,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <User size={16} color="var(--forest-700)" />
-            <span>Profile Details</span>
+            <span>{t('accountMenu.profile', 'Profile Details')}</span>
           </div>
           <ChevronRight size={14} color="var(--text-muted)" />
         </button>
@@ -183,9 +186,8 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Bell size={16} color="var(--forest-700)" />
-            <span>Notifications</span>
+            <span>{t('notifications.title', 'Notifications')}</span>
           </div>
-          <span className="badge badge-forest" style={{ fontSize: '11px', padding: '1px 6px' }}>3</span>
         </button>
 
         <button 
@@ -195,7 +197,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Settings size={16} color="var(--forest-700)" />
-            <span>Settings</span>
+            <span>{t('admin.navSettings', 'Settings')}</span>
           </div>
           <ChevronRight size={14} color="var(--text-muted)" />
         </button>
@@ -207,7 +209,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <KeyRound size={16} color="var(--forest-700)" />
-            <span>Change Password</span>
+            <span>{t('changePassword.title', 'Change Password')}</span>
           </div>
           <ChevronRight size={14} color="var(--text-muted)" />
         </button>
@@ -219,7 +221,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Download size={16} color="var(--forest-700)" />
-            <span>Download My Data</span>
+            <span>{t('userActions.downloadTitle', 'Download My Data')}</span>
           </div>
           <ChevronRight size={14} color="var(--text-muted)" />
         </button>
@@ -234,7 +236,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Trash2 size={16} color="#B91C1C" />
-            <span>Delete My Account</span>
+            <span>{t('userActions.deleteTitle', 'Delete My Account')}</span>
           </div>
           <ChevronRight size={14} color="#B91C1C" />
         </button>

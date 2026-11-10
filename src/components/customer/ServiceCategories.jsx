@@ -69,13 +69,13 @@ export default function ServiceCategories({ selectedCategoryId, onSelectCategory
         {/* Categories Grid */}
         {loading && (
           <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-            Loading categories from server...
+            {t('catalog.loadingCategories', 'Loading categories from server...')}
           </div>
         )}
 
         {!loading && categories.length === 0 && (
           <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-            No active categories found.
+            {t('catalog.noActiveCategories', 'No active categories found.')}
           </div>
         )}
 
@@ -143,7 +143,7 @@ export default function ServiceCategories({ selectedCategoryId, onSelectCategory
                   alignItems: 'center',
                   fontSize: '13px'
                 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Starting from</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{t('catalog.startingFrom', 'Starting from')}</span>
                   <span style={{ fontWeight: 800, fontSize: '16px', color: 'var(--forest-800)' }}>
                     ₹{cat.startingPrice}
                   </span>

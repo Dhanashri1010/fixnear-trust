@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { authAPI } from '../../services/api';
 import { 
   KeyRound, 
@@ -16,6 +17,7 @@ import {
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
   const { user, setUser } = useAuth();
+  const { t, getErrorMessage } = useLanguage();
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -51,7 +53,7 @@ export default function ChangePasswordPage() {
       });
 
       if (res.success) {
-        setSuccess('Your password has been updated successfully! Other browser sessions have been signed out.');
+        setSuccess(t('changePassword.successMsg', 'Your password has been updated successfully! Other browser sessions have been signed out.'));
         
         // Update user state if mustChangePassword was active
         if (user && user.mustChangePassword) {
@@ -72,7 +74,7 @@ export default function ChangePasswordPage() {
       }
     } catch (err) {
       console.error('Password change error:', err);
-      setError(err.message || 'Failed to update password. Please check your current password.');
+      setError(getErrorMessage(err, t('errors.INVALID_CURRENT_PASSWORD', 'Failed to update password. Please check your current password.')));
     } finally {
       setLoading(false);
     }
@@ -96,7 +98,7 @@ export default function ChangePasswordPage() {
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Dashboard
+            {t('common.back', 'Back')}
           </button>
         )}
 
@@ -106,12 +108,10 @@ export default function ChangePasswordPage() {
             <KeyRound className="w-6 h-6" />
           </div>
           <h2 className="text-xl font-bold text-slate-900">
-            {user?.mustChangePassword ? 'Action Required: Choose New Password' : 'Change Your Password'}
+            {t('changePassword.title', 'Change Your Password')}
           </h2>
           <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-            {user?.mustChangePassword
-              ? 'Your account was initialized with a temporary password. Please set a secure password to continue.'
-              : 'Keep your account secure. Updating your password logs out all other devices.'}
+            {t('changePassword.subtitle', 'Keep your account secure. Updating your password logs out all other devices.')}
           </p>
         </div>
 
@@ -133,7 +133,7 @@ export default function ChangePasswordPage() {
           {/* Current Password */}
           <div>
             <label htmlFor="currentPassword" className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              Current Password
+              {t('changePassword.currentPassword', 'Current Password')}
             </label>
             <div className="relative">
               <input
@@ -142,7 +142,7 @@ export default function ChangePasswordPage() {
                 required
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Enter existing password"
+                placeholder="••••••••"
                 className="w-full pl-3 pr-10 py-2.5 text-base sm:text-sm border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               <button
@@ -159,7 +159,7 @@ export default function ChangePasswordPage() {
           {/* New Password */}
           <div>
             <label htmlFor="newPassword" className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              New Password
+              {t('changePassword.newPassword', 'New Password')}
             </label>
             <div className="relative">
               <input
@@ -168,7 +168,7 @@ export default function ChangePasswordPage() {
                 required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="At least 8 chars with letter & number"
+                placeholder="••••••••"
                 className="w-full pl-3 pr-10 py-2.5 text-base sm:text-sm border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               <button
@@ -185,11 +185,11 @@ export default function ChangePasswordPage() {
             <div className="mt-2 space-y-1 text-[11px] text-slate-500">
               <div className={`flex items-center gap-1.5 ${hasMinLength ? 'text-emerald-600 font-semibold' : ''}`}>
                 <div className={`w-1.5 h-1.5 rounded-full ${hasMinLength ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                <span>At least 8 characters long</span>
+                <span>{t('auth.min8Chars', '8+ characters')}</span>
               </div>
               <div className={`flex items-center gap-1.5 ${hasLetter && hasNumber ? 'text-emerald-600 font-semibold' : ''}`}>
                 <div className={`w-1.5 h-1.5 rounded-full ${hasLetter && hasNumber ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                <span>Contains both letters and numbers</span>
+                <span>{t('auth.lettersAndNumbers', 'Letters & numbers')}</span>
               </div>
             </div>
           </div>
@@ -197,7 +197,7 @@ export default function ChangePasswordPage() {
           {/* Confirm New Password */}
           <div>
             <label htmlFor="confirmPassword" className="block text-xs font-bold text-slate-700 uppercase mb-1">
-              Confirm New Password
+              {t('changePassword.confirmPassword', 'Confirm New Password')}
             </label>
             <div className="relative">
               <input
@@ -206,7 +206,7 @@ export default function ChangePasswordPage() {
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter new password"
+                placeholder="••••••••"
                 className="w-full pl-3 pr-10 py-2.5 text-base sm:text-sm border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               <button
@@ -219,7 +219,7 @@ export default function ChangePasswordPage() {
               </button>
             </div>
             {confirmPassword.length > 0 && !passwordsMatch && (
-              <p className="text-[11px] text-red-500 mt-1">Passwords do not match.</p>
+              <p className="text-[11px] text-red-500 mt-1">{t('auth.passwordsDoNotMatch', 'Passwords do not match.')}</p>
             )}
           </div>
 
@@ -229,11 +229,11 @@ export default function ChangePasswordPage() {
             className="w-full mt-4 flex items-center justify-center gap-2 py-3 px-4 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed rounded-xl shadow-sm transition-colors min-h-[44px]"
           >
             {loading ? (
-              <span>Updating Password...</span>
+              <span>{t('common.saving', 'Updating Password...')}</span>
             ) : (
               <>
                 <ShieldCheck className="w-4 h-4" />
-                <span>Update Password</span>
+                <span>{t('changePassword.submitBtn', 'Update Password')}</span>
               </>
             )}
           </button>
@@ -242,4 +242,3 @@ export default function ChangePasswordPage() {
     </div>
   );
 }
-

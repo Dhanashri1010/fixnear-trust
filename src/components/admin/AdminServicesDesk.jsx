@@ -20,9 +20,11 @@ import {
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function AdminServicesDesk() {
   const { showToast } = useToast();
+  const { t } = useLanguage();
 
   const [services, setServices] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -171,10 +173,10 @@ export default function AdminServicesDesk() {
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Wrench size={20} color="var(--forest-700)" />
-            <span>Service Catalog & Transparent Price Schedule</span>
+            <span>{t('admin.serviceCatalogTitle')}</span>
           </h2>
           <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Standardize diagnostic pricing, warranty commitments, and toggle service availability across customer apps.
+            {t('admin.serviceCatalogDesc')}
           </div>
         </div>
 
@@ -189,7 +191,7 @@ export default function AdminServicesDesk() {
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
             <Plus size={15} />
-            <span>Add New Service</span>
+            <span>{t('admin.addNewService')}</span>
           </button>
         </div>
       </div>
@@ -211,7 +213,7 @@ export default function AdminServicesDesk() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search service title..."
+            placeholder={t('common.searchPlaceholder', 'Search...')}
             className="form-control"
             style={{ width: '100%', paddingLeft: '36px', fontSize: '13px', height: '38px', borderRadius: '8px' }}
           />
@@ -223,7 +225,7 @@ export default function AdminServicesDesk() {
           className="form-control"
           style={{ fontSize: '13px', height: '38px', borderRadius: '8px', padding: '0 12px' }}
         >
-          <option value="all">All Categories</option>
+          <option value="all">{t('admin.allCategories')}</option>
           {categories.map((c) => (
             <option key={c.categoryId || c._id} value={c.categoryId}>
               {c.name}
@@ -243,25 +245,25 @@ export default function AdminServicesDesk() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div className="spinner" style={{ margin: '0 auto 12px auto' }} />
-            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading catalog services...</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('admin.aggregatingOps')}</span>
           </div>
         ) : filteredServices.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
             <Wrench size={36} color="var(--forest-300)" style={{ margin: '0 auto 12px auto' }} />
-            <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)', margin: '0 0 6px 0' }}>No Services Listed</h4>
-            <p style={{ fontSize: '13px', margin: 0 }}>No services match the selected filter or search term.</p>
+            <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)', margin: '0 0 6px 0' }}>{t('admin.noServicesListed')}</h4>
+            <p style={{ fontSize: '13px', margin: 0 }}>{t('common.noResults', 'No services match the selected filter or search term.')}</p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--bg-warm)', borderBottom: '1.5px solid var(--border-light)', fontSize: '12px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase' }}>
-                  <th style={{ padding: '14px 18px' }}>Service</th>
-                  <th style={{ padding: '14px 18px' }}>Category</th>
-                  <th style={{ padding: '14px 18px' }}>Standard Base Price</th>
-                  <th style={{ padding: '14px 18px' }}>Duration</th>
-                  <th style={{ padding: '14px 18px' }}>Status</th>
-                  <th style={{ padding: '14px 18px', textAlign: 'right' }}>Actions</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.services', 'Service')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.category')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.standardBasePrice')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.duration')}</th>
+                  <th style={{ padding: '14px 18px' }}>{t('admin.status')}</th>
+                  <th style={{ padding: '14px 18px', textAlign: 'right' }}>{t('admin.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -283,7 +285,7 @@ export default function AdminServicesDesk() {
                           {srv.title}
                         </div>
                         <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                          ID: {srv.serviceId}
+                          {t('common.id', 'ID')}: {srv.serviceId}
                         </div>
                       </td>
 
@@ -308,7 +310,7 @@ export default function AdminServicesDesk() {
 
                       <td style={{ padding: '16px 18px' }}>
                         <span className={`badge ${isActive ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '11px', fontWeight: 800 }}>
-                          {isActive ? 'ACTIVE' : 'DISABLED'}
+                          {isActive ? t('status.ACTIVE', 'ACTIVE') : t('status.CANCELLED', 'DISABLED')}
                         </span>
                       </td>
 
@@ -321,7 +323,7 @@ export default function AdminServicesDesk() {
                             style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
                             <Edit3 size={13} />
-                            <span>Edit</span>
+                            <span>{t('admin.edit')}</span>
                           </button>
                           <button
                             type="button"
@@ -330,7 +332,7 @@ export default function AdminServicesDesk() {
                             style={{ color: isActive ? '#DC2626' : '#16A34A', borderColor: isActive ? '#FCA5A5' : '#86EFAC' }}
                           >
                             <Power size={13} />
-                            <span>{isActive ? 'Disable' : 'Enable'}</span>
+                            <span>{isActive ? t('admin.delete', 'Disable') : t('common.apply', 'Enable')}</span>
                           </button>
                         </div>
                       </td>
@@ -370,7 +372,7 @@ export default function AdminServicesDesk() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
-                {editingServiceId ? 'Edit Catalog Service' : 'Add New Service to FixNear'}
+                {editingServiceId ? t('admin.edit') : t('admin.addNewService')}
               </h3>
               <button
                 type="button"
@@ -383,13 +385,13 @@ export default function AdminServicesDesk() {
 
             <form onSubmit={handleSubmitService} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>Service Title</label>
+                <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>{t('admin.serviceTitle')}</label>
                 <input
                   type="text"
                   required
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="e.g. Inverter AC Jet Servicing & Filter Cleaning"
+                  placeholder={t('common.details', 'Service Title')}
                   className="form-control"
                   style={{ width: '100%', fontSize: '13px' }}
                 />
@@ -397,7 +399,7 @@ export default function AdminServicesDesk() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>Category</label>
+                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>{t('admin.category')}</label>
                   <select
                     value={formData.categoryId}
                     onChange={(e) => {
@@ -420,12 +422,12 @@ export default function AdminServicesDesk() {
                 </div>
 
                 <div>
-                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>Duration</label>
+                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>{t('admin.duration')}</label>
                   <input
                     type="text"
                     value={formData.duration}
                     onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                    placeholder="e.g. 45 - 60 mins"
+                    placeholder={t('common.time', 'Duration')}
                     className="form-control"
                     style={{ width: '100%', fontSize: '13px' }}
                   />
@@ -434,7 +436,7 @@ export default function AdminServicesDesk() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>Starting Price (₹)</label>
+                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>{t('admin.startingPrice')} (₹)</label>
                   <input
                     type="number"
                     min="0"
@@ -447,7 +449,7 @@ export default function AdminServicesDesk() {
                 </div>
 
                 <div>
-                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>Original Price (₹)</label>
+                  <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>{t('admin.originalPrice')} (₹)</label>
                   <input
                     type="number"
                     min="0"
@@ -461,7 +463,7 @@ export default function AdminServicesDesk() {
 
               <div>
                 <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>
-                  Features (One per line)
+                  {t('admin.featuresList')}
                 </label>
                 <textarea
                   rows={3}
@@ -469,7 +471,7 @@ export default function AdminServicesDesk() {
                   onChange={(e) => setFormData({ ...formData, featuresText: e.target.value })}
                   className="form-control"
                   style={{ width: '100%', fontSize: '13px', padding: '8px' }}
-                  placeholder="High-pressure foam jet wash&#10;30-day FixNear guarantee"
+                  placeholder={t('common.details', 'Features')}
                 />
               </div>
 
@@ -479,14 +481,14 @@ export default function AdminServicesDesk() {
                   onClick={() => setModalOpen(false)}
                   className="btn btn-outline btn-sm"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={processing}
                   className="btn btn-primary btn-sm"
                 >
-                  {processing ? 'Saving...' : editingServiceId ? 'Update Service' : 'Add Service'}
+                  {processing ? t('common.saving') : editingServiceId ? t('admin.edit') : t('common.confirm')}
                 </button>
               </div>
             </form>

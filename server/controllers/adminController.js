@@ -259,10 +259,12 @@ export const approveProviderAction = async (req, res, next) => {
       link: '/provider/dashboard',
     });
 
+    const providerUser = await User.findById(provider.userId);
     sendProviderStatusEmail({
       providerEmail: provider.email,
       providerName: provider.name,
       status: 'approved',
+      lang: providerUser?.preferredLanguage || 'en',
     }).catch(() => { });
 
     await logAudit({
@@ -312,11 +314,13 @@ export const rejectProviderAction = async (req, res, next) => {
       link: '/provider/register',
     });
 
+    const providerUser = await User.findById(provider.userId);
     sendProviderStatusEmail({
       providerEmail: provider.email,
       providerName: provider.name,
       status: 'rejected',
       reason: reason.trim(),
+      lang: providerUser?.preferredLanguage || 'en',
     }).catch(() => { });
 
     await logAudit({
@@ -365,11 +369,13 @@ export const requestProviderInfoAction = async (req, res, next) => {
       link: '/provider/register',
     });
 
+    const providerUser = await User.findById(provider.userId);
     sendProviderStatusEmail({
       providerEmail: provider.email,
       providerName: provider.name,
       status: 'needs_info',
       reason: message.trim(),
+      lang: providerUser?.preferredLanguage || 'en',
     }).catch(() => { });
 
     await logAudit({
@@ -1418,6 +1424,7 @@ export const resolveDisputeAction = async (req, res, next) => {
         decision: cleanDecision,
         note: note.trim(),
         refundAmount: refNum,
+        lang: customerUser.preferredLanguage || 'en',
       }).catch(() => { });
     }
 

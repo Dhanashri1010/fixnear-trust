@@ -4,40 +4,36 @@ import {
   ReceiptText, 
   ClockAlert, 
   BadgeCheck,
-  CheckCircle2,
   Lock
 } from 'lucide-react';
-const TRUST_PILLARS = [
-  {
-    icon: "ShieldCheck",
-    title: "Vetted & Certified Technicians",
-    description: "Every partner passes identity checks, rigorous practical skill assessments, and customer satisfaction audits."
-  },
-  {
-    icon: "ReceiptText",
-    title: "Payment Protection & Clear Quotes",
-    description: "No verbal estimates. Review itemized labor and spare parts on your screen before authorizing any repair."
-  },
-  {
-    icon: "ClockAlert",
-    title: "Guaranteed Punctuality",
-    description: "Your time matters. Strict arrival windows with dedicated technician communication."
-  },
-  {
-    icon: "BadgeCheck",
-    title: "30-Day Workmanship Warranty",
-    description: "Free re-inspection and resolution if the repaired problem resurfaces within 30 days."
-  }
-];
-
-const ICON_MAP = {
-  ShieldCheck: ShieldCheck,
-  ReceiptText: ReceiptText,
-  ClockAlert: ClockAlert,
-  BadgeCheck: BadgeCheck
-};
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function TrustBanner() {
+  const { t } = useLanguage();
+
+  const trustPillars = [
+    {
+      icon: ShieldCheck,
+      title: t('home.pillar1Title', 'Vetted & Certified Technicians'),
+      description: t('home.pillar1Desc', 'Every partner passes identity checks, rigorous practical skill assessments, and customer satisfaction audits.')
+    },
+    {
+      icon: ReceiptText,
+      title: t('home.pillar2Title', 'Payment Protection & Clear Quotes'),
+      description: t('home.pillar2Desc', 'No verbal estimates. Review itemized labor and spare parts on your screen before authorizing any repair.')
+    },
+    {
+      icon: ClockAlert,
+      title: t('home.pillar3Title', 'Guaranteed Punctuality'),
+      description: t('home.pillar3Desc', 'Your time matters. Strict arrival windows with dedicated technician communication.')
+    },
+    {
+      icon: BadgeCheck,
+      title: t('home.pillar4Title', '30-Day Workmanship Warranty'),
+      description: t('home.pillar4Desc', 'Free re-inspection and resolution if the repaired problem resurfaces within 30 days.')
+    }
+  ];
+
   return (
     <section id="trust-guarantee" className="section-spacing" style={{ backgroundColor: 'var(--forest-50)' }}>
       <div className="container">
@@ -47,14 +43,14 @@ export default function TrustBanner() {
           <div style={{ display: 'inline-flex', marginBottom: '12px' }}>
             <span className="badge badge-forest">
               <ShieldCheck size={14} />
-              The FixNear Trust Commitment
+              {t('home.trustCommitment', 'The FixNear Trust Commitment')}
             </span>
           </div>
           <h2 style={{ fontSize: '32px', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '12px' }}>
-            Why Homeowners Rely on FixNear Trust
+            {t('home.whyRely', 'Why Homeowners Rely on FixNear Trust')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '16px' }}>
-            We redesigned the home-service experience around absolute pricing transparency, vetted skill standards, and post-repair peace of mind.
+            {t('home.whyRelySub', 'We redesigned the home-service experience around absolute pricing transparency, vetted skill standards, and post-repair peace of mind.')}
           </p>
         </div>
 
@@ -64,8 +60,8 @@ export default function TrustBanner() {
           gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
           gap: '24px'
         }}>
-          {TRUST_PILLARS.map((pillar, idx) => {
-            const IconComponent = ICON_MAP[pillar.icon] || ShieldCheck;
+          {trustPillars.map((pillar, idx) => {
+            const IconComponent = pillar.icon;
             return (
               <div 
                 key={idx}
@@ -131,17 +127,17 @@ export default function TrustBanner() {
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: '15px' }}>
-                FixNear Escrow Protection
+                {t('home.escrowProtection', 'FixNear Escrow Protection')}
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Funds are only released to the technician after you inspect the work and verify with your completion OTP.
+                {t('home.escrowProtectionDesc', 'Funds are only released to the technician after you inspect the work and verify with your completion OTP.')}
               </div>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="badge badge-sage">
-              ✓ 100% Satisfaction or Free Re-visit
+              {t('home.satisfactionGuarantee', '✓ 100% Satisfaction or Free Re-visit')}
             </span>
           </div>
         </div>

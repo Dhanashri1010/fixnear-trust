@@ -11,8 +11,15 @@ export const validate = (schema) => (req, res, next) => {
         .map(issue => issue.message)
         .join('. ');
 
+      const isWeak = parsed.error.issues.some(
+        i => (Array.isArray(i.path) && i.path.some(p => String(p).toLowerCase().includes('password'))) ||
+             i.message.toLowerCase().includes('password')
+      );
+      const code = isWeak ? 'PASSWORD_TOO_WEAK' : 'VALIDATION_ERROR';
+
       return res.status(400).json({
         success: false,
+        code,
         message: errorMsg || 'Invalid request payload',
         errors: parsed.error.issues,
       });

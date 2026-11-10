@@ -22,9 +22,11 @@ import {
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function AdminOverviewTab() {
   const { showToast } = useToast();
+  const { t, formatCurrency, formatNumber } = useLanguage();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -54,8 +56,8 @@ export default function AdminOverviewTab() {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px', backgroundColor: '#FFFFFF', borderRadius: '16px' }}>
         <div className="spinner" style={{ margin: '0 auto 16px auto' }} />
-        <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)' }}>Aggregating Live Platform Operations...</h3>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Querying MongoDB bookings, verification queues, and dispute escrow balances.</p>
+        <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)' }}>{t('admin.aggregatingOps')}</h3>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('admin.aggregatingOpsDesc')}</p>
       </div>
     );
   }
@@ -64,10 +66,10 @@ export default function AdminOverviewTab() {
     return (
       <div style={{ padding: '40px 24px', backgroundColor: '#FEF2F2', border: '1.5px solid #FCA5A5', borderRadius: '16px', textAlign: 'center' }}>
         <AlertCircle size={32} color="#DC2626" style={{ margin: '0 auto 12px auto' }} />
-        <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#991B1B' }}>Failed to Load Central Operations</h3>
+        <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#991B1B' }}>{t('admin.failedToLoadOps')}</h3>
         <p style={{ fontSize: '13.5px', color: '#B91C1C', margin: '4px 0 16px 0' }}>{error || 'Unable to retrieve statistics from server.'}</p>
         <button type="button" onClick={fetchStats} className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-          <RefreshCw size={14} /> Retry Operations Sync
+          <RefreshCw size={14} /> {t('admin.retryOpsSync')}
         </button>
       </div>
     );
@@ -107,64 +109,64 @@ export default function AdminOverviewTab() {
         gap: '14px'
       }}>
         <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Bookings</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.kpiTotalBookings')}</div>
           <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '4px' }}>{totalBookings}</div>
-          <div style={{ fontSize: '11px', color: '#16A34A', fontWeight: 600, marginTop: '2px' }}>✓ Live database sync</div>
+          <div style={{ fontSize: '11px', color: '#16A34A', fontWeight: 600, marginTop: '2px' }}>{t('admin.liveDbSync')}</div>
         </div>
 
         <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Active Jobs</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.kpiActiveJobs')}</div>
           <div style={{ fontSize: '26px', fontWeight: 800, color: '#D97706', marginTop: '4px' }}>{activeJobs}</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>In progress right now</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>{t('admin.inProgressRightNow')}</div>
         </div>
 
         <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Pros Online</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.prosOnline')}</div>
           <div style={{ fontSize: '26px', fontWeight: 800, color: '#16A34A', marginTop: '4px' }}>{providersOnline}</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>Of {totalProviders} registered</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>{t('admin.ofRegistered')} {totalProviders}</div>
         </div>
 
         <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Waiting Approvals</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.waitingApprovals')}</div>
           <div style={{ fontSize: '26px', fontWeight: 800, color: providersWaiting > 0 ? '#2563EB' : 'var(--forest-900)', marginTop: '4px' }}>
             {providersWaiting}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>KYC review ready</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>{t('admin.kycReviewReady')}</div>
         </div>
 
         <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Open Disputes</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.openDisputes')}</div>
           <div style={{ fontSize: '26px', fontWeight: 800, color: openComplaints > 0 ? '#DC2626' : '#16A34A', marginTop: '4px' }}>
             {openComplaints}
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
-            {openComplaints > 0 ? 'Requires mediation' : 'Zero disputes'}
+            {openComplaints > 0 ? t('admin.requiresMediation') : t('admin.zeroDisputes')}
           </div>
         </div>
 
         <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Gross Volume</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.grossVolume')}</div>
           <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '4px' }}>
             ₹{grossRevenue.toLocaleString('en-IN')}
           </div>
-          <div style={{ fontSize: '11px', color: '#16A34A', fontWeight: 600, marginTop: '2px' }}>Escrow protected</div>
+          <div style={{ fontSize: '11px', color: '#16A34A', fontWeight: 600, marginTop: '2px' }}>{t('admin.escrowProtected')}</div>
         </div>
 
         <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Platform Fees</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.platformFees')}</div>
           <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--forest-800)', marginTop: '4px' }}>
             ₹{totalPlatformFees.toLocaleString('en-IN')}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>FixNear commission & fee</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>{t('admin.fixnearCommission')}</div>
         </div>
 
         <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Average Rating</div>
+          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.averageRating')}</div>
           <div style={{ fontSize: '26px', fontWeight: 800, color: '#B45309', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Star size={22} fill="#F59E0B" color="#F59E0B" />
             <span>{averageRating}</span>
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>Across approved specialists</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>{t('admin.acrossApprovedPros')}</div>
         </div>
       </div>
 
@@ -181,16 +183,16 @@ export default function AdminOverviewTab() {
             <AlertCircle size={22} color={hasUrgentActions ? '#DC2626' : '#16A34A'} />
             <div>
               <h2 style={{ fontSize: '17px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
-                Needs Your Action Desk
+                {t('admin.needsActionDesk')}
               </h2>
               <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Operational items requiring administrator review or intervention
+                {t('admin.operationalItemsNotice')}
               </div>
             </div>
           </div>
           <button type="button" onClick={fetchStats} className="btn btn-outline btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <RefreshCw size={13} />
-            <span>Refresh</span>
+            <span>{t('admin.refresh')}</span>
           </button>
         </div>
 
@@ -212,13 +214,13 @@ export default function AdminOverviewTab() {
           >
             <div>
               <div style={{ fontSize: '11px', fontWeight: 800, color: needsAction.waitingApprovals?.length > 0 ? '#1D4ED8' : 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Provider Approvals
+                {t('admin.providerApprovalsAction')}
               </div>
               <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '4px' }}>
-                {needsAction.waitingApprovals?.length || 0} Waiting
+                {needsAction.waitingApprovals?.length || 0} {t('admin.waitingSuffix')}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                KYC and skill test ready for review
+                {t('admin.kycReadyReview')}
               </div>
             </div>
             <ArrowRight size={18} color="var(--forest-700)" />
@@ -240,13 +242,13 @@ export default function AdminOverviewTab() {
           >
             <div>
               <div style={{ fontSize: '11px', fontWeight: 800, color: needsAction.openComplaints?.length > 0 ? '#B91C1C' : 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Complaints & Disputes
+                {t('admin.complaintsDisputesAction')}
               </div>
               <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '4px' }}>
-                {needsAction.openComplaints?.length || 0} Open Disputes
+                {needsAction.openComplaints?.length || 0} {t('admin.openDisputes')}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Customer / Provider escrow arbitration
+                {t('admin.disputesActionDesc')}
               </div>
             </div>
             <ArrowRight size={18} color="var(--forest-700)" />
@@ -268,13 +270,13 @@ export default function AdminOverviewTab() {
           >
             <div>
               <div style={{ fontSize: '11px', fontWeight: 800, color: needsAction.flaggedProviders?.length > 0 ? '#B45309' : 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Quality Watchdog
+                {t('admin.qualityWatchdogAction')}
               </div>
               <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '4px' }}>
-                {needsAction.flaggedProviders?.length || 0} Needs Attention
+                {needsAction.flaggedProviders?.length || 0} {t('admin.needsAttentionSuffix')}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Rating &lt; 3.5 with &ge; 5 completed jobs
+                {t('admin.flaggedDesc')}
               </div>
             </div>
             <ArrowRight size={18} color="var(--forest-700)" />
@@ -296,13 +298,13 @@ export default function AdminOverviewTab() {
           >
             <div>
               <div style={{ fontSize: '11px', fontWeight: 800, color: needsAction.noProviderBookings?.length > 0 ? '#BE185D' : 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Dispatch Fallbacks
+                {t('admin.dispatchFallbacks')}
               </div>
               <div style={{ fontSize: '16px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '4px' }}>
-                {needsAction.noProviderBookings?.length || 0} Unassigned
+                {needsAction.noProviderBookings?.length || 0} {t('admin.unassignedSuffix')}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                No technician found in time window
+                {t('admin.noTechFoundDesc')}
               </div>
             </div>
             <ArrowRight size={18} color="var(--forest-700)" />
@@ -329,14 +331,14 @@ export default function AdminOverviewTab() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
-                7-Day Booking Volume
+                {t('admin.sevenDayVolume')}
               </h3>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Customer demand trend over the last 7 calendar days
+                {t('admin.customerDemandTrend')}
               </div>
             </div>
             <span className="badge badge-success" style={{ fontSize: '11px', fontWeight: 800 }}>
-              Live Aggregate
+              {t('admin.liveAggregate')}
             </span>
           </div>
 
@@ -389,8 +391,8 @@ export default function AdminOverviewTab() {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-            <span>Weekly Total: <strong>{bookingsPerDay.reduce((sum, d) => sum + (d.count || 0), 0)} services</strong></span>
-            <span>Customers Registered: <strong>{totalCustomers}</strong></span>
+            <span>{t('admin.weeklyTotal')} <strong>{bookingsPerDay.reduce((sum, d) => sum + (d.count || 0), 0)} {t('admin.servicesCount')}</strong></span>
+            <span>{t('admin.customersRegistered')} <strong>{totalCustomers}</strong></span>
           </div>
         </div>
 
@@ -405,20 +407,20 @@ export default function AdminOverviewTab() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
-                Top 5 Certified Specialists
+                {t('admin.topSpecialists')}
               </h3>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Ranked by rating average & completed jobs
+                {t('admin.rankedByRating')}
               </div>
             </div>
             <Link to="/admin/providers" style={{ fontSize: '12.5px', color: 'var(--forest-700)', fontWeight: 700, textDecoration: 'none' }}>
-              Directory →
+              {t('admin.directoryLink')}
             </Link>
           </div>
 
           {topProviders.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '36px 12px', color: 'var(--text-muted)', fontSize: '13px' }}>
-              No rated specialists yet.
+              {t('admin.noRatedSpecialists')}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -455,7 +457,7 @@ export default function AdminOverviewTab() {
                         {tech.name}
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        {tech.specialty || tech.city} • {tech.jobsDone || 0} jobs done
+                        {tech.specialty || tech.city} • {tech.jobsDone || 0} {t('admin.jobsDoneSuffix')}
                       </div>
                     </div>
                   </div>

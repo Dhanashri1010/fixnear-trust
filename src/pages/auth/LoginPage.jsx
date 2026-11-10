@@ -1,9 +1,4 @@
-// ===================================================================
-// FixNear Trust - User Login Page
-// Email/Password authentication for Customers and Service Providers
-// ===================================================================
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -15,15 +10,16 @@ import {
   ArrowRight, 
   AlertCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  Globe
 } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signInWithEmail } = useAuth();
+  const { currentUser, role, signInWithEmail } = useAuth();
   const { showToast } = useToast();
-  const { t } = useLanguage();
+  const { lang, changeLanguage, t, getErrorMessage } = useLanguage();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,6 +31,21 @@ export default function LoginPage() {
   const searchParams = new URLSearchParams(location.search);
   const redirectParam = searchParams.get('redirect');
   const from = redirectParam || location.state?.from?.pathname || null;
+
+  // Handle logged-in user navigating back to login page
+  useEffect(() => {
+    if (currentUser) {
+      if (from) {
+        navigate(from, { replace: true });
+      } else if (role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else if (role === 'provider') {
+        navigate('/provider/dashboard', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [currentUser, role, from, navigate]);
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
@@ -53,12 +64,13 @@ export default function LoginPage() {
       if (from) {
         navigate(from, { replace: true });
       } else {
-        if (res?.role === 'provider') navigate('/provider');
+        if (res?.role === 'provider') navigate('/provider/dashboard');
+        else if (res?.role === 'admin') navigate('/admin');
         else navigate('/');
       }
     } catch (err) {
       console.error(err);
-      const message = err?.message || 'Invalid email or password. Please try again.';
+      const message = getErrorMessage(err, t('errors.INVALID_CREDENTIALS', 'Invalid email or password.'));
       setErrorMessage(message);
       showToast(message, 'error');
     } finally {
@@ -84,8 +96,45 @@ export default function LoginPage() {
         boxShadow: 'var(--shadow-lg)',
         border: '1px solid var(--border-light)'
       }}>
+        {/* Language Selector Bar */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '8px',
+          marginBottom: '20px',
+          paddingBottom: '16px',
+          borderBottom: '1px solid var(--border-light)'
+        }}>
+          <Globe size={15} color="var(--forest-700)" />
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {[
+              { code: 'en', label: 'English' },
+              { code: 'hi', label: 'हिन्दी' },
+              { code: 'mr', label: 'मराठी' },
+            ].map((item) => (
+              <button
+                key={item.code}
+                type="button"
+                onClick={() => changeLanguage(item.code)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '12px',
+                  fontWeight: lang === item.code ? 700 : 500,
+                  backgroundColor: lang === item.code ? 'var(--forest-700)' : 'var(--forest-50)',
+                  color: lang === item.code ? '#FFFFFF' : 'var(--forest-800)',
+                  transition: 'var(--transition-fast)'
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Brand Header */}
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div style={{
             width: '52px',
             height: '52px',
@@ -161,7 +210,7 @@ export default function LoginPage() {
                 {t('auth.passwordLabel', 'Password')}
               </label>
               <Link to="/reset-password" style={{ fontSize: '12px', color: 'var(--forest-700)', textDecoration: 'none', fontWeight: 600 }}>
-                Forgot?
+                {t('auth.forgotPasswordLink', 'Forgot password?')}
               </Link>
             </div>
             <div style={{ position: 'relative' }}>
@@ -224,13 +273,12 @@ export default function LoginPage() {
         <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '14px', color: 'var(--text-secondary)' }}>
           {t('auth.noAccount', "Don't have an account?")}{' '}
           <Link to="/signup" style={{ color: 'var(--forest-700)', fontWeight: 700, textDecoration: 'underline' }}>
-            {t('nav.signup', 'Create one here')}
+            {t('nav.signup', 'Sign Up')}
           </Link>
         </div>
 
         {/* Provider Sign-up link */}
         <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px', color: 'var(--text-muted)' }}>
-          Are you a skilled technician?{' '}
           <Link to="/signup?role=provider" style={{ color: 'var(--forest-700)', fontWeight: 600 }}>
             {t('nav.joinPartner', 'Join as Service Partner')}
           </Link>

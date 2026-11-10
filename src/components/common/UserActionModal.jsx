@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { notificationsAPI, authAPI, getSocket } from '../../services/api';
 import InitialsAvatar from './InitialsAvatar';
 
@@ -24,6 +25,8 @@ export default function UserActionModal({ activeAction, onClose }) {
 
   const navigate = useNavigate();
   const { currentUser, userProfile, logOut } = useAuth();
+  const { t, getErrorMessage, formatDate, formatTime } = useLanguage();
+
   const [notifications, setNotifications] = useState([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -47,7 +50,7 @@ export default function UserActionModal({ activeAction, onClose }) {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (err) {
-      alert(err?.response?.data?.message || err?.message || 'Failed to download data.');
+      setDeleteError(getErrorMessage(err, t('common.errorGeneral', 'Failed to download data.')));
     } finally {
       setDownloading(false);
     }
@@ -55,7 +58,7 @@ export default function UserActionModal({ activeAction, onClose }) {
 
   const handleDeleteAccount = async () => {
     if (!deletePassword) {
-      setDeleteError('Please enter your password to confirm deletion.');
+      setDeleteError(t('userActions.enterPasswordToDelete', 'Please enter your password to confirm deletion.'));
       return;
     }
     try {
@@ -69,7 +72,7 @@ export default function UserActionModal({ activeAction, onClose }) {
         onClose();
       }, 1500);
     } catch (err) {
-      setDeleteError(err?.response?.data?.message || err?.message || 'Failed to delete account.');
+      setDeleteError(getErrorMessage(err, t('common.errorGeneral', 'Failed to delete account.')));
     } finally {
       setDeleting(false);
     }
@@ -108,6 +111,16 @@ export default function UserActionModal({ activeAction, onClose }) {
   const displayEmail = userProfile?.email || currentUser?.email || '';
   const displayPhone = userProfile?.phone || currentUser?.phone || 'Not provided';
   const displayCity = userProfile?.city || currentUser?.city || 'Mumbai';
+
+  const getActionHeading = () => {
+    if (activeAction === 'DownloadData') return t('userActions.downloadTitle', 'Download My Data');
+    if (activeAction === 'DeleteAccount') return t('userActions.deleteTitle', 'Delete My Account');
+    if (activeAction === 'Notifications') return t('notifications.title', 'Notifications');
+    if (activeAction === 'Profile') return t('accountMenu.profile', 'Profile');
+    if (activeAction === 'Settings') return t('admin.navSettings', 'Settings');
+    if (activeAction === 'Sign out') return t('accountMenu.signOut', 'Sign Out');
+    return activeAction;
+  };
 
   return (
     <div style={{
@@ -148,16 +161,17 @@ export default function UserActionModal({ activeAction, onClose }) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span className="badge badge-forest" style={{ fontSize: '12px' }}>
-              Account Center
+              FixNear
             </span>
             <h3 style={{ fontSize: '18px', fontWeight: 800 }}>
-              {activeAction === 'DownloadData' ? 'Download My Data' : activeAction === 'DeleteAccount' ? 'Delete My Account' : activeAction}
+              {getActionHeading()}
             </h3>
           </div>
 
           <button 
             type="button"
             onClick={onClose}
+            aria-label={t('common.close', 'Close')}
             style={{
               width: '32px',
               height: '32px',
@@ -194,7 +208,7 @@ export default function UserActionModal({ activeAction, onClose }) {
 
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                  Registered City & Region
+                  {t('common.city', 'City')} & {t('common.address', 'Address')}
                 </label>
                 <div style={{
                   padding: '12px',
@@ -219,7 +233,7 @@ export default function UserActionModal({ activeAction, onClose }) {
               }}>
                 <ShieldCheck size={20} color="var(--forest-700)" />
                 <span style={{ fontSize: '13px', color: 'var(--forest-800)', fontWeight: 600 }}>
-                  Customer Account Active · Workmanship Protected
+                  {t('common.warrantyBadge', '30-Day FixNear Warranty')} · {t('common.verifiedBadge', 'Verified Skill')}
                 </span>
               </div>
             </div>
@@ -229,14 +243,14 @@ export default function UserActionModal({ activeAction, onClose }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {loadingNotifs && (
                 <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
-                  Loading notifications...
+                  {t('common.loading', 'Loading...')}
                 </div>
               )}
 
               {!loadingNotifs && notifications.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
                   <Bell size={32} style={{ margin: '0 auto 8px auto', opacity: 0.5 }} />
-                  <div>No new notifications right now.</div>
+                  <div>{t('notifications.emptyNotifications', 'No new notifications right now.')}</div>
                 </div>
               )}
 
@@ -251,13 +265,13 @@ export default function UserActionModal({ activeAction, onClose }) {
                   }}
                 >
                   <div style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--forest-900)' }}>
-                    {notif.title}
+                    {notif.code ? t(`notifications.type${notif.type ? notif.type.charAt(0).toUpperCase() + notif.type.slice(1) : 'System'}`, notif.title) : notif.title}
                   </div>
                   <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                     {notif.message}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {new Date(notif.createdAt).toLocaleDateString()}
+                    {formatTime(notif.createdAt)} · {formatDate(notif.createdAt)}
                   </div>
                 </div>
               ))}
@@ -269,28 +283,28 @@ export default function UserActionModal({ activeAction, onClose }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
                   <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                    Live Appointment Alerts
+                    {t('tracking.title', 'Live Job Tracking')}
                   </label>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    Receive real-time technician dispatch milestones and arrival notifications.
+                    {t('tracking.subtitle', 'Monitor technician dispatch, status updates, and verify completion securely')}
                   </div>
                 </div>
 
                 <div style={{ paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
                   <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                    4-Digit Finish Code Security
+                    {t('tracking.finishCodeTitle', 'Private Job Finish Code')}
                   </label>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    Your completion finish code is generated exclusively on the server for each booking to prevent premature payment release.
+                    {t('tracking.finishCodeDesc', 'Give this 4-digit code to the specialist ONLY when you have inspected and accepted the completed work.')}
                   </div>
                 </div>
 
                 <div style={{ paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
                   <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                    Privacy & Data Governance
+                    {t('legal.privacyTitle', 'Privacy & Data Protection Policy')}
                   </label>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                    Under DPDP guidelines, you can export your account data or request personal anonymization at any time.
+                    {t('userActions.downloadDesc', 'Request a complete JSON archive of your personal profile, booking history, submitted reviews, and support tickets.')}
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button
@@ -301,7 +315,7 @@ export default function UserActionModal({ activeAction, onClose }) {
                       style={{ fontSize: '12.5px', padding: '6px 12px' }}
                     >
                       <Download size={14} style={{ marginRight: '6px' }} />
-                      {downloading ? 'Exporting...' : 'Download My Data'}
+                      {downloading ? t('common.loading', 'Loading...') : t('userActions.downloadBtn', 'Download JSON Data Export')}
                     </button>
                   </div>
                 </div>
@@ -325,19 +339,19 @@ export default function UserActionModal({ activeAction, onClose }) {
                 <Download size={26} />
               </div>
               <h4 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '6px' }}>
-                Download Your Data
+                {t('userActions.downloadTitle', 'Download My Data')}
               </h4>
               <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: 1.5 }}>
-                Export your full FixNear Trust record in JSON format, including your profile details, service booking history, ratings, and customer support disputes.
+                {t('userActions.downloadDesc', 'Request a complete JSON archive of your personal profile, booking history, submitted reviews, and support tickets.')}
               </p>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={handleDownloadData}
                 disabled={downloading}
-                style={{ width: '100%', padding: '10px' }}
+                style={{ width: '100%', padding: '10px', justifyContent: 'center' }}
               >
-                {downloading ? 'Preparing Export...' : 'Download JSON Export'}
+                {downloading ? t('common.loading', 'Loading...') : t('userActions.downloadBtn', 'Download JSON Data Export')}
               </button>
             </div>
           )}
@@ -359,7 +373,7 @@ export default function UserActionModal({ activeAction, onClose }) {
               </div>
 
               <h4 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '6px', textAlign: 'center' }}>
-                Delete FixNear Account
+                {t('userActions.deleteTitle', 'Delete My Account')}
               </h4>
 
               <div style={{
@@ -373,9 +387,9 @@ export default function UserActionModal({ activeAction, onClose }) {
                 lineHeight: 1.45
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '4px' }}>
-                  <AlertTriangle size={15} /> Irreversible Anonymization
+                  <AlertTriangle size={15} /> {t('userActions.deleteTitle', 'Delete Account')}
                 </div>
-                Your personal details (name, email, phone, addresses, and uploaded files) will be permanently anonymized. Tax invoices and payment transactions are retained strictly for statutory accounting. Ongoing bookings or unpaid jobs must be resolved prior to deletion.
+                {t('userActions.deleteWarning', 'Account deletion is irreversible. Your personal contact details and KYC documents will be permanently anonymized. Accounting records are retained for compliance.')}
               </div>
 
               {deleteError && (
@@ -404,12 +418,12 @@ export default function UserActionModal({ activeAction, onClose }) {
                   fontWeight: 600
                 }}>
                   <CheckCircle2 size={24} style={{ margin: '0 auto 8px auto' }} />
-                  Account successfully deleted. Redirecting to home...
+                  {t('common.successGeneral', 'Account successfully deleted.')}
                 </div>
               ) : (
                 <div>
                   <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                    Confirm with your password
+                    {t('userActions.enterPasswordToDelete', 'Enter your password to confirm deletion:')}
                   </label>
                   <div style={{ position: 'relative', marginBottom: '16px' }}>
                     <input
@@ -417,7 +431,7 @@ export default function UserActionModal({ activeAction, onClose }) {
                       className="input"
                       value={deletePassword}
                       onChange={(e) => setDeletePassword(e.target.value)}
-                      placeholder="Enter your current password"
+                      placeholder="••••••••"
                       style={{ width: '100%', paddingLeft: '36px' }}
                     />
                     <Lock size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -428,9 +442,9 @@ export default function UserActionModal({ activeAction, onClose }) {
                       type="button"
                       className="btn btn-secondary"
                       onClick={onClose}
-                      style={{ flex: 1 }}
+                      style={{ flex: 1, justifyContent: 'center' }}
                     >
-                      Cancel
+                      {t('common.cancel', 'Cancel')}
                     </button>
                     <button
                       type="button"
@@ -445,10 +459,13 @@ export default function UserActionModal({ activeAction, onClose }) {
                         borderRadius: 'var(--radius-sm)',
                         padding: '10px 16px',
                         cursor: deleting || !deletePassword ? 'not-allowed' : 'pointer',
-                        opacity: deleting || !deletePassword ? 0.6 : 1
+                        opacity: deleting || !deletePassword ? 0.6 : 1,
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center'
                       }}
                     >
-                      {deleting ? 'Deleting...' : 'Confirm Delete'}
+                      {deleting ? t('common.loading', 'Deleting...') : t('userActions.deleteBtn', 'Permanently Delete Account')}
                     </button>
                   </div>
                 </div>
@@ -472,22 +489,22 @@ export default function UserActionModal({ activeAction, onClose }) {
                 <LogOut size={26} />
               </div>
               <h4 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '6px' }}>
-                Sign Out
+                {t('accountMenu.signOut', 'Sign Out')}
               </h4>
               <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                Are you sure you want to sign out of your FixNear Trust account?
+                {t('auth.loginSubtitle', 'Are you sure you want to sign out?')}
               </p>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="button" className="btn btn-outline" onClick={onClose} style={{ flex: 1 }}>
-                  Cancel
+                <button type="button" className="btn btn-outline" onClick={onClose} style={{ flex: 1, justifyContent: 'center' }}>
+                  {t('common.cancel', 'Cancel')}
                 </button>
                 <button 
                   type="button"
                   className="btn btn-primary" 
                   onClick={handleSignOutConfirm}
-                  style={{ flex: 1, backgroundColor: '#B91C1C' }}
+                  style={{ flex: 1, backgroundColor: '#B91C1C', justifyContent: 'center' }}
                 >
-                  Confirm Sign Out
+                  {t('accountMenu.signOut', 'Sign Out')}
                 </button>
               </div>
             </div>
@@ -496,7 +513,7 @@ export default function UserActionModal({ activeAction, onClose }) {
           {activeAction !== 'Sign out' && (
             <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-light)', textAlign: 'right' }}>
               <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
-                Close
+                {t('common.close', 'Close')}
               </button>
             </div>
           )}
