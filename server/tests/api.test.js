@@ -1615,10 +1615,14 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     expect(badAnsRes.body.message).toContain('not assigned in this session');
 
     // 6. Submit 8 correct answers (80% -> passes Silver badge)
-    const validAnswers = sessionQIds.map((qId, idx) => ({
-      questionId: String(qId),
-      selectedIndex: idx < 8 ? 1 : 0, // 8 correct (idx 1), 2 wrong (idx 0)
-    }));
+    const validAnswers = startRes.body.questions.map((clientQ, idx) => {
+      const correctDisplayedIdx = clientQ.options.indexOf('Step B');
+      const wrongDisplayedIdx = clientQ.options.indexOf('Step A');
+      return {
+        questionId: String(clientQ._id),
+        selectedIndex: idx < 8 ? correctDisplayedIdx : wrongDisplayedIdx,
+      };
+    });
 
     // Fix 3: Concurrent submits: exactly one succeeds, the other gets 400
     const [sub1, sub2] = await Promise.all([

@@ -1145,16 +1145,26 @@ describe('Full Customer & Provider End-to-End Lifecycle', () => {
     const { sessionId, questions } = startTestRes.body;
     expect(questions.length).toBe(10);
 
-    // Submit correct answers
+    // Submit correct answers (locating displayed index of correct option after server shuffling)
+    const qDocs = await Question.find({ _id: { $in: questions.map((q) => q._id) } }).select('+correctIndex');
+    const qMap = new Map(qDocs.map((q) => [String(q._id), q]));
+
+    const answers = questions.map((clientQ) => {
+      const qDoc = qMap.get(String(clientQ._id));
+      const correctText = qDoc.options[qDoc.correctIndex];
+      const displayedIndex = clientQ.options.indexOf(correctText);
+      return {
+        questionId: String(clientQ._id),
+        selectedIndex: displayedIndex >= 0 ? displayedIndex : 0,
+      };
+    });
+
     const submitTestRes = await request(app)
       .post(`/api/skill-test/${category.categoryId}/submit`)
       .set('Cookie', provCookie)
       .send({
         sessionId,
-        answers: questions.map((q) => ({
-          questionId: String(q._id),
-          selectedIndex: 0, // all correct
-        })),
+        answers,
       });
     expect(submitTestRes.status).toBe(200);
     expect(submitTestRes.body.passed).toBe(true);

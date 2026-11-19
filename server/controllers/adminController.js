@@ -1162,10 +1162,26 @@ export const createQuestionAction = async (req, res, next) => {
       details: { categoryId, questionText: question.questionText },
     });
 
+    // Friendly quality warnings check
+    const warnings = [];
+    if (Array.isArray(options) && typeof correctIndex === 'number' && options[correctIndex]) {
+      const correctLen = options[correctIndex].trim().length;
+      const otherLens = options.filter((_, i) => i !== correctIndex).map((o) => String(o).trim().length);
+      const maxOther = Math.max(...otherLens, 0);
+      if (correctLen > maxOther * 1.3 && (correctLen - maxOther) > 15) {
+        warnings.push(`Correct answer is noticeably longer than distractors (${correctLen} chars vs max ${maxOther} chars). Keep options balanced in length.`);
+      }
+    }
+    const catCount = await Question.countDocuments({ categoryId, isActive: true });
+    if (catCount < 20) {
+      warnings.push(`Category '${categoryId}' has ${catCount} active questions (target: at least 20 active questions).`);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Question added to bank.',
       question,
+      warnings,
     });
   } catch (err) {
     next(err);
@@ -1187,7 +1203,22 @@ export const updateQuestionAction = async (req, res, next) => {
       details: req.body,
     });
 
-    res.status(200).json({ success: true, message: 'Question updated.', question });
+    // Friendly quality warnings check
+    const warnings = [];
+    if (Array.isArray(question.options) && typeof question.correctIndex === 'number' && question.options[question.correctIndex]) {
+      const correctLen = question.options[question.correctIndex].trim().length;
+      const otherLens = question.options.filter((_, i) => i !== question.correctIndex).map((o) => String(o).trim().length);
+      const maxOther = Math.max(...otherLens, 0);
+      if (correctLen > maxOther * 1.3 && (correctLen - maxOther) > 15) {
+        warnings.push(`Correct answer is noticeably longer than distractors (${correctLen} chars vs max ${maxOther} chars). Keep options balanced in length.`);
+      }
+    }
+    const catCount = await Question.countDocuments({ categoryId: question.categoryId, isActive: true });
+    if (catCount < 20) {
+      warnings.push(`Category '${question.categoryId}' has ${catCount} active questions (target: at least 20 active questions).`);
+    }
+
+    res.status(200).json({ success: true, message: 'Question updated.', question, warnings });
   } catch (err) {
     next(err);
   }

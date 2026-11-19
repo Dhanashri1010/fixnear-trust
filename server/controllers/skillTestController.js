@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 import { Question } from '../models/Question.js';
 import { SkillTestSession } from '../models/SkillTestSession.js';
 import { TestAttempt } from '../models/TestAttempt.js';
@@ -7,6 +8,19 @@ import { User } from '../models/User.js';
 import { Setting } from '../models/Setting.js';
 import { Category } from '../models/Category.js';
 import { sendSkillTestResultEmail } from '../utils/emailHelper.js';
+
+/**
+ * Generates a randomized permutation of [0, 1, 2, 3] for option shuffling.
+ * optionOrder[displayedIndex] = originalIndex
+ */
+const generateRandomOptionOrder = () => {
+  const order = [0, 1, 2, 3];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(0, i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+};
 
 // GET /api/skill-test/:categoryId (starts or resumes exam session, returns 10 questions without answers)
 export const startSkillTest = async (req, res, next) => {
@@ -87,13 +101,39 @@ export const startSkillTest = async (req, res, next) => {
       const maxSeconds = settings.skillTestTimeLimitMinutes * 60;
 
       if (elapsedSeconds < maxSeconds) {
-        // Still unexpired! Return this same session and the exact same questions in original order
+        // Still unexpired! Return this same session and the exact same questions in their stored option order
+        const qIds = (existingSession.shuffledQuestions && existingSession.shuffledQuestions.length > 0)
+          ? existingSession.shuffledQuestions.map((sq) => sq.questionId)
+          : existingSession.questionIds;
+
         const qDocs = await Question.find({
-          _id: { $in: existingSession.questionIds },
+          _id: { $in: qIds },
         }).select('-correctIndex -explanation');
         const qMap = new Map();
         qDocs.forEach((q) => qMap.set(String(q._id), q));
-        const questions = existingSession.questionIds.map((id) => qMap.get(String(id))).filter(Boolean);
+
+        let questions = [];
+        if (existingSession.shuffledQuestions && existingSession.shuffledQuestions.length > 0) {
+          questions = existingSession.shuffledQuestions
+            .map((sq) => {
+              const rawQ = qMap.get(String(sq.questionId));
+              if (!rawQ) return null;
+              const shuffledOptions = sq.optionOrder.map((origIdx) => rawQ.options[origIdx]);
+              return {
+                _id: rawQ._id,
+                categoryId: rawQ.categoryId,
+                categoryName: rawQ.categoryName,
+                topic: rawQ.topic,
+                difficulty: rawQ.difficulty,
+                questionText: rawQ.questionText,
+                options: shuffledOptions,
+                isActive: rawQ.isActive,
+              };
+            })
+            .filter(Boolean);
+        } else {
+          questions = existingSession.questionIds.map((id) => qMap.get(String(id))).filter(Boolean);
+        }
 
         const remainingSeconds = Math.max(0, Math.floor(maxSeconds - elapsedSeconds));
 
@@ -142,7 +182,7 @@ export const startSkillTest = async (req, res, next) => {
     }
 
     // 3. Fetch exactly 10 random questions WITHOUT correctIndex or explanation
-    const questions = await Question.aggregate([
+    const rawQuestions = await Question.aggregate([
       { $match: { categoryId, isActive: true } },
       { $sample: { size: 10 } },
       {
@@ -159,22 +199,48 @@ export const startSkillTest = async (req, res, next) => {
       },
     ]);
 
-    if (!questions || questions.length === 0) {
+    if (!rawQuestions || rawQuestions.length === 0) {
       return res.status(404).json({
         success: false,
         message: `No active examination questions found for category '${categoryId}'.`,
       });
     }
 
+    // 4. Shuffle options per question and record optionOrder
+    const shuffledQuestions = [];
+    const clientQuestions = [];
+
+    for (const rawQ of rawQuestions) {
+      const optionOrder = generateRandomOptionOrder();
+      const shuffledOptions = optionOrder.map((origIdx) => rawQ.options[origIdx]);
+
+      shuffledQuestions.push({
+        questionId: rawQ._id,
+        optionOrder,
+      });
+
+      clientQuestions.push({
+        _id: rawQ._id,
+        categoryId: rawQ.categoryId,
+        categoryName: rawQ.categoryName,
+        topic: rawQ.topic,
+        difficulty: rawQ.difficulty,
+        questionText: rawQ.questionText,
+        options: shuffledOptions,
+        isActive: rawQ.isActive,
+      });
+    }
+
     const categoryDoc = await Category.findOne({ categoryId });
 
-    // 4. Save new test session on server
+    // 5. Save new test session on server with stored option order
     const session = await SkillTestSession.create({
       providerId: provider._id,
       userId: req.user._id,
       categoryId,
       categoryName: categoryDoc?.name || categoryId,
-      questionIds: questions.map((q) => q._id),
+      questionIds: rawQuestions.map((q) => q._id),
+      shuffledQuestions,
       startedAt: new Date(),
     });
 
@@ -186,7 +252,7 @@ export const startSkillTest = async (req, res, next) => {
       durationMinutes: settings.skillTestTimeLimitMinutes,
       remainingSeconds: settings.skillTestTimeLimitMinutes * 60,
       passMark: settings.skillTestPassMark,
-      questions,
+      questions: clientQuestions,
       isResumed: false,
     });
   } catch (err) {
@@ -329,13 +395,27 @@ export const submitSkillTest = async (req, res, next) => {
     const answerMap = new Map();
     submittedAnswers.forEach((a) => answerMap.set(String(a.questionId), a.selectedIndex));
 
+    // Build map of questionId -> stored optionOrder from session
+    const optionOrderMap = new Map();
+    session.shuffledQuestions?.forEach((sq) => {
+      optionOrderMap.set(String(sq.questionId), sq.optionOrder);
+    });
+
     let correctCount = 0;
     const rawWeakTopics = [];
 
     session.questionIds.forEach((qId) => {
       const q = questionMap.get(String(qId));
       const userSelected = answerMap.get(String(qId));
-      if (q && userSelected !== undefined && userSelected === q.correctIndex) {
+      const order = optionOrderMap.get(String(qId));
+
+      // Map displayed chosen index back to original index using stored optionOrder
+      let mappedOriginalChoice = userSelected;
+      if (order && userSelected !== undefined && order[userSelected] !== undefined) {
+        mappedOriginalChoice = order[userSelected];
+      }
+
+      if (q && mappedOriginalChoice !== undefined && mappedOriginalChoice === q.correctIndex) {
         correctCount++;
       } else if (q) {
         // Collect realistic topic (Safety, Tools, Troubleshooting, Installation, Maintenance)

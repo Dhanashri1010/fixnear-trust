@@ -30,6 +30,19 @@ const skillTestSessionSchema = new mongoose.Schema(
         required: true,
       },
     ],
+    shuffledQuestions: [
+      {
+        questionId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Question',
+          required: true,
+        },
+        optionOrder: {
+          type: [Number],
+          required: true,
+        },
+      },
+    ],
     startedAt: {
       type: Date,
       default: Date.now,

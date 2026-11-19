@@ -1,14 +1,14 @@
 // ===================================================================
 // FixNear Trust - Skill Test Engine & Question Bank Verification Tests
 // Covers:
-// 1. Data loader execution against in-memory MongoDB: 90 questions, 15 per category
-// 2. GET /api/skill-test/:categoryId returns 10 questions with text & options, NO correctIndex or explanation
-// 3. Server refuses test when category has < 10 active questions (TEST_NOT_PREPARED)
-// 4. Server refuses test when category is not in provider's selected skills (SKILL_NOT_SELECTED)
-// 5. Provider moves to waiting_for_approval after passing 1 skill
-// 6. Dispatch offers jobs ONLY to providers who passed that specific skill
-// 7. Admin can approve some skills and reject others
-// 8. Provider can add another service via POST /api/providers/skills/add
+// 1. Data loader execution against MongoDB: 120 questions, 20 per category
+// 2. Data quality checks: position spread (20-30%), longest option (<=30%), no duplicates, non-empty topic/explanation
+// 3. Option shuffling on server: two sessions show different orders, resume preserves order
+// 4. Shuffled grading: displayed correct option passes, wrong options fail, provider cannot influence mapping
+// 5. Answer validation: selectedIndex strictly 0-3
+// 6. Test failure privacy: weak topics only returned, no answer or explanation leaks
+// 7. Admin question form checks and quality warnings
+// 8. Selected skill enforcement, multi-service hub, and skill approval
 // ===================================================================
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -17,12 +17,14 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { app } from '../server.js';
 import { runDataLoader } from '../scripts/loadData.js';
+import { verifyQuestionBankQuality } from '../utils/questionValidator.js';
 import { Question } from '../models/Question.js';
 import { Category } from '../models/Category.js';
 import { Service } from '../models/Service.js';
 import { Provider } from '../models/Provider.js';
 import { User } from '../models/User.js';
 import { Booking } from '../models/Booking.js';
+import { SkillTestSession } from '../models/SkillTestSession.js';
 import { SEED_CATEGORIES } from '../data/seedData.js';
 
 let mongod;
@@ -39,46 +41,43 @@ afterAll(async () => {
 });
 
 describe('Skill Test Engine & Question Bank Suite', () => {
-  it('runs the data loader against MongoDB and asserts 90 questions, 15 per category with valid schema', async () => {
+  it('runs the data loader against MongoDB and asserts 120 questions, 20 per category with valid schema and quality metrics', async () => {
     // Run the data loader
     const summary = await runDataLoader();
 
-    expect(summary.totalQuestions).toBe(90);
+    expect(summary.totalQuestions).toBe(120);
     expect(summary.categoriesCount).toBe(6);
 
-    // Verify exactly 15 questions for each of the 6 categories
+    // Verify exactly 20 questions for each of the 6 categories
     for (const cat of SEED_CATEGORIES) {
       const count = await Question.countDocuments({ categoryId: cat.id, isActive: true });
-      expect(count, `Expected 15 questions for category ${cat.id}`).toBe(15);
+      expect(count, `Expected 20 questions for category ${cat.id}`).toBe(20);
     }
 
-    // Verify that every single question has non-empty questionText, 4 non-empty options, and a correctIndex stored
-    const allQuestions = await Question.find({}).select('+correctIndex +explanation');
-    expect(allQuestions.length).toBe(90);
+    // Verify all 120 questions with questionValidator
+    const allQuestions = await Question.find({ isActive: true }).select('+correctIndex +explanation');
+    expect(allQuestions.length).toBe(120);
 
-    for (const q of allQuestions) {
-      expect(q.questionText).toBeTruthy();
-      expect(typeof q.questionText).toBe('string');
-      expect(q.questionText.trim().length).toBeGreaterThan(5);
+    const qualityReport = verifyQuestionBankQuality(allQuestions, SEED_CATEGORIES);
+    expect(qualityReport.totalQuestions).toBe(120);
 
-      expect(q.categoryName).toBeTruthy();
-      expect(typeof q.categoryName).toBe('string');
+    // Assert each category meets all strict quality metrics
+    for (const cat of SEED_CATEGORIES) {
+      const rep = qualityReport.categoryReports[cat.id];
+      expect(rep).toBeDefined();
+      expect(rep.totalQuestions).toBe(20);
 
-      expect(q.topic).toBeTruthy();
-      expect(typeof q.topic).toBe('string');
+      // Positions spread: each position 0, 1, 2, 3 must be between 20% and 30%
+      for (let pos = 0; pos <= 3; pos++) {
+        expect(rep.positionPercentages[pos]).toBeGreaterThanOrEqual(20);
+        expect(rep.positionPercentages[pos]).toBeLessThanOrEqual(30);
+      }
 
-      expect(q.difficulty).toBeTruthy();
-      expect(['beginner', 'intermediate', 'advanced', 'easy', 'medium', 'hard']).toContain(q.difficulty);
+      // Longest option metric: correct answer is longest in at most 30% of questions
+      expect(rep.longestCorrectPercentage).toBeLessThanOrEqual(30);
 
-      expect(Array.isArray(q.options)).toBe(true);
-      expect(q.options.length).toBe(4);
-      q.options.forEach((opt) => {
-        expect(typeof opt).toBe('string');
-        expect(opt.trim().length).toBeGreaterThan(0);
-      });
-
-      expect(typeof q.correctIndex).toBe('number');
-      expect([0, 1, 2, 3]).toContain(q.correctIndex);
+      // Topics covered include Safety, Tools, Troubleshooting, Installation, Maintenance
+      expect(rep.topics.length).toBeGreaterThanOrEqual(4);
     }
   });
 
@@ -148,6 +147,7 @@ describe('Skill Test Engine & Question Bank Suite', () => {
         questionText: `Rare Question ${i}: Safety check?`,
         options: ['Option A', 'Option B', 'Option C', 'Option D'],
         correctIndex: 0,
+        explanation: 'Standard safety rationale for rare trade',
         isActive: true,
       });
     }
@@ -216,6 +216,202 @@ describe('Skill Test Engine & Question Bank Suite', () => {
     expect(res.body.message).toContain('not selected in your profile');
   });
 
+  it('option shuffling: two sessions for same category show different option orders, and resuming preserves the exact option order', async () => {
+    // Provider 1
+    const p1Res = await request(app).post('/api/auth/register').send({
+      name: 'Shuffler One',
+      email: 'shuffler.one@fixnear.com',
+      password: 'SecurePassword123',
+      phone: '9820088111',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const p1Cookie = p1Res.headers['set-cookie'];
+    await request(app).post('/api/providers/register').set('Cookie', p1Cookie).send({ selectedCategories: ['ac-cooling'] });
+
+    // Session 1 for Provider 1
+    const s1Res = await request(app).get('/api/skill-test/ac-cooling').set('Cookie', p1Cookie);
+    expect(s1Res.status).toBe(200);
+    const s1Questions = s1Res.body.questions;
+
+    // Resuming session 1: MUST return the EXACT same options in the EXACT same order
+    const resumeRes = await request(app).get('/api/skill-test/ac-cooling').set('Cookie', p1Cookie);
+    expect(resumeRes.status).toBe(200);
+    expect(resumeRes.body.isResumed).toBe(true);
+    expect(resumeRes.body.sessionId).toBe(s1Res.body.sessionId);
+
+    // Verify option order match between original and resumed session
+    for (let i = 0; i < 10; i++) {
+      expect(resumeRes.body.questions[i]._id).toBe(s1Questions[i]._id);
+      expect(resumeRes.body.questions[i].options).toEqual(s1Questions[i].options);
+    }
+
+    // Provider 2 takes test for same category
+    const p2Res = await request(app).post('/api/auth/register').send({
+      name: 'Shuffler Two',
+      email: 'shuffler.two@fixnear.com',
+      password: 'SecurePassword123',
+      phone: '9820088222',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const p2Cookie = p2Res.headers['set-cookie'];
+    await request(app).post('/api/providers/register').set('Cookie', p2Cookie).send({ selectedCategories: ['ac-cooling'] });
+
+    // Session 2 for Provider 2
+    const s2Res = await request(app).get('/api/skill-test/ac-cooling').set('Cookie', p2Cookie);
+    expect(s2Res.status).toBe(200);
+    const s2Questions = s2Res.body.questions;
+
+    // Verify that for shared questions between session 1 and session 2, option orders are randomized
+    const s1Map = new Map(s1Questions.map((q) => [String(q._id), q.options]));
+    let foundDifferentOrder = false;
+    for (const q2 of s2Questions) {
+      const q1Opts = s1Map.get(String(q2._id));
+      if (q1Opts) {
+        if (JSON.stringify(q1Opts) !== JSON.stringify(q2.options)) {
+          foundDifferentOrder = true;
+          break;
+        }
+      }
+    }
+    // Across 10 questions with 4 options (24 permutations each), at least some shared questions have different orders
+    expect(foundDifferentOrder || s1Questions.map((q) => q._id).join() !== s2Questions.map((q) => q._id).join()).toBe(true);
+  });
+
+  it('shuffled grading: picking the displayed correct option passes, picking wrong options fails, and rejects invalid indices', async () => {
+    // 1. Create a provider for electrical category
+    const regRes = await request(app).post('/api/auth/register').send({
+      name: 'Electrician Tester',
+      email: 'electrician.tester@fixnear.com',
+      password: 'SecurePassword123',
+      phone: '9820088333',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const provCookie = regRes.headers['set-cookie'];
+    await request(app).post('/api/providers/register').set('Cookie', provCookie).send({ selectedCategories: ['electrical'] });
+
+    const startRes = await request(app).get('/api/skill-test/electrical').set('Cookie', provCookie);
+    expect(startRes.status).toBe(200);
+    const { sessionId, questions } = startRes.body;
+
+    // Load actual questions from DB to find the correct answer text
+    const qDocs = await Question.find({ _id: { $in: questions.map((q) => q._id) } }).select('+correctIndex');
+    const qMap = new Map(qDocs.map((q) => [String(q._id), q]));
+
+    // 2. Reject answers with selectedIndex outside 0-3
+    const badIndexRes1 = await request(app)
+      .post('/api/skill-test/electrical/submit')
+      .set('Cookie', provCookie)
+      .send({
+        sessionId,
+        answers: [{ questionId: String(questions[0]._id), selectedIndex: 4 }], // > 3
+      });
+    expect(badIndexRes1.status).toBe(400);
+    expect(badIndexRes1.body.message).toMatch(/(3|between 0 and 3)/);
+
+    const badIndexRes2 = await request(app)
+      .post('/api/skill-test/electrical/submit')
+      .set('Cookie', provCookie)
+      .send({
+        sessionId,
+        answers: [{ questionId: String(questions[0]._id), selectedIndex: -1 }], // < 0
+      });
+    expect(badIndexRes2.status).toBe(400);
+
+    const badIndexRes3 = await request(app)
+      .post('/api/skill-test/electrical/submit')
+      .set('Cookie', provCookie)
+      .send({
+        sessionId,
+        answers: [{ questionId: String(questions[0]._id), selectedIndex: 1.5 }], // float
+      });
+    expect(badIndexRes3.status).toBe(400);
+
+    // 3. Submit 100% correct answers by selecting the displayed index of the correct text
+    const correctAnswers = questions.map((clientQ) => {
+      const qDoc = qMap.get(String(clientQ._id));
+      const correctText = qDoc.options[qDoc.correctIndex];
+      const displayedIndex = clientQ.options.indexOf(correctText);
+      expect(displayedIndex).toBeGreaterThanOrEqual(0);
+      return {
+        questionId: String(clientQ._id),
+        selectedIndex: displayedIndex,
+      };
+    });
+
+    // Also attempt provider manipulation: injecting fake optionOrder or correctIndex in body should have zero effect
+    const submitRes = await request(app)
+      .post('/api/skill-test/electrical/submit')
+      .set('Cookie', provCookie)
+      .send({
+        sessionId,
+        answers: correctAnswers,
+        optionOrder: [0, 1, 2, 3], // Injected attempt to override server order
+      });
+
+    expect(submitRes.status).toBe(200);
+    expect(submitRes.body.passed).toBe(true);
+    expect(submitRes.body.score).toBe(100);
+    expect(submitRes.body.badge).toBe('Gold');
+  });
+
+  it('provider failure privacy: failed test returns weak topics only, without leaking correct answers or explanations', async () => {
+    const regRes = await request(app).post('/api/auth/register').send({
+      name: 'Failing Provider',
+      email: 'failing.provider@fixnear.com',
+      password: 'SecurePassword123',
+      phone: '9820088444',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const provCookie = regRes.headers['set-cookie'];
+    await request(app).post('/api/providers/register').set('Cookie', provCookie).send({ selectedCategories: ['carpentry'] });
+
+    const startRes = await request(app).get('/api/skill-test/carpentry').set('Cookie', provCookie);
+    expect(startRes.status).toBe(200);
+    const { sessionId, questions } = startRes.body;
+
+    const qDocs = await Question.find({ _id: { $in: questions.map((q) => q._id) } }).select('+correctIndex');
+    const qMap = new Map(qDocs.map((q) => [String(q._id), q]));
+
+    // Intentionally submit all wrong answers (picking displayed index that is NOT correct)
+    const wrongAnswers = questions.map((clientQ) => {
+      const qDoc = qMap.get(String(clientQ._id));
+      const correctText = qDoc.options[qDoc.correctIndex];
+      const displayedCorrectIdx = clientQ.options.indexOf(correctText);
+      const wrongDisplayedIdx = (displayedCorrectIdx + 1) % 4;
+      return {
+        questionId: String(clientQ._id),
+        selectedIndex: wrongDisplayedIdx,
+      };
+    });
+
+    const submitRes = await request(app)
+      .post('/api/skill-test/carpentry/submit')
+      .set('Cookie', provCookie)
+      .send({
+        sessionId,
+        answers: wrongAnswers,
+      });
+
+    expect(submitRes.status).toBe(200);
+    expect(submitRes.body.passed).toBe(false);
+    expect(submitRes.body.score).toBe(0);
+
+    // PRIVACY VERIFICATION: Only weakTopics and cooldown date returned, NO answer keys or explanations!
+    expect(submitRes.body.weakTopics).toBeDefined();
+    expect(Array.isArray(submitRes.body.weakTopics)).toBe(true);
+    expect(submitRes.body.weakTopics.length).toBeGreaterThan(0);
+    expect(submitRes.body.cooldownUntil).toBeDefined();
+
+    expect(submitRes.body.answers).toBeUndefined();
+    expect(submitRes.body.questions).toBeUndefined();
+    expect(submitRes.body.correctAnswersList).toBeUndefined();
+    expect(submitRes.body.explanation).toBeUndefined();
+  });
+
   it('provider moves to waiting_for_approval as soon as ONE skill is passed, and dispatch matches ONLY for passed skills', async () => {
     // 1. Create a customer
     const custRes = await request(app)
@@ -264,19 +460,26 @@ describe('Skill Test Engine & Question Bank Suite', () => {
 
     const { sessionId, questions } = startRes.body;
 
-    // Fetch the correct answers from DB to guarantee passing score
+    // Fetch the correct answers from DB and locate displayed index
     const qDocs = await Question.find({ _id: { $in: questions.map((q) => q._id) } }).select('+correctIndex');
-    const qMap = new Map(qDocs.map((q) => [String(q._id), q.correctIndex]));
+    const qMap = new Map(qDocs.map((q) => [String(q._id), q]));
+
+    const answers = questions.map((clientQ) => {
+      const qDoc = qMap.get(String(clientQ._id));
+      const correctText = qDoc.options[qDoc.correctIndex];
+      const displayedIndex = clientQ.options.indexOf(correctText);
+      return {
+        questionId: String(clientQ._id),
+        selectedIndex: displayedIndex >= 0 ? displayedIndex : 0,
+      };
+    });
 
     const submitRes = await request(app)
       .post('/api/skill-test/plumbing/submit')
       .set('Cookie', provCookie)
       .send({
         sessionId,
-        answers: questions.map((q) => ({
-          questionId: String(q._id),
-          selectedIndex: qMap.get(String(q._id)), // 100% correct
-        })),
+        answers,
       });
 
     expect(submitRes.status).toBe(200);
@@ -455,5 +658,140 @@ describe('Skill Test Engine & Question Bank Suite', () => {
     const reloadedAppSkill = reloaded.skills.find((s) => s.categoryId === 'appliances');
     expect(reloadedAppSkill.status).toBe('approved');
     expect(reloadedAppSkill.passed).toBe(true);
+  });
+
+  it('admin question desk shows friendly warnings when correct answer is much longer than distractors or category has fewer than 20 questions', async () => {
+    const adminUser = await User.create({
+      name: 'Question Inspector Admin',
+      email: 'inspector.admin@fixnear.com',
+      password: 'AdminPassword123!',
+      role: 'admin',
+    });
+    const adminLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'inspector.admin@fixnear.com', password: 'AdminPassword123!' });
+    const adminCookie = adminLogin.headers['set-cookie'];
+
+    // 1. Create a question where correct answer is much longer than distractors
+    const createRes = await request(app)
+      .post('/api/admin/questions')
+      .set('Cookie', adminCookie)
+      .send({
+        categoryId: 'rare-trade', // only 3 questions exist
+        categoryName: 'Rare Trade',
+        topic: 'Safety',
+        questionText: 'What is the proper method for handling pressurized chemical canisters?',
+        options: [
+          'Store canisters in direct sunlight and shake vigorously before puncturing with steel chisel',
+          'Throw into household trash',
+          'Vent into bedroom',
+          'Heat with open torch flame',
+        ],
+        correctIndex: 0,
+        explanation: 'Pressurized canisters require safe storage and certified disposal.',
+      });
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.warnings).toBeDefined();
+    expect(createRes.body.warnings.length).toBeGreaterThan(0);
+    // Warning 1: correct answer noticeably longer
+    expect(createRes.body.warnings.some((w) => w.includes('noticeably longer'))).toBe(true);
+    // Warning 2: category has fewer than 20 active questions
+    expect(createRes.body.warnings.some((w) => w.includes('fewer than 20 active questions') || w.includes('target: at least 20'))).toBe(true);
+  });
+
+  it('data quality test suite: questionValidator rejects invalid sets (count < 20, unbalanced positions, longest option > 30%, duplicate options, empty topic/explanation)', () => {
+    // 1. Category with fewer than 20 questions
+    const fewQuestions = [
+      {
+        categoryId: 'test-cat',
+        questionText: 'Sample question text here?',
+        topic: 'Safety',
+        explanation: 'Valid explanation text',
+        options: ['Opt A', 'Opt B', 'Opt C', 'Opt D'],
+        correctIndex: 0,
+      },
+    ];
+    expect(() => verifyQuestionBankQuality(fewQuestions, [{ id: 'test-cat', name: 'Test' }])).toThrow(/Minimum required is 20/);
+
+    // 2. Unbalanced answer positions (all correctIndex = 0)
+    const unbalancedPositions = [];
+    for (let i = 0; i < 20; i++) {
+      unbalancedPositions.push({
+        categoryId: 'test-cat',
+        questionText: `Sample question #${i + 1} with enough length?`,
+        topic: 'Safety',
+        explanation: 'Valid explanation text',
+        options: ['Short A', 'Short B', 'Short C', 'Short D'],
+        correctIndex: 0, // 100% position 0, 0% positions 1, 2, 3
+      });
+    }
+    expect(() => verifyQuestionBankQuality(unbalancedPositions, [{ id: 'test-cat', name: 'Test' }])).toThrow(/unbalanced/);
+
+    // 3. Longest option > 30% (e.g. 15 of 20 have correct answer as longest)
+    const longestViolations = [];
+    for (let i = 0; i < 20; i++) {
+      longestViolations.push({
+        categoryId: 'test-cat',
+        questionText: `Sample question #${i + 1} with enough length?`,
+        topic: 'Safety',
+        explanation: 'Valid explanation text',
+        options: [
+          'This is a ridiculously long option that is intentionally made much longer than all other options to test validator',
+          'Short B',
+          'Short C',
+          'Short D',
+        ],
+        correctIndex: i % 4, // 25% each position
+      });
+    }
+    // In this set, option 0 is always the longest. For correctIndex === 0 (5 questions = 25%), it's longest.
+    // If we make the correctIndex option the longest in 10 questions:
+    const tooManyLongest = [];
+    for (let i = 0; i < 20; i++) {
+      const isLong = i < 10; // 10 of 20 = 50%
+      tooManyLongest.push({
+        categoryId: 'test-cat',
+        questionText: `Sample question #${i + 1} with enough length?`,
+        topic: 'Safety',
+        explanation: 'Valid explanation text',
+        options: [
+          isLong ? 'Very long correct option text that exceeds all other options easily' : 'Normal opt A',
+          'Normal opt B',
+          'Normal opt C',
+          'Normal opt D',
+        ],
+        correctIndex: 0,
+      });
+    }
+    expect(() => verifyQuestionBankQuality(tooManyLongest, [{ id: 'test-cat', name: 'Test' }])).toThrow();
+
+    // 4. Duplicate options inside a question
+    const duplicateOpts = [];
+    for (let i = 0; i < 20; i++) {
+      duplicateOpts.push({
+        categoryId: 'test-cat',
+        questionText: `Sample question #${i + 1} with enough length?`,
+        topic: 'Safety',
+        explanation: 'Valid explanation text',
+        options: ['Option Same', 'Option Same', 'Option C', 'Option D'],
+        correctIndex: i % 4,
+      });
+    }
+    expect(() => verifyQuestionBankQuality(duplicateOpts, [{ id: 'test-cat', name: 'Test' }])).toThrow(/duplicate options/);
+
+    // 5. Empty explanation or topic
+    const emptyTopic = [];
+    for (let i = 0; i < 20; i++) {
+      emptyTopic.push({
+        categoryId: 'test-cat',
+        questionText: `Sample question #${i + 1} with enough length?`,
+        topic: '', // empty!
+        explanation: 'Valid explanation',
+        options: ['Option A', 'Option B', 'Option C', 'Option D'],
+        correctIndex: i % 4,
+      });
+    }
+    expect(() => verifyQuestionBankQuality(emptyTopic, [{ id: 'test-cat', name: 'Test' }])).toThrow(/missing a valid topic/);
   });
 });

@@ -173,8 +173,8 @@ export default function AdminQuestionsDesk() {
     }
   };
 
-  // Categories needing more questions (< 12)
-  const deficientCategories = counts.filter((c) => c.count < 12);
+  // Categories needing more questions (< 20)
+  const deficientCategories = counts.filter((c) => c.count < 20);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -217,7 +217,7 @@ export default function AdminQuestionsDesk() {
         </div>
       </div>
 
-      {/* Warning Banner when categories have < 12 questions */}
+      {/* Warning Banner when categories have < 20 questions */}
       {deficientCategories.length > 0 && (
         <div style={{
           backgroundColor: '#FFFBEB',
@@ -230,8 +230,8 @@ export default function AdminQuestionsDesk() {
         }}>
           <AlertTriangle size={20} color="#D97706" style={{ flexShrink: 0 }} />
           <div style={{ fontSize: '13px', color: '#92400E' }}>
-            <strong>{t('admin.examBankWarning')}</strong> {t('admin.examBankWarningDesc', 'The following trade categories have fewer than 12 questions:')}{' '}
-            {deficientCategories.map((c) => `${c.categoryName || c.categoryId} (${c.count}/12)`).join(', ')}. {t('admin.examBankWarningDesc')}
+            <strong>{t('admin.examBankWarning')}</strong> {t('admin.examBankWarningDesc', 'The following trade categories have fewer than 20 questions:')}{' '}
+            {deficientCategories.map((c) => `${c.categoryName || c.categoryId} (${c.count}/20)`).join(', ')}.
           </div>
         </div>
       )}
@@ -558,6 +558,56 @@ export default function AdminQuestionsDesk() {
                   style={{ width: '100%', fontSize: '13px', padding: '8px' }}
                 />
               </div>
+
+              {/* Dynamic Quality & Balance Warnings */}
+              {(() => {
+                const selectedCatCount = counts.find((c) => c.categoryId === formData.categoryId)?.count || 0;
+                const isCatLow = selectedCatCount < 20;
+
+                const optLengths = [
+                  (formData.option0 || '').trim().length,
+                  (formData.option1 || '').trim().length,
+                  (formData.option2 || '').trim().length,
+                  (formData.option3 || '').trim().length,
+                ];
+                const correctLen = optLengths[Number(formData.correctIndex)] || 0;
+                const otherLens = optLengths.filter((_, i) => i !== Number(formData.correctIndex));
+                const maxOtherLen = Math.max(...otherLens, 0);
+                const isCorrectMuchLonger = correctLen > 0 && maxOtherLen > 0 && correctLen > maxOtherLen * 1.3 && (correctLen - maxOtherLen) > 15;
+
+                if (!isCatLow && !isCorrectMuchLonger) return null;
+
+                return (
+                  <div style={{
+                    backgroundColor: '#FEF3C7',
+                    border: '1px solid #F59E0B',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '10px 14px',
+                    fontSize: '12.5px',
+                    color: '#92400E',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}>
+                    {isCorrectMuchLonger && (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <AlertTriangle size={15} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+                        <span>
+                          {t('admin.optionLengthWarning', 'Balance tip: The correct answer is noticeably longer than distractors. Keep distractors plausible and approximately the same length so candidates cannot guess by length alone.')}
+                        </span>
+                      </div>
+                    )}
+                    {isCatLow && (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <AlertTriangle size={15} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+                        <span>
+                          {formData.categoryName || formData.categoryId}: {selectedCatCount} / 20 {t('admin.categoryDeficientWarning', 'active questions (target: at least 20 active questions).')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
                 <button

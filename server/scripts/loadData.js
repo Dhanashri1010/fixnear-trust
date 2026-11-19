@@ -6,6 +6,7 @@ import { Question } from '../models/Question.js';
 import { Setting } from '../models/Setting.js';
 import { SEED_CATEGORIES, SEED_SERVICES } from '../data/seedData.js';
 import { QUESTION_BANK_SEED } from '../data/questionBankData.js';
+import { verifyQuestionBankQuality } from '../utils/questionValidator.js';
 
 dotenv.config();
 
@@ -53,7 +54,7 @@ export const validateSeedQuestion = (q, index, validCategoryIds) => {
  * Core loader function that can be executed from CLI or in tests
  */
 export const runDataLoader = async () => {
-  // 0. Clean up bad data: delete questions with missing/empty questionText
+  // 0. Clean up bad/stale data: delete questions with missing/empty questionText or obsolete seed questions
   const deleteResult = await Question.deleteMany({
     $or: [
       { questionText: { $exists: false } },
@@ -64,6 +65,16 @@ export const runDataLoader = async () => {
   });
   if (deleteResult.deletedCount > 0) {
     console.log(`[Load Data CLI] Cleaned up ${deleteResult.deletedCount} corrupted/empty question records.`);
+  }
+
+  const validQuestionTexts = new Set(QUESTION_BANK_SEED.map((q) => q.questionText.trim()));
+  const validCategoryIds = new Set(SEED_CATEGORIES.map((c) => c.id));
+  const staleResult = await Question.deleteMany({
+    categoryId: { $in: Array.from(validCategoryIds) },
+    questionText: { $nin: Array.from(validQuestionTexts) },
+  });
+  if (staleResult.deletedCount > 0) {
+    console.log(`[Load Data CLI] Cleaned up ${staleResult.deletedCount} obsolete/unrecognized seed questions.`);
   }
 
   // 1. Sync Categories
@@ -118,10 +129,13 @@ export const runDataLoader = async () => {
   console.log(`[Load Data CLI] ✓ ${SEED_SERVICES.length} services synchronized.`);
 
   // 3. Validate and Sync Question Bank
-  const validCategoryIds = new Set(SEED_CATEGORIES.map((c) => c.id));
   const catNameMap = new Map(SEED_CATEGORIES.map((c) => [c.id, c.name]));
 
-  console.log(`[Load Data CLI] Validating ${QUESTION_BANK_SEED.length} questions...`);
+  console.log(`[Load Data CLI] Running comprehensive quality & fairness audit on ${QUESTION_BANK_SEED.length} questions...`);
+  verifyQuestionBankQuality(QUESTION_BANK_SEED, SEED_CATEGORIES);
+  console.log(`[Load Data CLI] ✓ Quality & fairness audit passed (>=20 per category, balanced positions, longest option <=30%).`);
+
+  console.log(`[Load Data CLI] Validating ${QUESTION_BANK_SEED.length} questions schema...`);
   QUESTION_BANK_SEED.forEach((q, index) => {
     validateSeedQuestion(q, index, validCategoryIds);
   });
@@ -157,21 +171,21 @@ export const runDataLoader = async () => {
     `[Load Data CLI] ✓ Question bank bulk write complete. Upserted: ${bulkResult.upsertedCount}, Modified: ${bulkResult.modifiedCount}, Matched: ${bulkResult.matchedCount}.`
   );
 
-  // 4. Verify category question counts and ensure at least 15 per category
-  console.log('\n[Load Data CLI] Verifying question counts per trade category:');
+  // 4. Verify category question counts and ensure at least 20 per category with balanced distribution
+  console.log('\n[Load Data CLI] Verifying database question counts and fairness metrics:');
+  const allDbQuestions = await Question.find({ isActive: true }).select('+correctIndex +explanation');
+  const dbQualityReport = verifyQuestionBankQuality(allDbQuestions, SEED_CATEGORIES);
+
   const categoryCounts = {};
   for (const cat of SEED_CATEGORIES) {
-    const count = await Question.countDocuments({ categoryId: cat.id, isActive: true });
-    categoryCounts[cat.id] = count;
-    console.log(`  - ${cat.name} (${cat.id}): ${count} active questions`);
-    if (count < 15) {
-      throw new Error(
-        `[Load Data CLI FATAL] Category '${cat.id}' has only ${count} questions. Minimum 15 questions required!`
-      );
-    }
+    const rep = dbQualityReport.categoryReports[cat.id];
+    categoryCounts[cat.id] = rep.totalQuestions;
+    console.log(
+      `  - ${cat.name} (${cat.id}): ${rep.totalQuestions} active questions | Positions: [A: ${rep.positionPercentages[0]}%, B: ${rep.positionPercentages[1]}%, C: ${rep.positionPercentages[2]}%, D: ${rep.positionPercentages[3]}%] | Longest correct: ${rep.longestCorrectCount}/${rep.totalQuestions} (${rep.longestCorrectPercentage.toFixed(1)}%)`
+    );
   }
 
-  const totalQuestions = await Question.countDocuments();
+  const totalQuestions = allDbQuestions.length;
   console.log(`[Load Data CLI] Total questions in database: ${totalQuestions}`);
 
   // 5. Sync Global Settings
