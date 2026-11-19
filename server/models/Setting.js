@@ -33,6 +33,11 @@ const settingSchema = new mongoose.Schema(
       required: true,
       default: 24, // 24-hour cooldown after failing a category test
     },
+    skillRetakeDays: {
+      type: Number,
+      required: true,
+      default: 30, // 30 days before retaking an already-passed skill to improve badge
+    },
     activeAdminCount: {
       type: Number,
       default: 1,

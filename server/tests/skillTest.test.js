@@ -25,6 +25,10 @@ import { Provider } from '../models/Provider.js';
 import { User } from '../models/User.js';
 import { Booking } from '../models/Booking.js';
 import { SkillTestSession } from '../models/SkillTestSession.js';
+import { TestAttempt } from '../models/TestAttempt.js';
+import { Setting } from '../models/Setting.js';
+import { Notification } from '../models/Notification.js';
+import { AuditLog } from '../models/AuditLog.js';
 import { SEED_CATEGORIES } from '../data/seedData.js';
 
 let mongod;
@@ -793,5 +797,320 @@ describe('Skill Test Engine & Question Bank Suite', () => {
       });
     }
     expect(() => verifyQuestionBankQuality(emptyTopic, [{ id: 'test-cat', name: 'Test' }])).toThrow(/missing a valid topic/);
+  });
+
+  // ===================================================================
+  // RETAKES & ADMIN RE-TEST ENGINE TESTS
+  // ===================================================================
+
+  it('starting a test for a passed skill is rejected with the retake date', async () => {
+    // 1. Create a provider with a passed skill (ac-cooling, score 80%, Silver)
+    const regRes = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Suresh Patil',
+        email: 'suresh.patil.retake@fixnear.com',
+        password: 'Password123!',
+        phone: '9820099881',
+        city: 'Mumbai',
+        role: 'provider',
+      });
+    const provCookie = regRes.headers['set-cookie'];
+
+    const user = await User.findOne({ email: 'suresh.patil.retake@fixnear.com' });
+    const retakeDate = new Date(Date.now() + 30 * 24 * 3600 * 1000);
+
+    await Provider.updateOne(
+      { userId: user._id },
+      {
+        $set: {
+          specialty: 'Air Conditioning',
+          status: 'approved',
+          skills: [
+            {
+              categoryId: 'ac-cooling',
+              categoryName: 'Air Conditioning',
+              passed: true,
+              testScore: 80,
+              badge: 'Silver',
+              verifiedAt: new Date(),
+              retakeAvailableAt: retakeDate,
+              status: 'passed',
+            },
+          ],
+        },
+      }
+    );
+
+    // 2. Attempt to start the skill test for ac-cooling
+    const startRes = await request(app)
+      .get('/api/skill-test/ac-cooling')
+      .set('Cookie', provCookie);
+
+    expect(startRes.status).toBe(400);
+    expect(startRes.body.success).toBe(false);
+    expect(startRes.body.code).toBe('SKILL_ALREADY_PASSED');
+    expect(startRes.body.message).toContain('You have already passed this skill. You can improve your badge after 30 days.');
+    expect(startRes.body.retakeAvailableAt).toBeDefined();
+    expect(new Date(startRes.body.retakeAvailableAt).getTime()).toBeCloseTo(retakeDate.getTime(), -3);
+  });
+
+  it('a failed retake keeps passed=true, score, and badge unchanged and starts 24-hour wait', async () => {
+    const user = await User.findOne({ email: 'suresh.patil.retake@fixnear.com' });
+    const provCookie = (
+      await request(app).post('/api/auth/login').send({ email: 'suresh.patil.retake@fixnear.com', password: 'Password123!' })
+    ).headers['set-cookie'];
+
+    // 1. Fast forward retakeAvailableAt to the past (window opened!)
+    await Provider.updateOne(
+      { userId: user._id, 'skills.categoryId': 'ac-cooling' },
+      { $set: { 'skills.$.retakeAvailableAt': new Date(Date.now() - 10000) } }
+    );
+
+    // 2. Start exam session (now allowed!)
+    const startRes = await request(app)
+      .get('/api/skill-test/ac-cooling')
+      .set('Cookie', provCookie);
+
+    expect(startRes.status).toBe(200);
+    expect(startRes.body.sessionId).toBeDefined();
+
+    const { sessionId, questions } = startRes.body;
+    expect(questions.length).toBe(10);
+
+    // 3. Submit failing answers (e.g. all wrong)
+    const qDocs = await Question.find({ _id: { $in: questions.map((q) => q._id) } }).select('+correctIndex');
+    const qMap = new Map(qDocs.map((q) => [String(q._id), q]));
+
+    const failingAnswers = questions.map((clientQ) => {
+      const qDoc = qMap.get(String(clientQ._id));
+      const correctText = qDoc.options[qDoc.correctIndex];
+      // Pick an option that is NOT the correct answer
+      const wrongDisplayedIndex = clientQ.options.findIndex((opt) => opt !== correctText);
+      return {
+        questionId: String(clientQ._id),
+        selectedIndex: wrongDisplayedIndex >= 0 ? wrongDisplayedIndex : 0,
+      };
+    });
+
+    const submitRes = await request(app)
+      .post('/api/skill-test/ac-cooling/submit')
+      .set('Cookie', provCookie)
+      .send({
+        sessionId,
+        answers: failingAnswers,
+      });
+
+    expect(submitRes.status).toBe(200);
+    expect(submitRes.body.passed).toBe(false);
+    expect(submitRes.body.cooldownUntil).toBeDefined();
+
+    // 4. Critical check: Provider document in DB MUST keep passed=true, score=80, badge=Silver!
+    const reloadedProv = await Provider.findOne({ userId: user._id });
+    const skill = reloadedProv.skills.find((s) => s.categoryId === 'ac-cooling');
+    expect(skill.passed).toBe(true);
+    expect(skill.testScore).toBe(80);
+    expect(skill.badge).toBe('Silver');
+    expect(skill.status).toBe('passed');
+
+    // 5. Cooldown check: starting test during cooldown is rejected with 403
+    const cooldownRes = await request(app)
+      .get('/api/skill-test/ac-cooling')
+      .set('Cookie', provCookie);
+    expect(cooldownRes.status).toBe(403);
+    expect(cooldownRes.body.inCooldown).toBe(true);
+  });
+
+  it('a better retake updates the badge and score', async () => {
+    const user = await User.findOne({ email: 'suresh.patil.retake@fixnear.com' });
+    const provCookie = (
+      await request(app).post('/api/auth/login').send({ email: 'suresh.patil.retake@fixnear.com', password: 'Password123!' })
+    ).headers['set-cookie'];
+
+    // 1. Clear cooldown and ensure retakeAvailableAt is in the past
+    await TestAttempt.deleteMany({ userId: user._id });
+    await Provider.updateOne(
+      { userId: user._id, 'skills.categoryId': 'ac-cooling' },
+      { $set: { 'skills.$.retakeAvailableAt': new Date(Date.now() - 10000) } }
+    );
+
+    // 2. Start new exam session
+    const startRes = await request(app)
+      .get('/api/skill-test/ac-cooling')
+      .set('Cookie', provCookie);
+    expect(startRes.status).toBe(200);
+
+    const { sessionId, questions } = startRes.body;
+
+    // 3. Submit 100% correct answers
+    const qDocs = await Question.find({ _id: { $in: questions.map((q) => q._id) } }).select('+correctIndex');
+    const qMap = new Map(qDocs.map((q) => [String(q._id), q]));
+
+    const perfectAnswers = questions.map((clientQ) => {
+      const qDoc = qMap.get(String(clientQ._id));
+      const correctText = qDoc.options[qDoc.correctIndex];
+      const correctDisplayedIndex = clientQ.options.indexOf(correctText);
+      return {
+        questionId: String(clientQ._id),
+        selectedIndex: correctDisplayedIndex >= 0 ? correctDisplayedIndex : 0,
+      };
+    });
+
+    const submitRes = await request(app)
+      .post('/api/skill-test/ac-cooling/submit')
+      .set('Cookie', provCookie)
+      .send({
+        sessionId,
+        answers: perfectAnswers,
+      });
+
+    expect(submitRes.status).toBe(200);
+    expect(submitRes.body.passed).toBe(true);
+    expect(submitRes.body.score).toBe(100);
+    expect(submitRes.body.badge).toBe('Gold');
+
+    // 4. Assert DB record was upgraded from Silver 80% to Gold 100%!
+    const reloadedProv = await Provider.findOne({ userId: user._id });
+    const skill = reloadedProv.skills.find((s) => s.categoryId === 'ac-cooling');
+    expect(skill.passed).toBe(true);
+    expect(skill.testScore).toBe(100);
+    expect(skill.badge).toBe('Gold');
+    expect(skill.status).toBe('passed');
+    expect(new Date(skill.retakeAvailableAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('admin re-test sets skill to retest_required, removes it from dispatch, notifies provider, and logs audit', async () => {
+    // 1. Create an admin
+    const adminUser = await User.create({
+      name: 'Super Admin',
+      email: 'admin.retest@fixnear.com',
+      password: 'AdminPassword123!',
+      phone: '9820011999',
+      city: 'Mumbai',
+      role: 'admin',
+    });
+    const adminLoginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin.retest@fixnear.com', password: 'AdminPassword123!' });
+    const adminCookie = adminLoginRes.headers['set-cookie'];
+
+    // 2. Create online approved plumbing provider
+    const provUser = await User.create({
+      name: 'Ganesh Shinde',
+      email: 'ganesh.plumbing@fixnear.com',
+      password: 'ProviderPass123!',
+      phone: '9820011777',
+      city: 'Pune',
+      role: 'provider',
+    });
+    const provider = await Provider.create({
+      userId: provUser._id,
+      name: provUser.name,
+      email: provUser.email,
+      phone: provUser.phone,
+      city: 'Pune',
+      specialty: 'Plumbing',
+      status: 'approved',
+      isOnline: true,
+      skills: [
+        {
+          categoryId: 'plumbing',
+          categoryName: 'Plumbing Systems',
+          passed: true,
+          testScore: 85,
+          badge: 'Silver',
+          status: 'approved',
+          verifiedAt: new Date(),
+        },
+      ],
+    });
+
+    // 3. Customer books a plumbing job in Pune -> should match Ganesh
+    const custUser = await User.create({
+      name: 'Meera Rao',
+      email: 'meera.rao.pune@fixnear.com',
+      password: 'CustomerPass123!',
+      phone: '9820011888',
+      city: 'Pune',
+      role: 'customer',
+    });
+    const custCookie = (
+      await request(app).post('/api/auth/login').send({ email: 'meera.rao.pune@fixnear.com', password: 'CustomerPass123!' })
+    ).headers['set-cookie'];
+
+    const plumbingService = await Service.findOne({ categoryId: 'plumbing', isActive: true });
+
+    const bookingRes1 = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: plumbingService.serviceId,
+        address: 'Shivaji Nagar, Pune',
+        city: 'Pune',
+        scheduledDate: '2026-12-15',
+        timeSlot: '10:00 AM',
+      });
+    expect(bookingRes1.status).toBe(201);
+    expect(bookingRes1.body.success).toBe(true);
+
+    // 4. Admin forces a re-test with a reason
+    const retestRes = await request(app)
+      .post(`/api/admin/providers/${provider._id}/skills/plumbing/require-retest`)
+      .set('Cookie', adminCookie)
+      .send({
+        reason: 'Repeated customer complaints regarding pipe sealing standards.',
+      });
+
+    expect(retestRes.status).toBe(200);
+    expect(retestRes.body.success).toBe(true);
+    expect(retestRes.body.skill.status).toBe('retest_required');
+
+    // 5. Verify database update, In-app notification, and AuditLog
+    const provAfterRetest = await Provider.findById(provider._id);
+    const plumSkill = provAfterRetest.skills.find((s) => s.categoryId === 'plumbing');
+    expect(plumSkill.status).toBe('retest_required');
+    expect(plumSkill.retestReason).toBe('Repeated customer complaints regarding pipe sealing standards.');
+
+    const notif = await Notification.findOne({ userId: provUser._id, code: 'SKILL_RETEST_REQUIRED' });
+    expect(notif).toBeDefined();
+    expect(notif.message).toContain('Repeated customer complaints regarding pipe sealing standards.');
+
+    const audit = await AuditLog.findOne({ targetId: provider._id, action: 'REQUIRE_PROVIDER_SKILL_RETEST' });
+    expect(audit).toBeDefined();
+    expect(audit.details.reason).toBe('Repeated customer complaints regarding pipe sealing standards.');
+
+    // 6. Test Job Dispatch Removal: Another customer booking for plumbing in Pune must NOT match Ganesh
+    const bookingRes2 = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: plumbingService.serviceId,
+        address: 'Kothrud, Pune',
+        city: 'Pune',
+        scheduledDate: '2026-12-16',
+        timeSlot: '02:00 PM',
+      });
+
+    expect(bookingRes2.status).toBe(400);
+    expect(bookingRes2.body.code).toBe('BOOKING_NO_PROVIDER');
+  });
+
+  it('a provider cannot call the admin re-test route (returns 403 Forbidden)', async () => {
+    // 1. Provider attempts to call require-retest endpoint
+    const provUser = await User.findOne({ email: 'ganesh.plumbing@fixnear.com' });
+    const provCookie = (
+      await request(app).post('/api/auth/login').send({ email: 'ganesh.plumbing@fixnear.com', password: 'ProviderPass123!' })
+    ).headers['set-cookie'];
+
+    const provider = await Provider.findOne({ userId: provUser._id });
+
+    const unauthorizedRes = await request(app)
+      .post(`/api/admin/providers/${provider._id}/skills/plumbing/require-retest`)
+      .set('Cookie', provCookie)
+      .send({
+        reason: 'Malicious attempt to force retest',
+      });
+
+    expect(unauthorizedRes.status).toBe(403);
   });
 });

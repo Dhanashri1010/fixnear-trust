@@ -149,7 +149,8 @@ export const adminAPI = {
   getApprovals: () => api.get('/admin/approvals'),
   getProviderDetails: (id) => api.get(`/admin/providers/${id}`),
   approveProvider: (id, payload) => api.post(`/admin/approvals/${id}/approve`, payload),
-  updateProviderSkillStatus: (id, categoryId, status) => api.patch(`/admin/providers/${id}/skills/${categoryId}`, { status }),
+  updateProviderSkillStatus: (id, categoryId, status, reason) => api.patch(`/admin/providers/${id}/skills/${categoryId}`, { status, reason }),
+  requireSkillRetest: (id, categoryId, reason) => api.post(`/admin/providers/${id}/skills/${categoryId}/require-retest`, { reason }),
   rejectProvider: (id, reason) => api.post(`/admin/approvals/${id}/reject`, { reason }),
   requestProviderInfo: (id, message) => api.post(`/admin/approvals/${id}/request-info`, { message }),
 

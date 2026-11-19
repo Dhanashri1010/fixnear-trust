@@ -70,6 +70,32 @@ export const startSkillTest = async (req, res, next) => {
       await provider.save();
     }
 
+    // 0c. Retake Check: Provider cannot start a test for a skill that is already passed unless retake window is open
+    const existingSkill = provider.skills?.find((s) => s.categoryId === categoryId);
+    const retakeDays = settings.skillRetakeDays || 30;
+
+    if (existingSkill && existingSkill.passed && existingSkill.status !== 'retest_required') {
+      let retakeAvailableAt = existingSkill.retakeAvailableAt;
+      if (!retakeAvailableAt) {
+        const baseTime = existingSkill.verifiedAt ? new Date(existingSkill.verifiedAt).getTime() : Date.now();
+        retakeAvailableAt = new Date(baseTime + retakeDays * 24 * 60 * 60 * 1000);
+        existingSkill.retakeAvailableAt = retakeAvailableAt;
+        await provider.save();
+      }
+
+      if (new Date() < new Date(retakeAvailableAt)) {
+        const dateStr = new Date(retakeAvailableAt).toISOString().split('T')[0];
+        return res.status(400).json({
+          success: false,
+          code: 'SKILL_ALREADY_PASSED',
+          message: `You have already passed this skill. You can improve your badge after ${retakeDays} days. Retake opens on ${dateStr}.`,
+          retakeAvailableAt,
+          currentScore: existingSkill.testScore,
+          currentBadge: existingSkill.badge,
+        });
+      }
+    }
+
     // 1. Check 24-hour category cooldown
     const activeCooldown = await TestAttempt.findOne({
       providerId: provider._id,
@@ -435,72 +461,174 @@ export const submitSkillTest = async (req, res, next) => {
 
     let cooldownUntil = null;
     const providerUser = await User.findById(provider.userId);
+    const existingSkills = provider.skills || [];
+    const skillIdx = existingSkills.findIndex((s) => s.categoryId === categoryId);
+    let targetSkill = skillIdx >= 0 ? existingSkills[skillIdx] : null;
 
-    if (passed) {
-      const existingSkills = provider.skills || [];
-      const skillIdx = existingSkills.findIndex((s) => s.categoryId === categoryId);
-      if (skillIdx >= 0) {
-        existingSkills[skillIdx].passed = true;
-        existingSkills[skillIdx].testScore = scorePercent;
-        existingSkills[skillIdx].badge = badge;
-        existingSkills[skillIdx].verifiedAt = new Date();
-        existingSkills[skillIdx].status = 'passed';
-      } else {
-        existingSkills.push({
-          categoryId,
-          categoryName: session.categoryName || categoryId,
+    const retakeDays = settings.skillRetakeDays || 30;
+    const wasAlreadyPassed = targetSkill && targetSkill.passed === true && targetSkill.status !== 'retest_required';
+    const isRetestRequired = targetSkill && targetSkill.status === 'retest_required';
+    const oldScore = targetSkill?.testScore || 0;
+    const oldBadge = targetSkill?.badge || '';
+
+    if (wasAlreadyPassed) {
+      // Retake for an already-passed skill: Can ONLY improve result
+      if (scorePercent > oldScore) {
+        // Higher score replaces the badge and score
+        targetSkill.testScore = scorePercent;
+        targetSkill.badge = badge;
+        targetSkill.verifiedAt = new Date();
+        targetSkill.passed = true;
+        targetSkill.status = 'passed';
+        targetSkill.retakeAvailableAt = new Date(Date.now() + retakeDays * 24 * 60 * 60 * 1000);
+
+        if (badge) {
+          if (oldBadge && oldBadge !== badge) {
+            provider.badges = (provider.badges || []).filter((b) => b !== `${oldBadge} Certified`);
+          }
+          provider.badges = [...new Set([...(provider.badges || []), `${badge} Certified`])];
+        }
+
+        sendSkillTestResultEmail({
+          providerEmail: provider.email,
+          providerName: provider.name,
+          categoryName: session.categoryName,
+          score: scorePercent,
           passed: true,
-          testScore: scorePercent,
           badge,
-          verifiedAt: new Date(),
-          status: 'passed',
-        });
+          lang: providerUser?.preferredLanguage || 'en',
+        }).catch(() => {});
+      } else {
+        // Lower or equal score, or failed retake: keep old passed, score, and badge unchanged!
+        targetSkill.passed = true;
+        targetSkill.testScore = oldScore;
+        targetSkill.badge = oldBadge;
+        targetSkill.status = 'passed';
+
+        if (!passed) {
+          // A failed retake starts a normal 24-hour wait
+          cooldownUntil = new Date(Date.now() + (settings.skillTestCooldownHours || 24) * 3600 * 1000);
+          sendSkillTestResultEmail({
+            providerEmail: provider.email,
+            providerName: provider.name,
+            categoryName: session.categoryName,
+            score: scorePercent,
+            passed: false,
+            weakTopics: uniqueWeakTopics.slice(0, 3),
+            cooldownUntil,
+            lang: providerUser?.preferredLanguage || 'en',
+          }).catch(() => {});
+        }
       }
       provider.skills = existingSkills;
-
-      // Requirement 9: Provider can go to waiting_for_approval as soon as ONE skill is passed
-      const anyPassed = provider.skills.some((s) => s.passed);
-      if (anyPassed && (provider.status === 'take_skill_test' || !provider.status)) {
-        provider.status = 'waiting_for_approval';
-      }
-      if (badge) {
-        provider.badges = [...new Set([...(provider.badges || []), `${badge} Certified`])];
-      }
       await provider.save();
+    } else if (isRetestRequired) {
+      // Admin forced re-test: must pass again to clear retest_required
+      if (passed) {
+        targetSkill.passed = true;
+        targetSkill.status = 'passed';
+        targetSkill.testScore = scorePercent;
+        targetSkill.badge = badge;
+        targetSkill.verifiedAt = new Date();
+        targetSkill.retakeAvailableAt = new Date(Date.now() + retakeDays * 24 * 60 * 60 * 1000);
+        targetSkill.retestReason = undefined;
+        targetSkill.retestRequestedAt = undefined;
 
-      // Localized Email for Test Passed
-      sendSkillTestResultEmail({
-        providerEmail: provider.email,
-        providerName: provider.name,
-        categoryName: session.categoryName,
-        score: scorePercent,
-        passed: true,
-        badge,
-        lang: providerUser?.preferredLanguage || 'en',
-      }).catch(() => {});
+        if (badge) {
+          provider.badges = [...new Set([...(provider.badges || []), `${badge} Certified`])];
+        }
+
+        sendSkillTestResultEmail({
+          providerEmail: provider.email,
+          providerName: provider.name,
+          categoryName: session.categoryName,
+          score: scorePercent,
+          passed: true,
+          badge,
+          lang: providerUser?.preferredLanguage || 'en',
+        }).catch(() => {});
+      } else {
+        targetSkill.passed = false;
+        targetSkill.status = 'retest_required';
+        cooldownUntil = new Date(Date.now() + (settings.skillTestCooldownHours || 24) * 3600 * 1000);
+
+        sendSkillTestResultEmail({
+          providerEmail: provider.email,
+          providerName: provider.name,
+          categoryName: session.categoryName,
+          score: scorePercent,
+          passed: false,
+          weakTopics: uniqueWeakTopics.slice(0, 3),
+          cooldownUntil,
+          lang: providerUser?.preferredLanguage || 'en',
+        }).catch(() => {});
+      }
+      provider.skills = existingSkills;
+      await provider.save();
     } else {
-      cooldownUntil = new Date(Date.now() + settings.skillTestCooldownHours * 3600 * 1000);
-      const existingSkills = provider.skills || [];
-      const skillIdx = existingSkills.findIndex((s) => s.categoryId === categoryId);
-      if (skillIdx >= 0) {
-        existingSkills[skillIdx].passed = false;
-        existingSkills[skillIdx].testScore = scorePercent;
-        existingSkills[skillIdx].status = 'failed';
-      }
-      provider.skills = existingSkills;
-      await provider.save();
+      // First-time skill exam
+      if (passed) {
+        if (targetSkill) {
+          targetSkill.passed = true;
+          targetSkill.testScore = scorePercent;
+          targetSkill.badge = badge;
+          targetSkill.verifiedAt = new Date();
+          targetSkill.status = 'passed';
+          targetSkill.retakeAvailableAt = new Date(Date.now() + retakeDays * 24 * 60 * 60 * 1000);
+        } else {
+          existingSkills.push({
+            categoryId,
+            categoryName: session.categoryName || categoryId,
+            passed: true,
+            testScore: scorePercent,
+            badge,
+            verifiedAt: new Date(),
+            status: 'passed',
+            retakeAvailableAt: new Date(Date.now() + retakeDays * 24 * 60 * 60 * 1000),
+          });
+        }
+        provider.skills = existingSkills;
 
-      // Requirement 9: Localized Email for Test Failed with Weak Topics & Cooldown Date
-      sendSkillTestResultEmail({
-        providerEmail: provider.email,
-        providerName: provider.name,
-        categoryName: session.categoryName,
-        score: scorePercent,
-        passed: false,
-        weakTopics: uniqueWeakTopics.slice(0, 3),
-        cooldownUntil,
-        lang: providerUser?.preferredLanguage || 'en',
-      }).catch(() => {});
+        // Provider can go to waiting_for_approval as soon as ONE skill is passed
+        const anyPassed = provider.skills.some((s) => s.passed);
+        if (anyPassed && (provider.status === 'take_skill_test' || !provider.status)) {
+          provider.status = 'waiting_for_approval';
+        }
+        if (badge) {
+          provider.badges = [...new Set([...(provider.badges || []), `${badge} Certified`])];
+        }
+        await provider.save();
+
+        sendSkillTestResultEmail({
+          providerEmail: provider.email,
+          providerName: provider.name,
+          categoryName: session.categoryName,
+          score: scorePercent,
+          passed: true,
+          badge,
+          lang: providerUser?.preferredLanguage || 'en',
+        }).catch(() => {});
+      } else {
+        cooldownUntil = new Date(Date.now() + (settings.skillTestCooldownHours || 24) * 3600 * 1000);
+        if (targetSkill) {
+          targetSkill.passed = false;
+          targetSkill.testScore = scorePercent;
+          targetSkill.status = 'failed';
+        }
+        provider.skills = existingSkills;
+        await provider.save();
+
+        sendSkillTestResultEmail({
+          providerEmail: provider.email,
+          providerName: provider.name,
+          categoryName: session.categoryName,
+          score: scorePercent,
+          passed: false,
+          weakTopics: uniqueWeakTopics.slice(0, 3),
+          cooldownUntil,
+          lang: providerUser?.preferredLanguage || 'en',
+        }).catch(() => {});
+      }
     }
 
     // Record attempt in database
@@ -511,7 +639,7 @@ export const submitSkillTest = async (req, res, next) => {
       categoryName: session.categoryName || categoryId,
       score: scorePercent,
       passed,
-      badge,
+      badge: passed ? badge : '',
       totalQuestions,
       correctAnswers: correctCount,
       weakTopics: uniqueWeakTopics.slice(0, 3), // Realistic weak areas
@@ -528,7 +656,9 @@ export const submitSkillTest = async (req, res, next) => {
       success: true,
       score: scorePercent,
       passed,
-      badge,
+      skillPassed: targetSkill ? targetSkill.passed : passed,
+      badge: targetSkill ? targetSkill.badge : badge,
+      improved: wasAlreadyPassed ? scorePercent > oldScore : passed,
       totalQuestions,
       correctAnswers: correctCount,
       weakTopics: uniqueWeakTopics.slice(0, 3),

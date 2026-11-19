@@ -294,7 +294,9 @@ export const i18n = {
       "UNAUTHORIZED": "Please log in to continue.",
       "FORBIDDEN": "You do not have permission to perform this action.",
       "SERVER_ERROR": "Something went wrong on the server. Please try again later.",
-      "NO_ACTIVE_OFFER": "No active dispatch offer found for this job."
+      "NO_ACTIVE_OFFER": "No active dispatch offer found for this job.",
+      "SKILL_ALREADY_PASSED": "You have already passed this skill. You can improve your badge after 30 days.",
+      "SKILL_RETEST_REQUIRED": "A re-test has been required by the administration for this skill."
     },
     "booking": {
       "pageTitle": "Book Verified Home Service",
@@ -746,7 +748,12 @@ export const i18n = {
       "submitExamBtn": "Submit Exam",
       "tabSwitchTitle": "Tab Switch Detected",
       "tabSwitchNotice": "You navigated away from the assessment window. Please keep this tab focused.",
-      "returnToTestBtn": "Return to Assessment"
+      "returnToTestBtn": "Return to Assessment",
+      "retestRequiredBadge": "Re-test Required by Admin",
+      "retestNotice": "Administration required a re-test:",
+      "takeRetestBtn": "Take Re-Test",
+      "improveBadgeBtn": "Improve Badge (Retake)",
+      "retakeOpensNotice": "Retake opens on"
     },
     "providerDashboard": {
       "consoleTitle": "Technician Service Console",
@@ -932,6 +939,15 @@ export const i18n = {
       "unblockBtn": "Unblock",
       "cancelBookingBtn": "Cancel Booking",
       "saveSettingsBtn": "Save Platform Settings",
+      "askForRetest": "Ask for re-test",
+      "retestReasonPlaceholder": "Enter reason for requiring re-test...",
+      "retestExplanation": "This will set the skill to retest_required, pause it from automated job dispatch until passed again, and notify the provider with your reason.",
+      "approveSkill": "Approve Skill",
+      "rejectSkill": "Reject Skill",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "passedPendingAdmin": "Passed (Pending Admin)",
+      "notPassed": "Not Passed",
       "auditWho": "Operator",
       "auditWhat": "Action",
       "auditWhen": "Timestamp",
@@ -1591,7 +1607,9 @@ export const i18n = {
       "UNAUTHORIZED": "कृपया जारी रखने के लिए लॉग इन करें।",
       "FORBIDDEN": "आपको यह कार्रवाई करने की अनुमति नहीं है।",
       "SERVER_ERROR": "सर्वर पर कुछ गलत हो गया। कृपया बाद में पुनः प्रयास करें।",
-      "NO_ACTIVE_OFFER": "इस कार्य के लिए कोई सक्रिय प्रेषण प्रस्ताव नहीं मिला।"
+      "NO_ACTIVE_OFFER": "इस कार्य के लिए कोई सक्रिय प्रेषण प्रस्ताव नहीं मिला।",
+      "SKILL_ALREADY_PASSED": "आप इस कौशल परीक्षा को पहले ही उत्तीर्ण कर चुके हैं। आप 30 दिनों के बाद अपने बैज में सुधार कर सकते हैं।",
+      "SKILL_RETEST_REQUIRED": "प्रशासन द्वारा इस कौशल के लिए पुनः परीक्षा अनिवार्य की गई है।"
     },
     "booking": {
       "pageTitle": "सत्यापित गृह सेवा बुक करें",
@@ -2043,7 +2061,12 @@ export const i18n = {
       "submitExamBtn": "परीक्षा सबमिट करें",
       "tabSwitchTitle": "टैब परिवर्तन का पता चला",
       "tabSwitchNotice": "आप मूल्यांकन विंडो से दूर चले गए थे। कृपया इसी टैब पर ध्यान केंद्रित रखें।",
-      "returnToTestBtn": "मूल्यांकन पर लौटें"
+      "returnToTestBtn": "मूल्यांकन पर लौटें",
+      "retestRequiredBadge": "प्रशासक द्वारा पुनः परीक्षा आवश्यक",
+      "retestNotice": "प्रशासन द्वारा पुनः परीक्षा अनिवार्य:",
+      "takeRetestBtn": "पुनः परीक्षा दें",
+      "improveBadgeBtn": "बैज सुधारें (पुनः परीक्षा)",
+      "retakeOpensNotice": "पुनः परीक्षा प्रारंभ तिथि"
     },
     "providerDashboard": {
       "consoleTitle": "तकनीशियन सेवा कंसोल",
@@ -2229,6 +2252,15 @@ export const i18n = {
       "unblockBtn": "अवरोध हटाएं",
       "cancelBookingBtn": "बुकिंग रद्द करें",
       "saveSettingsBtn": "प्लेटफ़ॉर्म सेटिंग्स सहेजें",
+      "askForRetest": "पुनः परीक्षा का अनुरोध करें",
+      "retestReasonPlaceholder": "पुनः परीक्षा की आवश्यकता का कारण दर्ज करें...",
+      "retestExplanation": "यह कौशल को retest_required पर सेट करेगा, दोबारा उत्तीर्ण होने तक इसे स्वचालित कार्य वितरण से रोक देगा, और कारण के साथ प्रदाता को सूचित करेगा।",
+      "approveSkill": "कौशल स्वीकृत करें",
+      "rejectSkill": "कौशल अस्वीकृत करें",
+      "approved": "स्वीकृत",
+      "rejected": "अस्वीकृत",
+      "passedPendingAdmin": "उत्तीर्ण (प्रशासक अनुमोदन लंबित)",
+      "notPassed": "उत्तीर्ण नहीं",
       "auditWho": "ऑपरेटर",
       "auditWhat": "कार्रवाई",
       "auditWhen": "समय",
@@ -2888,7 +2920,9 @@ export const i18n = {
       "UNAUTHORIZED": "कृपया सुरू ठेवण्यासाठी लॉग इन करा.",
       "FORBIDDEN": "आपल्याला ही कृती करण्याची परवानगी नाही.",
       "SERVER_ERROR": "सर्व्हरवर काहीतरी चूक झाली. कृपया नंतर पुन्हा प्रयत्न करा.",
-      "NO_ACTIVE_OFFER": "या कामासाठी कोणतीही सक्रिय पाठवणी ऑफर आढळली नाही."
+      "NO_ACTIVE_OFFER": "या कामासाठी कोणतीही सक्रिय पाठवणी ऑफर आढळली नाही.",
+      "SKILL_ALREADY_PASSED": "तुम्ही ही कौशल्य चाचणी आधीच उत्तीर्ण केली आहे. तुम्ही 30 दिवसांनंतर तुमचा बॅज सुधारू शकता.",
+      "SKILL_RETEST_REQUIRED": "प्रशासनाकडून या कौशल्यासाठी फेरचाचणी आवश्यक करण्यात आली आहे."
     },
     "booking": {
       "pageTitle": "प्रमाणित घरगुती सेवा बुक करा",
@@ -3340,7 +3374,12 @@ export const i18n = {
       "submitExamBtn": "परीक्षा सादर करा",
       "tabSwitchTitle": "टॅब बदल आढळला",
       "tabSwitchNotice": "आपण मूल्यमापन विंडोवरून दूर गेलात. कृपया याच टॅबवर लक्ष केंद्रित ठेवा.",
-      "returnToTestBtn": "मूल्यांकनावर परत जा"
+      "returnToTestBtn": "मूल्यांकनावर परत जा",
+      "retestRequiredBadge": "प्रशासकांद्वारे फेरचाचणी आवश्यक",
+      "retestNotice": "प्रशासनाकडून फेरचाचणी आवश्यक:",
+      "takeRetestBtn": "फेरचाचणी द्या",
+      "improveBadgeBtn": "बॅज सुधारा (फेरचाचणी)",
+      "retakeOpensNotice": "फेरचाचणी सुरू होण्याची तारीख"
     },
     "providerDashboard": {
       "consoleTitle": "तंत्रज्ञ सेवा कन्सोल",
@@ -3526,6 +3565,15 @@ export const i18n = {
       "unblockBtn": "अवरोध हटवा",
       "cancelBookingBtn": "बुकिंग रद्द करा",
       "saveSettingsBtn": "प्लॅटफॉर्म सेटिंग्स जतन करा",
+      "askForRetest": "फेरचाचणीची विनंती करा",
+      "retestReasonPlaceholder": "फेरचाचणी आवश्यक असण्याचे कारण प्रविष्ट करा...",
+      "retestExplanation": "हे कौशल्याला retest_required वर सेट करेल, पुन्हा उत्तीर्ण होईपर्यंत स्वयंचलित काम वाटपातून थांबवेल आणि कारणासह तंत्रज्ञांना सूचित करेल.",
+      "approveSkill": "कौशल्य मंजूर करा",
+      "rejectSkill": "कौशल्य नाकारा",
+      "approved": "मंजूर",
+      "rejected": "नाकारले",
+      "passedPendingAdmin": "उत्तीर्ण (प्रशासक मंजुरी प्रलंबित)",
+      "notPassed": "उत्तीर्ण नाही",
       "auditWho": "ऑपरेटर",
       "auditWhat": "कृती",
       "auditWhen": "वेळ",

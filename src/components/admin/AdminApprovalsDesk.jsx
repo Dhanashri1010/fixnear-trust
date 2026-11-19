@@ -52,6 +52,10 @@ export default function AdminApprovalsDesk() {
   const [infoModalOpen, setInfoModalOpen] = useState(false);
   const [infoMessage, setInfoMessage] = useState('Please upload a clear government photo ID with your name and address visible.');
 
+  const [retestModalOpen, setRetestModalOpen] = useState(false);
+  const [retestCategory, setRetestCategory] = useState(null);
+  const [retestReason, setRetestReason] = useState('Quality and safety audit requires technical skill re-verification.');
+
   const [processing, setProcessing] = useState(false);
 
   const fetchCandidates = async () => {
@@ -170,6 +174,34 @@ export default function AdminApprovalsDesk() {
       fetchCandidates();
     } catch (err) {
       showToast('Failed to request info: ' + err.message, 'error');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleAskForRetest = (categoryId) => {
+    setRetestCategory(categoryId);
+    setRetestReason('Quality and safety audit requires technical skill re-verification.');
+    setRetestModalOpen(true);
+  };
+
+  const handleConfirmRetest = async () => {
+    if (!selectedCandidateId || !retestCategory || !retestReason.trim()) return;
+    setProcessing(true);
+    try {
+      const res = await adminAPI.requireSkillRetest(selectedCandidateId, retestCategory, retestReason.trim());
+      showToast(res.message || 'Re-test required and provider notified.', 'info');
+      setRetestModalOpen(false);
+      setRetestCategory(null);
+      if (activeProvider && activeProvider.skills) {
+        const updatedSkills = activeProvider.skills.map((s) =>
+          s.categoryId === retestCategory ? { ...s, status: 'retest_required' } : s
+        );
+        setActiveProvider({ ...activeProvider, skills: updatedSkills });
+      }
+      fetchCandidates();
+    } catch (err) {
+      showToast('Failed to require re-test: ' + err.message, 'error');
     } finally {
       setProcessing(false);
     }
@@ -399,8 +431,9 @@ export default function AdminApprovalsDesk() {
                   {activeProvider.skills && activeProvider.skills.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
                       {activeProvider.skills.map((skill, idx) => {
-                        const isSkillApproved = skill.status === 'approved' || (skill.passed && skill.status !== 'rejected');
-                        const isSkillRejected = skill.status === 'rejected';
+                        const isRetestRequired = skill.status === 'retest_required';
+                        const isSkillApproved = !isRetestRequired && (skill.status === 'approved' || (skill.passed && skill.status !== 'rejected'));
+                        const isSkillRejected = !isRetestRequired && skill.status === 'rejected';
 
                         return (
                           <div
@@ -412,7 +445,7 @@ export default function AdminApprovalsDesk() {
                               backgroundColor: '#FFFFFF',
                               padding: '12px 14px',
                               borderRadius: 'var(--radius-sm)',
-                              border: `1.5px solid ${isSkillApproved ? '#86EFAC' : isSkillRejected ? '#FCA5A5' : '#E5E7EB'}`,
+                              border: `1.5px solid ${isSkillApproved ? '#86EFAC' : isRetestRequired ? '#FDE68A' : isSkillRejected ? '#FCA5A5' : '#E5E7EB'}`,
                               flexWrap: 'wrap',
                               gap: '10px'
                             }}
@@ -427,15 +460,15 @@ export default function AdminApprovalsDesk() {
                                 {' • '}
                                 <span style={{
                                   fontWeight: 700,
-                                  color: isSkillApproved ? '#16A34A' : isSkillRejected ? '#DC2626' : '#D97706'
+                                  color: isSkillApproved ? '#16A34A' : isRetestRequired ? '#D97706' : isSkillRejected ? '#DC2626' : '#D97706'
                                 }}>
-                                  {isSkillApproved ? 'Approved' : isSkillRejected ? 'Rejected' : (skill.passed ? 'Passed (Pending Admin)' : 'Not Passed')}
+                                  {isRetestRequired ? t('providerTest.retestRequiredBadge', 'Retest Required') : isSkillApproved ? t('admin.approved', 'Approved') : isSkillRejected ? t('admin.rejected', 'Rejected') : (skill.passed ? t('admin.passedPendingAdmin', 'Passed (Pending Admin)') : t('admin.notPassed', 'Not Passed'))}
                                 </span>
                               </div>
                             </div>
 
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              {!isSkillApproved && (
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              {!isSkillApproved && !isRetestRequired && (
                                 <button
                                   type="button"
                                   disabled={processing}
@@ -446,7 +479,7 @@ export default function AdminApprovalsDesk() {
                                   {t('admin.approveSkill', 'Approve Skill')}
                                 </button>
                               )}
-                              {!isSkillRejected && (
+                              {!isSkillRejected && !isRetestRequired && (
                                 <button
                                   type="button"
                                   disabled={processing}
@@ -455,6 +488,17 @@ export default function AdminApprovalsDesk() {
                                   style={{ color: '#DC2626', borderColor: '#FCA5A5', fontSize: '11px', padding: '4px 8px' }}
                                 >
                                   {t('admin.rejectSkill', 'Reject Skill')}
+                                </button>
+                              )}
+                              {skill.passed && !isRetestRequired && (
+                                <button
+                                  type="button"
+                                  disabled={processing}
+                                  onClick={() => handleAskForRetest(skill.categoryId)}
+                                  className="btn btn-outline btn-sm"
+                                  style={{ color: '#D97706', borderColor: '#FDE68A', fontSize: '11px', padding: '4px 8px' }}
+                                >
+                                  {t('admin.askForRetest', 'Ask for re-test')}
                                 </button>
                               )}
                             </div>
@@ -799,6 +843,73 @@ export default function AdminApprovalsDesk() {
                   style={{ maxWidth: '100%', maxHeight: '550px', borderRadius: '8px', objectFit: 'contain' }}
                 />
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ask for Re-Test Modal */}
+      {retestModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            maxWidth: '500px',
+            width: '100%',
+            padding: '24px',
+            boxShadow: 'var(--shadow-xl)'
+          }}>
+            <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#D97706', marginBottom: '8px' }}>
+              {t('admin.askForRetest', 'Ask for re-test')}
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+              {t('admin.retestExplanation', 'This will set the skill to retest_required, pause it from automated job dispatch until passed again, and notify the provider with your reason.')}
+            </p>
+            <textarea
+              value={retestReason}
+              onChange={(e) => setRetestReason(e.target.value)}
+              placeholder={t('admin.retestReasonPlaceholder', 'Enter reason for requiring re-test...')}
+              style={{
+                width: '100%',
+                height: '100px',
+                padding: '12px',
+                borderRadius: '8px',
+                border: '1.5px solid var(--border-light)',
+                fontSize: '13.5px',
+                marginBottom: '16px',
+                resize: 'none'
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                disabled={processing}
+                onClick={() => setRetestModalOpen(false)}
+                className="btn btn-outline btn-sm"
+              >
+                {t('common.cancel', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={processing || retestReason.trim().length < 3}
+                onClick={handleConfirmRetest}
+                className="btn btn-sm"
+                style={{ backgroundColor: '#D97706', color: '#FFFFFF', fontWeight: 700 }}
+              >
+                {processing ? t('admin.processing', 'Processing...') : t('admin.askForRetest', 'Ask for re-test')}
+              </button>
             </div>
           </div>
         </div>

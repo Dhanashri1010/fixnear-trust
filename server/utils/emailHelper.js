@@ -818,6 +818,65 @@ export const sendBookingCancelledEmail = async ({ customerEmail, customerName, b
   });
 };
 
+// 10. Provider Skill Re-Test Required Email
+export const sendRetestRequiredEmail = async ({
+  providerEmail,
+  providerName,
+  categoryName,
+  reason = '',
+  lang = 'en',
+}) => {
+  let subject = `Action Required: Re-Test Needed for ${categoryName} - FixNear Trust`;
+  let title = `Re-Test Required for ${categoryName}`;
+  let desc = `Admin has requested a technical re-test for your registered skill: <strong>${categoryName}</strong>.`;
+  let reasonLabel = 'Reason for Re-Test:';
+  let impactNotice = 'This skill has been temporarily paused from automated job dispatch until you retake and pass the skill exam.';
+  let btnText = 'Take Skill Test Now';
+
+  if (lang === 'hi') {
+    subject = `कार्रवाई आवश्यक: ${categoryName} के लिए पुनः परीक्षा आवश्यक - FixNear Trust`;
+    title = `${categoryName} के लिए पुनः परीक्षा आवश्यक`;
+    desc = `प्रशासक ने आपके पंजीकृत कौशल <strong>${categoryName}</strong> के लिए तकनीकी पुनः परीक्षा का अनुरोध किया है।`;
+    reasonLabel = 'पुनः परीक्षा का कारण:';
+    impactNotice = 'यह कौशल परीक्षा उत्तीर्ण होने तक नए ग्राहक कार्यों से अस्थायी रूप से रोक दिया गया है।';
+    btnText = 'अभी कौशल परीक्षा दें';
+  } else if (lang === 'mr') {
+    subject = `कृती आवश्यक: ${categoryName} साठी फेरचाचणी आवश्यक - FixNear Trust`;
+    title = `${categoryName} साठी फेरचाचणी आवश्यक`;
+    desc = `प्रशासकांनी तुमच्या नोंदणीकृत कौशल्य <strong>${categoryName}</strong> साठी तांत्रिक फेरचाचणीची विनंती केली आहे।`;
+    reasonLabel = 'फेरचाचणीचे कारण:';
+    impactNotice = 'तुम्ही परीक्षा उत्तीर्ण होईपर्यंत हे कौशल्य तात्पुरते ग्राहक कामांच्या वितरणातून थांबवले गेले आहे.';
+    btnText = 'आता कौशल्य चाचणी द्या';
+  }
+
+  const html = `
+    <h2 style="color: #0f172a; margin-top: 0;">${title}</h2>
+    <p style="color: #475569; font-size: 15px; line-height: 1.6;">नमस्ते ${providerName || 'Technician'},</p>
+    <p style="color: #475569; font-size: 15px; line-height: 1.6;">${desc}</p>
+    
+    <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin: 20px 0; border-radius: 4px;">
+      <p style="margin: 0; font-weight: bold; color: #991b1b;">${reasonLabel}</p>
+      <p style="margin: 8px 0 0; color: #7f1d1d;">${reason || 'Quality and safety verification standard update.'}</p>
+    </div>
+
+    <p style="color: #475569; font-size: 14px; line-height: 1.6;">${impactNotice}</p>
+    
+    <div style="margin: 28px 0; text-align: center;">
+      <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/provider/skill-test" style="background-color: #15803d; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+        ${btnText}
+      </a>
+    </div>
+  `;
+
+  return sendEmailWithRetry({
+    to: providerEmail,
+    subject,
+    html,
+    text: `${title}\n\n${desc}\nReason: ${reason}\n\n${impactNotice}`,
+    lang,
+  });
+};
+
 export default {
   sendEmailWithRetry,
   sendBookingPlacedEmail,
@@ -830,4 +889,5 @@ export default {
   sendWelcomeEmail,
   sendBookingCancelledEmail,
   sendSkillTestResultEmail,
+  sendRetestRequiredEmail,
 };

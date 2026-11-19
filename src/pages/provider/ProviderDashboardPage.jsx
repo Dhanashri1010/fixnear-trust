@@ -1235,8 +1235,8 @@ export default function ProviderDashboardPage() {
                     style={{
                       padding: '20px',
                       borderRadius: 'var(--radius-lg)',
-                      border: `1.5px solid ${skill.passed ? 'var(--forest-600)' : '#E5E7EB'}`,
-                      backgroundColor: skill.passed ? 'var(--forest-50)' : '#F9FAFB'
+                      border: `1.5px solid ${skill.status === 'retest_required' ? '#FDE68A' : skill.passed ? 'var(--forest-600)' : '#E5E7EB'}`,
+                      backgroundColor: skill.status === 'retest_required' ? '#FEF3C7' : skill.passed ? 'var(--forest-50)' : '#F9FAFB'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
@@ -1244,7 +1244,7 @@ export default function ProviderDashboardPage() {
                         width: '40px',
                         height: '40px',
                         borderRadius: 'var(--radius-md)',
-                        backgroundColor: skill.passed ? 'var(--forest-700)' : '#9CA3AF',
+                        backgroundColor: skill.status === 'retest_required' ? '#B45309' : skill.passed ? 'var(--forest-700)' : '#9CA3AF',
                         color: '#FFFFFF',
                         display: 'flex',
                         alignItems: 'center',
@@ -1256,8 +1256,8 @@ export default function ProviderDashboardPage() {
                         <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--forest-900)' }}>
                           {skill.categoryName || 'Trade Craft'}
                         </div>
-                        <div style={{ fontSize: '12px', color: skill.passed ? 'var(--forest-700)' : '#6B7280', fontWeight: 700 }}>
-                          {skill.passed ? t('providerDashboard.verifiedSkillBadge') : t('providerDashboard.certPending')}
+                        <div style={{ fontSize: '12px', color: skill.status === 'retest_required' ? '#B45309' : skill.passed ? 'var(--forest-700)' : '#6B7280', fontWeight: 700 }}>
+                          {skill.status === 'retest_required' ? t('providerTest.retestRequiredBadge', 'Re-test Required by Admin') : skill.passed ? t('providerDashboard.verifiedSkillBadge') : t('providerDashboard.certPending')}
                         </div>
                       </div>
                     </div>
@@ -1266,14 +1266,14 @@ export default function ProviderDashboardPage() {
                       {t('providerDashboard.scoreLabel')} <strong>{skill.testScore || 0}%</strong> {skill.passed ? t('providerDashboard.passedExam') : t('providerDashboard.requires70')}
                     </div>
 
-                    {!skill.passed && (
+                    {(!skill.passed || skill.status === 'retest_required') && (
                       <div style={{ marginTop: '12px' }}>
                         <Link
                           to={`/provider/test/${skill.categoryId}`}
                           className="btn btn-primary btn-sm"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px' }}
                         >
-                          <span>{t('providerTest.takeTestBtn', 'Take Test')}</span>
+                          <span>{skill.status === 'retest_required' ? t('providerTest.takeRetestBtn', 'Take Re-Test') : t('providerTest.takeTestBtn', 'Take Test')}</span>
                           <ArrowRight size={13} />
                         </Link>
                       </div>

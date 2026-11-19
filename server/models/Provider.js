@@ -39,10 +39,13 @@ const providerSchema = new mongoose.Schema(
         badge: String,
         status: {
           type: String,
-          enum: ['not_taken', 'pending', 'passed', 'failed', 'approved', 'rejected'],
+          enum: ['not_taken', 'pending', 'passed', 'failed', 'approved', 'rejected', 'retest_required'],
           default: 'not_taken',
         },
         verifiedAt: Date,
+        retakeAvailableAt: Date,
+        retestReason: String,
+        retestRequestedAt: Date,
       },
     ],
     experienceYears: {

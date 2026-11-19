@@ -383,7 +383,9 @@ export default function ProviderSkillTestPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '28px' }}>
             {skills.map((skill) => {
               const catId = skill.categoryId;
-              const isPassed = !!skill.passed;
+              const isRetestRequired = skill.status === 'retest_required';
+              const isPassed = !!skill.passed && !isRetestRequired;
+              const isRetakeOpen = skill.passed && skill.retakeAvailableAt && new Date() >= new Date(skill.retakeAvailableAt);
 
               return (
                 <div
@@ -392,7 +394,7 @@ export default function ProviderSkillTestPage() {
                     backgroundColor: '#FFFFFF',
                     borderRadius: 'var(--radius-lg)',
                     padding: '20px 24px',
-                    border: `1.5px solid ${isPassed ? '#86EFAC' : 'var(--border-light)'}`,
+                    border: `1.5px solid ${isPassed ? '#86EFAC' : isRetestRequired ? '#FDE68A' : 'var(--border-light)'}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -406,8 +408,8 @@ export default function ProviderSkillTestPage() {
                       width: '46px',
                       height: '46px',
                       borderRadius: 'var(--radius-md)',
-                      backgroundColor: isPassed ? '#DCFCE7' : 'var(--forest-50)',
-                      color: isPassed ? '#15803D' : 'var(--forest-800)',
+                      backgroundColor: isPassed ? '#DCFCE7' : isRetestRequired ? '#FEF3C7' : 'var(--forest-50)',
+                      color: isPassed ? '#15803D' : isRetestRequired ? '#B45309' : 'var(--forest-800)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -420,7 +422,18 @@ export default function ProviderSkillTestPage() {
                         <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--forest-950)', margin: 0 }}>
                           {skill.categoryName || catId}
                         </h3>
-                        {isPassed && (
+                        {isRetestRequired ? (
+                          <span style={{
+                            backgroundColor: '#FEF3C7',
+                            color: '#B45309',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '12px'
+                          }}>
+                            {t('providerTest.retestRequiredBadge', 'Re-test Required by Admin')}
+                          </span>
+                        ) : isPassed ? (
                           <span style={{
                             backgroundColor: '#DCFCE7',
                             color: '#15803D',
@@ -431,23 +444,53 @@ export default function ProviderSkillTestPage() {
                           }}>
                             {skill.badge ? `${skill.badge} Certified` : 'Passed'}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                       <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '3px' }}>
-                        {isPassed
+                        {isRetestRequired
+                          ? `${t('providerTest.retestNotice', 'Administration required a re-test:')} ${skill.retestReason || 'Quality check'}`
+                          : isPassed
                           ? `${t('providerTest.passedWithScore', 'Passed with')} ${skill.testScore || 80}% • ${t('providerTest.verifiedTradeBadge', 'Verified for customer jobs')}`
                           : skill.testScore > 0
                           ? `${t('providerTest.lastScore', 'Last score')}: ${skill.testScore}% (${t('providerTest.requires70', '70% required')})`
                           : t('providerTest.notTakenYet', 'Test not taken yet • 10 questions • 15 mins')}
                       </div>
+                      {isPassed && skill.retakeAvailableAt && !isRetakeOpen && (
+                        <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {t('providerTest.retakeOpensNotice', 'Retake opens on')} {new Date(skill.retakeAvailableAt).toISOString().split('T')[0]}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div>
-                    {isPassed ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#16A34A', fontWeight: 700, fontSize: '13.5px' }}>
-                        <CheckCircle2 size={18} />
-                        <span>{t('providerTest.verifiedStatus', 'Skill Verified')}</span>
+                    {isRetestRequired ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/provider/test/${catId}`)}
+                        className="btn btn-sm"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 18px', fontWeight: 700, backgroundColor: '#D97706', color: '#FFFFFF' }}
+                      >
+                        <span>{t('providerTest.takeRetestBtn', 'Take Re-Test')}</span>
+                        <ArrowRight size={15} />
+                      </button>
+                    ) : isPassed ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#16A34A', fontWeight: 700, fontSize: '13.5px' }}>
+                          <CheckCircle2 size={18} />
+                          <span>{t('providerTest.verifiedStatus', 'Skill Verified')}</span>
+                        </div>
+                        {isRetakeOpen && (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/provider/test/${catId}`)}
+                            className="btn btn-outline btn-sm"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+                          >
+                            <span>{t('providerTest.improveBadgeBtn', 'Improve Badge (Retake)')}</span>
+                            <ArrowRight size={13} />
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <button

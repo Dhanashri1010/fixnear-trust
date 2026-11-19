@@ -16,9 +16,10 @@ import { Setting } from '../models/Setting.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { Payment } from '../models/Payment.js';
 import { TestAttempt } from '../models/TestAttempt.js';
+import { Notification } from '../models/Notification.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { notifyUser } from './notificationController.js';
-import { sendComplaintResolvedEmail, sendProviderStatusEmail } from '../utils/emailHelper.js';
+import { sendComplaintResolvedEmail, sendProviderStatusEmail, sendRetestRequiredEmail } from '../utils/emailHelper.js';
 import { offerBookingToNextProvider } from './bookingController.js';
 import { toBookingPayload } from '../utils/bookingSerializer.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
@@ -310,14 +311,18 @@ export const approveProviderAction = async (req, res, next) => {
   }
 };
 
-// PATCH /api/admin/providers/:id/skills/:categoryId (Approve/Reject individual skill)
+// PATCH /api/admin/providers/:id/skills/:categoryId (Approve/Reject/Retest individual skill)
 export const updateProviderSkillStatus = async (req, res, next) => {
   try {
     const { id, categoryId } = req.params;
-    const { status } = req.body;
+    const { status, reason } = req.body;
 
-    if (!['approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ success: false, message: "Status must be 'approved' or 'rejected'." });
+    if (!['approved', 'rejected', 'retest_required'].includes(status)) {
+      return res.status(400).json({ success: false, message: "Status must be 'approved', 'rejected', or 'retest_required'." });
+    }
+
+    if (status === 'retest_required') {
+      return requireSkillRetestAction(req, res, next);
     }
 
     const provider = await Provider.findById(id);
@@ -350,6 +355,108 @@ export const updateProviderSkillStatus = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: `Skill ${skill.categoryName || categoryId} marked as ${status}.`,
+      provider,
+      skill,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/admin/providers/:id/skills/:categoryId/require-retest
+// (Admin forces a re-test for a provider's skill)
+export const requireSkillRetestAction = async (req, res, next) => {
+  try {
+    const { id, categoryId } = req.params;
+    const { reason } = req.body;
+
+    if (!reason || String(reason).trim().length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid reason for requiring a re-test is required (minimum 3 characters).',
+      });
+    }
+
+    const provider = await Provider.findById(id);
+    if (!provider) {
+      return res.status(404).json({ success: false, message: 'Provider not found.' });
+    }
+
+    const skill = provider.skills?.find((s) => s.categoryId === categoryId);
+    if (!skill) {
+      return res.status(404).json({ success: false, message: `Skill '${categoryId}' not found on provider.` });
+    }
+
+    const oldStatus = skill.status;
+    skill.status = 'retest_required';
+    skill.retestReason = String(reason).trim();
+    skill.retestRequestedAt = new Date();
+
+    await provider.save();
+
+    // Cancel any pending offers for this provider for this category and re-dispatch
+    const pendingBookings = await Booking.find({
+      status: 'REQUESTED',
+      'offeredTo.providerId': provider._id,
+      'offeredTo.status': 'PENDING',
+    });
+
+    for (const b of pendingBookings) {
+      const srv = await Service.findOne({ serviceId: b.serviceId });
+      if (srv && (srv.categoryId === categoryId || srv.category?.toLowerCase() === skill.categoryName?.toLowerCase())) {
+        await Booking.updateOne(
+          { _id: b._id, 'offeredTo.providerId': provider._id, 'offeredTo.status': 'PENDING' },
+          { $set: { 'offeredTo.$.status': 'DECLINED', 'offeredTo.$.reason': 'SKILL_RETEST_REQUIRED' } }
+        );
+        offerBookingToNextProvider(b._id).catch(() => {});
+      }
+    }
+
+    // 1. Notify provider in the app
+    const skillName = skill.categoryName || categoryId;
+    await Notification.create({
+      userId: provider.userId,
+      role: 'provider',
+      title: 'Skill Re-Test Required',
+      message: `Admin has requested a re-test for your skill '${skillName}'. Reason: ${reason}. This skill is paused from job dispatch until re-tested and passed.`,
+      code: 'SKILL_RETEST_REQUIRED',
+      type: 'approval',
+      link: `/provider/skill-test/${categoryId}`,
+    });
+
+    // 2. Notify provider by email
+    const providerUser = await User.findById(provider.userId);
+    const lang = providerUser?.preferredLanguage || 'en';
+    await sendRetestRequiredEmail({
+      providerEmail: provider.email,
+      providerName: provider.name,
+      categoryName: skillName,
+      reason,
+      lang,
+    }).catch((err) => {
+      console.warn('[Retest Email Error]:', err.message);
+    });
+
+    // 3. Write AuditLog entry
+    await logAudit({
+      req,
+      action: 'REQUIRE_PROVIDER_SKILL_RETEST',
+      targetType: 'Provider',
+      targetId: provider._id,
+      details: {
+        providerId: provider._id,
+        providerName: provider.name,
+        categoryId,
+        categoryName: skillName,
+        reason,
+        previousStatus: oldStatus,
+        newStatus: 'retest_required',
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Re-test required for ${skillName}. Provider notified and skill removed from active dispatch until passed.`,
       provider,
       skill,
     });
@@ -1267,13 +1374,14 @@ export const getAdminSettings = async (req, res, next) => {
 // PATCH /api/admin/settings
 export const updateAdminSettingsAction = async (req, res, next) => {
   try {
-    const { passMark, testDurationMinutes, testCooldownHours, platformFee, commissionPercent } = req.body;
+    const { passMark, testDurationMinutes, testCooldownHours, skillRetakeDays, platformFee, commissionPercent } = req.body;
 
     const settings = await Setting.getSettings();
     const oldValues = {
       passMark: settings.skillTestPassMark,
       testDurationMinutes: settings.skillTestTimeLimitMinutes,
       testCooldownHours: settings.skillTestCooldownHours,
+      skillRetakeDays: settings.skillRetakeDays || 30,
       platformFee: settings.platformFee,
       commissionPercent: settings.platformCommissionPercent,
     };
@@ -1300,6 +1408,14 @@ export const updateAdminSettingsAction = async (req, res, next) => {
         return res.status(400).json({ success: false, message: 'Cooldown must be between 1 and 168 hours.' });
       }
       settings.skillTestCooldownHours = num;
+    }
+
+    if (skillRetakeDays !== undefined) {
+      const num = Number(skillRetakeDays);
+      if (num < 1 || num > 365) {
+        return res.status(400).json({ success: false, message: 'Skill retake interval must be between 1 and 365 days.' });
+      }
+      settings.skillRetakeDays = num;
     }
 
     if (platformFee !== undefined) {

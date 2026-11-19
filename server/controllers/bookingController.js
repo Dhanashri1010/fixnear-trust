@@ -123,6 +123,7 @@ export const createBooking = async (req, res, next) => {
                 { categoryName: new RegExp(escapedCategory, 'i') },
               ],
               passed: true,
+              status: { $ne: 'retest_required' },
             },
           },
         },
@@ -1126,6 +1127,7 @@ export const updateBookingStatus = async (req, res, next) => {
         providerDoc.skills?.some(
           (s) =>
             s.passed &&
+            s.status !== 'retest_required' &&
             (s.categoryId === service?.categoryId ||
               s.categoryName?.toLowerCase() === service?.category?.toLowerCase())
         ) ||
@@ -1444,6 +1446,7 @@ export const offerBookingToNextProvider = async (bookingId) => {
               { categoryName: new RegExp(escapeRegex(service.category), 'i') },
             ],
             passed: true,
+            status: { $ne: 'retest_required' },
           },
         },
       },

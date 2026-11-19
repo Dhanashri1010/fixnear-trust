@@ -15,6 +15,7 @@ import {
   requestProviderInfoAction,
   getProvidersList,
   updateProviderSkillStatus,
+  requireSkillRetestAction,
   suspendProviderAction,
   reinstateProviderAction,
   getCustomersList,
@@ -119,8 +120,15 @@ const updateSettingsSchema = z.object({
     passMark: z.number().int().min(50, 'Pass mark minimum is 50%').max(100, 'Pass mark maximum is 100%').optional(),
     testDurationMinutes: z.number().int().min(5, 'Duration minimum is 5 mins').max(60, 'Duration maximum is 60 mins').optional(),
     testCooldownHours: z.number().int().min(1, 'Cooldown minimum is 1 hour').max(168, 'Cooldown maximum is 168 hours').optional(),
+    skillRetakeDays: z.number().int().min(1, 'Retake days minimum is 1 day').max(365, 'Retake days maximum is 365 days').optional(),
     platformFee: z.number().int().min(0, 'Platform fee minimum is 0').max(500, 'Platform fee maximum is ₹500').optional(),
     commissionPercent: z.number().int().min(0, 'Commission minimum is 0%').max(40, 'Commission maximum is 40%').optional(),
+  }),
+});
+
+const retestReasonSchema = z.object({
+  body: z.object({
+    reason: z.string().min(3, 'Reason must be at least 3 characters long'),
   }),
 });
 
@@ -164,6 +172,8 @@ router.post('/approvals/:id/request-info', validate(requestInfoSchema), requestP
 router.get('/providers', getProvidersList);
 router.get('/providers/:id', getProviderDetails);
 router.patch('/providers/:id/skills/:categoryId', updateProviderSkillStatus);
+router.post('/providers/:id/skills/:categoryId/require-retest', validate(retestReasonSchema), requireSkillRetestAction);
+router.post('/providers/:id/skills/:categoryId/retest', validate(retestReasonSchema), requireSkillRetestAction);
 router.post('/providers/:id/suspend', validate(reasonSchema), suspendProviderAction);
 router.post('/providers/:id/reinstate', validate(reinstateSchema), reinstateProviderAction);
 
