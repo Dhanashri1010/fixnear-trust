@@ -37,6 +37,11 @@ const providerSchema = new mongoose.Schema(
         testScore: Number,
         passed: Boolean,
         badge: String,
+        status: {
+          type: String,
+          enum: ['not_taken', 'pending', 'passed', 'failed', 'approved', 'rejected'],
+          default: 'not_taken',
+        },
         verifiedAt: Date,
       },
     ],

@@ -79,6 +79,7 @@ export const providersAPI = {
   getProviderById: (id) => api.get(`/providers/${id}`),
   getMyProfile: () => api.get('/providers/me'),
   registerProfile: (data) => api.post('/providers/register', data),
+  addSkill: (categoryId) => api.post('/providers/skills/add', { categoryId }),
   updateOnlineStatus: (isOnline) => api.patch('/providers/me/status', { isOnline }),
   getPrivateDocumentSignedUrl: (type, providerId) =>
     api.get(`/providers/documents/${type}${providerId ? `?providerId=${providerId}` : ''}`),
@@ -147,7 +148,8 @@ export const adminAPI = {
   // 2. Approvals Desk
   getApprovals: () => api.get('/admin/approvals'),
   getProviderDetails: (id) => api.get(`/admin/providers/${id}`),
-  approveProvider: (id) => api.post(`/admin/approvals/${id}/approve`),
+  approveProvider: (id, payload) => api.post(`/admin/approvals/${id}/approve`, payload),
+  updateProviderSkillStatus: (id, categoryId, status) => api.patch(`/admin/providers/${id}/skills/${categoryId}`, { status }),
   rejectProvider: (id, reason) => api.post(`/admin/approvals/${id}/reject`, { reason }),
   requestProviderInfo: (id, message) => api.post(`/admin/approvals/${id}/request-info`, { message }),
 

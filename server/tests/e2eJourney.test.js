@@ -1072,13 +1072,14 @@ describe('Full Customer & Provider End-to-End Lifecycle', () => {
       isActive: true,
     });
 
-    // Seed 2 skill test questions
-    await Question.create([
-      {
-        questionId: 'q-elec-01',
+    // Seed 10 skill test questions
+    const testQs = [];
+    for (let i = 1; i <= 10; i++) {
+      testQs.push({
         categoryId: category.categoryId,
         categoryName: category.name,
-        questionText: 'What is the first safety step before opening a ceiling fan regulator?',
+        topic: 'Safety',
+        questionText: `Safety Examination Question ${i}: What is the proper procedure?`,
         options: [
           'Switch off main MCB breaker power',
           'Touch wires with bare hands',
@@ -1086,21 +1087,10 @@ describe('Full Customer & Provider End-to-End Lifecycle', () => {
           'Use a metal spoon to probe socket',
         ],
         correctIndex: 0,
-      },
-      {
-        questionId: 'q-elec-02',
-        categoryId: category.categoryId,
-        categoryName: category.name,
-        questionText: 'Which tool should always be used to check for live voltage?',
-        options: [
-          'Calibrated neon or digital voltage tester',
-          'Bare copper nail',
-          'Wet sponge',
-          'Plastic pen',
-        ],
-        correctIndex: 0,
-      },
-    ]);
+        isActive: true,
+      });
+    }
+    await Question.create(testQs);
 
     // Admin account
     const admin = await User.create({
@@ -1153,7 +1143,7 @@ describe('Full Customer & Provider End-to-End Lifecycle', () => {
     expect(startTestRes.status).toBe(200);
     expect(startTestRes.body.success).toBe(true);
     const { sessionId, questions } = startTestRes.body;
-    expect(questions.length).toBe(2);
+    expect(questions.length).toBe(10);
 
     // Submit correct answers
     const submitTestRes = await request(app)

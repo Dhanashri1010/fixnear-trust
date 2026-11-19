@@ -7,6 +7,7 @@ import { Provider } from '../models/Provider.js';
 import { Review } from '../models/Review.js';
 import { Booking } from '../models/Booking.js';
 import { Setting } from '../models/Setting.js';
+import { Category } from '../models/Category.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -174,6 +175,8 @@ export const registerProviderProfile = async (req, res, next) => {
       specialty,
       categoryId,
       categoryName,
+      selectedCategories,
+      skills: inputSkills,
       experienceYears,
       idProofUrl,
       idProofPublicId,
@@ -214,7 +217,7 @@ export const registerProviderProfile = async (req, res, next) => {
       phone: (phone || req.user.phone || '').trim(),
       city: (city || req.user.city || 'Mumbai').trim(),
       serviceArea: (serviceArea || '').trim(),
-      specialty: specialty || categoryName || 'General Maintenance & Repairs',
+      specialty: specialty || 'General Maintenance & Repairs',
       experienceYears: Number(experienceYears) || 3,
       idProofUrl: idProofUrl || '',
       idProofPublicId: idProofPublicId || '',
@@ -224,24 +227,42 @@ export const registerProviderProfile = async (req, res, next) => {
       certificateResourceType: resolvedCertType,
     };
 
-    if (categoryId) {
-      const existingSkills = provider ? provider.skills || [] : [];
-      const skillIdx = existingSkills.findIndex((s) => s.categoryId === categoryId);
-      if (skillIdx >= 0) {
-        existingSkills[skillIdx].categoryName = categoryName || existingSkills[skillIdx].categoryName;
-      } else {
-        existingSkills.push({
-          categoryId,
-          categoryName: categoryName || specialty || 'Maintenance',
-          passed: false,
-          testScore: 0,
-        });
-      }
-      updateFields.skills = existingSkills;
+    // Requirement 6: Save every selected category in skills[] with passed: false
+    const existingSkills = provider ? provider.skills || [] : [];
+    const skillMap = new Map();
+    existingSkills.forEach((s) => skillMap.set(s.categoryId, s));
+
+    const catsToProcess =
+      Array.isArray(selectedCategories) && selectedCategories.length > 0
+        ? selectedCategories
+        : Array.isArray(inputSkills) && inputSkills.length > 0
+        ? inputSkills.map((s) => (typeof s === 'string' ? s : s.categoryId)).filter(Boolean)
+        : categoryId
+        ? [categoryId]
+        : [];
+
+    if (catsToProcess.length > 0) {
+      const dbCategories = await Category.find({ categoryId: { $in: catsToProcess } });
+      const nameMap = new Map(dbCategories.map((c) => [c.categoryId, c.name]));
+
+      catsToProcess.forEach((catId) => {
+        if (!skillMap.has(catId)) {
+          const catName = nameMap.get(catId) || categoryName || catId;
+          skillMap.set(catId, {
+            categoryId: catId,
+            categoryName: catName,
+            passed: false,
+            testScore: 0,
+            badge: '',
+            status: 'not_taken',
+          });
+        }
+      });
+      updateFields.skills = Array.from(skillMap.values());
     }
 
     if (provider) {
-      const hasPassedSkill = provider.skills?.some((s) => s.passed);
+      const hasPassedSkill = (updateFields.skills || provider.skills)?.some((s) => s.passed);
       if (provider.status === 'rejected' || provider.status === 'more_info_needed') {
         updateFields.status = hasPassedSkill ? 'waiting_for_approval' : 'take_skill_test';
         updateFields.rejectionReason = '';
@@ -258,6 +279,57 @@ export const registerProviderProfile = async (req, res, next) => {
       success: true,
       message: 'Provider profile registered successfully.',
       provider,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/providers/skills/add (Requirement 9: Add another service)
+export const addProviderSkill = async (req, res, next) => {
+  try {
+    const { categoryId } = req.body;
+    if (!categoryId) {
+      return res.status(400).json({ success: false, message: 'categoryId is required' });
+    }
+
+    const categoryDoc = await Category.findOne({ categoryId });
+    if (!categoryDoc) {
+      return res.status(404).json({ success: false, message: `Category '${categoryId}' not found` });
+    }
+
+    let provider = await Provider.findOne({ userId: req.user._id });
+    if (!provider) {
+      return res.status(404).json({ success: false, message: 'Provider profile not found' });
+    }
+
+    const existing = provider.skills?.find((s) => s.categoryId === categoryId);
+    if (existing) {
+      return res.status(200).json({
+        success: true,
+        message: `${categoryDoc.name} is already in your skills list.`,
+        provider,
+        skill: existing,
+      });
+    }
+
+    provider.skills = provider.skills || [];
+    const newSkill = {
+      categoryId,
+      categoryName: categoryDoc.name,
+      passed: false,
+      testScore: 0,
+      badge: '',
+      status: 'not_taken',
+    };
+    provider.skills.push(newSkill);
+    await provider.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Added ${categoryDoc.name} to your skills list. Take the skill test to verify.`,
+      provider,
+      skill: newSkill,
     });
   } catch (err) {
     next(err);

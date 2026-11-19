@@ -8,6 +8,7 @@ import {
   updateProviderStatus,
   getPrivateDocumentSignedUrl,
   servePrivateDocumentFile,
+  addProviderSkill,
 } from '../controllers/providerController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -23,6 +24,8 @@ const registerProviderSchema = z.object({
     specialty: z.string().optional(),
     categoryId: z.string().optional(),
     categoryName: z.string().optional(),
+    selectedCategories: z.array(z.string()).optional(),
+    skills: z.array(z.any()).optional(),
     experienceYears: z.number().min(0).max(50).optional(),
     idProofUrl: z.string().optional(),
     idProofPublicId: z.string().optional(),
@@ -46,6 +49,13 @@ router.get('/providers', getProviders);
 router.get('/providers/me', authenticate, authorize('provider'), getMyProviderProfile);
 router.patch('/providers/me/status', authenticate, authorize('provider'), validate(statusSchema), updateProviderStatus);
 router.post('/providers/register', authenticate, authorize('provider'), validate(registerProviderSchema), registerProviderProfile);
+router.post(
+  '/providers/skills/add',
+  authenticate,
+  authorize('provider'),
+  validate(z.object({ body: z.object({ categoryId: z.string().min(1) }) })),
+  addProviderSkill
+);
 router.get('/providers/documents/:type/file', authenticate, authorize('provider', 'admin'), servePrivateDocumentFile);
 router.get('/providers/documents/:type', authenticate, authorize('provider', 'admin'), getPrivateDocumentSignedUrl);
 

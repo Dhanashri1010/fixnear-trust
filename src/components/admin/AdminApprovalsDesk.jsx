@@ -5,19 +5,19 @@
 // ===================================================================
 
 import React, { useState, useEffect } from 'react';
-import { 
-  UserCheck, 
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle, 
-  FileText, 
-  Award, 
-  Clock, 
-  Phone, 
-  MapPin, 
-  Briefcase, 
-  Eye, 
-  X, 
+import {
+  UserCheck,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  FileText,
+  Award,
+  Clock,
+  Phone,
+  MapPin,
+  Briefcase,
+  Eye,
+  X,
   MessageSquare,
   ShieldCheck,
   AlertTriangle,
@@ -138,6 +138,28 @@ export default function AdminApprovalsDesk() {
     }
   };
 
+  const handleToggleSkillApproval = async (categoryId, nextStatus) => {
+    if (!selectedCandidateId) return;
+    setProcessing(true);
+    try {
+      const res = await adminAPI.updateProviderSkillStatus(selectedCandidateId, categoryId, nextStatus);
+      showToast(res.message || `Skill marked as ${nextStatus}.`, 'success');
+      if (activeProvider && activeProvider.skills) {
+        const updatedSkills = activeProvider.skills.map((s) =>
+          s.categoryId === categoryId
+            ? { ...s, status: nextStatus, passed: nextStatus === 'approved' }
+            : s
+        );
+        setActiveProvider({ ...activeProvider, skills: updatedSkills });
+      }
+      fetchCandidates();
+    } catch (err) {
+      showToast('Skill update failed: ' + err.message, 'error');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleConfirmRequestInfo = async () => {
     if (!selectedCandidateId || !infoMessage.trim()) return;
     setProcessing(true);
@@ -169,7 +191,7 @@ export default function AdminApprovalsDesk() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      
+
       {/* Header Bar */}
       <div style={{
         backgroundColor: '#FFFFFF',
@@ -226,7 +248,7 @@ export default function AdminApprovalsDesk() {
           gap: '20px',
           alignItems: 'start'
         }}>
-          
+
           {/* Candidates List Column */}
           <div style={{
             backgroundColor: '#FFFFFF',
@@ -299,7 +321,7 @@ export default function AdminApprovalsDesk() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                
+
                 {/* Dossier Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
                   <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -361,7 +383,7 @@ export default function AdminApprovalsDesk() {
                   </div>
                 </div>
 
-                {/* Section 1: Skill Testing History */}
+                {/* Section 1: All Trade Skills & Certification */}
                 <div style={{
                   backgroundColor: 'var(--bg-warm)',
                   borderRadius: 'var(--radius-md)',
@@ -370,49 +392,121 @@ export default function AdminApprovalsDesk() {
                 }}>
                   <h4 style={{ fontSize: '13px', fontWeight: 800, color: 'var(--forest-900)', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Award size={16} color="var(--forest-700)" />
-                    <span>{t('admin.skillExamScore')}</span>
+                    <span>{t('admin.skillExamScore', 'Trade Skills & Certifications')}</span>
                   </h4>
 
-                  {activeAttempts.length === 0 ? (
-                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                      {activeProvider.skills && activeProvider.skills.length > 0 ? (
-                        <div>
-                          {t('providerDashboard.skillsCert')}: <strong>{activeProvider.skills[0].categoryName}</strong> ({activeProvider.skills[0].testScore}%).
-                        </div>
-                      ) : (
-                        t('providerDashboard.noSkills')
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {activeAttempts.map((att, idx) => (
-                        <div 
-                          key={att._id || idx}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            backgroundColor: '#FFFFFF',
-                            padding: '10px 14px',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--border-light)'
-                          }}
-                        >
-                          <div>
-                            <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--forest-900)' }}>
-                              {att.categoryName || att.categoryId}
-                            </span>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                              {t('admin.date')}: {new Date(att.createdAt).toLocaleDateString()} • {t('admin.warningCount')}: {att.warningCount || 0}
+                  {/* Skills List with Approve/Reject per skill */}
+                  {activeProvider.skills && activeProvider.skills.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                      {activeProvider.skills.map((skill, idx) => {
+                        const isSkillApproved = skill.status === 'approved' || (skill.passed && skill.status !== 'rejected');
+                        const isSkillRejected = skill.status === 'rejected';
+
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              backgroundColor: '#FFFFFF',
+                              padding: '12px 14px',
+                              borderRadius: 'var(--radius-sm)',
+                              border: `1.5px solid ${isSkillApproved ? '#86EFAC' : isSkillRejected ? '#FCA5A5' : '#E5E7EB'}`,
+                              flexWrap: 'wrap',
+                              gap: '10px'
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--forest-950)' }}>
+                                {skill.categoryName || skill.categoryId}
+                              </div>
+                              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                {t('providerDashboard.scoreLabel', 'Score:')} <strong>{skill.testScore || 0}%</strong>
+                                {skill.badge ? ` • ${skill.badge} Certified` : ''}
+                                {' • '}
+                                <span style={{
+                                  fontWeight: 700,
+                                  color: isSkillApproved ? '#16A34A' : isSkillRejected ? '#DC2626' : '#D97706'
+                                }}>
+                                  {isSkillApproved ? 'Approved' : isSkillRejected ? 'Rejected' : (skill.passed ? 'Passed (Pending Admin)' : 'Not Passed')}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              {!isSkillApproved && (
+                                <button
+                                  type="button"
+                                  disabled={processing}
+                                  onClick={() => handleToggleSkillApproval(skill.categoryId, 'approved')}
+                                  className="btn btn-outline btn-sm"
+                                  style={{ color: '#16A34A', borderColor: '#86EFAC', fontSize: '11px', padding: '4px 8px' }}
+                                >
+                                  {t('admin.approveSkill', 'Approve Skill')}
+                                </button>
+                              )}
+                              {!isSkillRejected && (
+                                <button
+                                  type="button"
+                                  disabled={processing}
+                                  onClick={() => handleToggleSkillApproval(skill.categoryId, 'rejected')}
+                                  className="btn btn-outline btn-sm"
+                                  style={{ color: '#DC2626', borderColor: '#FCA5A5', fontSize: '11px', padding: '4px 8px' }}
+                                >
+                                  {t('admin.rejectSkill', 'Reject Skill')}
+                                </button>
+                              )}
                             </div>
                           </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <span className={att.passed ? 'badge badge-success' : 'badge badge-danger'} style={{ fontSize: '12px', fontWeight: 800 }}>
-                              {att.score}% ({att.passed ? t('status.PASSED') : t('status.FAILED')})
-                            </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Exam Attempts Log */}
+                  {activeAttempts.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '11.5px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
+                        {t('admin.examAttemptsLog', 'Examination Attempts Log')}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {activeAttempts.map((att, idx) => (
+                          <div
+                            key={att._id || idx}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              backgroundColor: '#FFFFFF',
+                              padding: '8px 12px',
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid var(--border-light)'
+                            }}
+                          >
+                            <div>
+                              <span style={{ fontWeight: 700, fontSize: '12.5px', color: 'var(--forest-900)' }}>
+                                {att.categoryName || att.categoryId}
+                              </span>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                {new Date(att.createdAt).toLocaleDateString()} • {t('admin.warningCount')}: {att.warningCount || 0}
+                                {att.weakTopics?.length > 0 && ` • Weak: ${att.weakTopics.join(', ')}`}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <span className={att.passed ? 'badge badge-success' : 'badge badge-danger'} style={{ fontSize: '11px', fontWeight: 800 }}>
+                                {att.score}% ({att.passed ? t('status.PASSED') : t('status.FAILED')})
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(!activeProvider.skills || activeProvider.skills.length === 0) && activeAttempts.length === 0 && (
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                      {t('providerDashboard.noSkills')}
                     </div>
                   )}
                 </div>
@@ -425,7 +519,7 @@ export default function AdminApprovalsDesk() {
                   </h4>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-                    
+
                     {/* Document 1: ID Proof */}
                     <div style={{
                       backgroundColor: 'var(--bg-warm)',

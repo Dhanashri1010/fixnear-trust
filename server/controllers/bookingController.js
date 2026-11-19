@@ -115,9 +115,21 @@ export const createBooking = async (req, res, next) => {
       isOnline: true,
       city: new RegExp(`^${escapedCity}$`, 'i'),
       $or: [
-        { 'skills.categoryId': service.categoryId },
-        { 'skills.categoryName': new RegExp(escapedCategory, 'i') },
-        { specialty: new RegExp(escapedSpecialty, 'i') },
+        {
+          skills: {
+            $elemMatch: {
+              $or: [
+                { categoryId: service.categoryId },
+                { categoryName: new RegExp(escapedCategory, 'i') },
+              ],
+              passed: true,
+            },
+          },
+        },
+        {
+          skills: { $size: 0 },
+          specialty: new RegExp(escapedSpecialty, 'i'),
+        },
       ],
     };
 
@@ -1117,7 +1129,9 @@ export const updateBookingStatus = async (req, res, next) => {
             (s.categoryId === service?.categoryId ||
               s.categoryName?.toLowerCase() === service?.category?.toLowerCase())
         ) ||
-        (service && new RegExp(escapeRegex(service.category || service.categoryId), 'i').test(providerDoc.specialty));
+        ((!providerDoc.skills || providerDoc.skills.length === 0) &&
+          service &&
+          new RegExp(escapeRegex(service.category || service.categoryId), 'i').test(providerDoc.specialty));
 
       if (!hasSkill) {
         return res.status(400).json({
@@ -1422,9 +1436,21 @@ export const offerBookingToNextProvider = async (bookingId) => {
     isOnline: true,
     city: new RegExp(`^${escapeRegex(booking.city.trim())}$`, 'i'),
     $or: [
-      { 'skills.categoryId': service.categoryId },
-      { 'skills.categoryName': new RegExp(escapeRegex(service.category), 'i') },
-      { specialty: new RegExp(escapeRegex(service.category || service.categoryId), 'i') },
+      {
+        skills: {
+          $elemMatch: {
+            $or: [
+              { categoryId: service.categoryId },
+              { categoryName: new RegExp(escapeRegex(service.category), 'i') },
+            ],
+            passed: true,
+          },
+        },
+      },
+      {
+        skills: { $size: 0 },
+        specialty: new RegExp(escapeRegex(service.category || service.categoryId), 'i'),
+      },
     ],
   };
 

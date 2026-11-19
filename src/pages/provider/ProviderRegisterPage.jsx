@@ -21,7 +21,12 @@ import {
   Info,
   Clock,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Wind,
+  Droplets,
+  Zap,
+  Tv,
+  Hammer
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -46,9 +51,10 @@ export default function ProviderRegisterPage() {
     phone: profile?.phone || user?.phone || '',
     city: profile?.city || user?.city || 'Mumbai',
     serviceArea: '',
+    selectedCategories: ['ac-cooling'],
     categoryId: 'ac-cooling',
     categoryName: 'Air Conditioner',
-    specialty: 'AC Installation, Repair & Servicing',
+    specialty: '',
     experienceYears: 3,
     idProofUrl: '',
     idProofPublicId: '',
@@ -58,6 +64,41 @@ export default function ProviderRegisterPage() {
     certificateResourceType: 'image',
     agreeTerms: true,
   });
+
+  const getCategoryIcon = (catId) => {
+    switch (catId) {
+      case 'ac-cooling': return <Wind size={18} />;
+      case 'plumbing': return <Droplets size={18} />;
+      case 'electrical': return <Zap size={18} />;
+      case 'appliances': return <Tv size={18} />;
+      case 'carpentry': return <Hammer size={18} />;
+      case 'deep-cleaning': return <Sparkles size={18} />;
+      default: return <Briefcase size={18} />;
+    }
+  };
+
+  const toggleCategory = (catId) => {
+    setFormData((prev) => {
+      const exists = prev.selectedCategories?.includes(catId);
+      let nextCats;
+      if (exists) {
+        if (prev.selectedCategories.length === 1) {
+          showToast(t('provider.selectAtLeastOne', 'Please select at least one trade service.'), 'error');
+          return prev;
+        }
+        nextCats = prev.selectedCategories.filter((c) => c !== catId);
+      } else {
+        nextCats = [...(prev.selectedCategories || []), catId];
+      }
+      const matched = categories.find((c) => (c.categoryId || c.id) === nextCats[0]);
+      return {
+        ...prev,
+        selectedCategories: nextCats,
+        categoryId: nextCats[0] || 'ac-cooling',
+        categoryName: matched ? matched.name : 'Air Conditioner',
+      };
+    });
+  };
 
   const [idFileName, setIdFileName] = useState('');
   const [certFileName, setCertFileName] = useState('');
@@ -97,6 +138,10 @@ export default function ProviderRegisterPage() {
             city: prov.city || prev.city || profile?.city || currentUser?.city || 'Mumbai',
             serviceArea: prov.serviceArea || prev.serviceArea,
             specialty: prov.specialty || prev.specialty,
+            selectedCategories:
+              prov.skills && prov.skills.length > 0
+                ? prov.skills.map((s) => s.categoryId)
+                : prev.selectedCategories,
             categoryId: prov.skills?.[0]?.categoryId || prev.categoryId,
             categoryName: prov.skills?.[0]?.categoryName || prev.categoryName,
             experienceYears: prov.experienceYears || prev.experienceYears,
@@ -227,12 +272,8 @@ export default function ProviderRegisterPage() {
 
   // Step 2 Validation
   const validateStep2 = () => {
-    if (!formData.categoryId) {
-      showToast('Please select your primary trade category.', 'error');
-      return false;
-    }
-    if (!formData.specialty.trim()) {
-      showToast('Please describe your specific technical skills.', 'error');
+    if (!formData.selectedCategories || formData.selectedCategories.length === 0) {
+      showToast(t('provider.selectAtLeastOne', 'Please select at least one trade service.'), 'error');
       return false;
     }
     if (formData.experienceYears < 0 || formData.experienceYears > 50) {
@@ -262,8 +303,9 @@ export default function ProviderRegisterPage() {
         phone: formData.phone.trim(),
         city: formData.city.trim(),
         serviceArea: formData.serviceArea.trim(),
-        specialty: formData.specialty.trim(),
-        categoryId: formData.categoryId,
+        specialty: formData.specialty.trim() || 'General Maintenance & Repairs',
+        selectedCategories: formData.selectedCategories,
+        categoryId: formData.categoryId || formData.selectedCategories[0],
         categoryName: formData.categoryName,
         experienceYears: Number(formData.experienceYears) || 1,
         idProofUrl: formData.idProofUrl,
@@ -276,8 +318,8 @@ export default function ProviderRegisterPage() {
 
       const res = await providersAPI.registerProfile(payload);
       if (res.success) {
-        showToast('Registration details saved! Proceeding to practical skill test.', 'success');
-        navigate(`/provider/test/${formData.categoryId}`);
+        showToast('Registration details saved! Proceeding to skill tests.', 'success');
+        navigate('/provider/test');
       } else {
         throw new Error(res.message || 'Registration failed');
       }
@@ -597,39 +639,98 @@ export default function ProviderRegisterPage() {
                 </h2>
               </div>
 
-              <div style={{ marginBottom: '16px' }}>
-                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>{t('provider.primaryCategoryLabel')}</label>
-                <select
-                  className="form-control"
-                  value={formData.categoryId}
-                  onChange={handleCategoryChange}
-                  style={{ fontWeight: 600 }}
-                >
-                  {categories.map((c) => (
-                    <option key={c.categoryId || c.id} value={c.categoryId || c.id}>
-                      {c.name} {c.startingPrice ? `(from ₹${c.startingPrice})` : ''}
-                    </option>
-                  ))}
+              <div style={{ marginBottom: '20px' }}>
+                <label className="form-label" style={{ fontWeight: 700, fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{t('provider.selectTradeServices', 'Select Trade Services (Choose one or more)')}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--forest-700)', fontWeight: 600 }}>
+                    {formData.selectedCategories?.length || 0} {t('provider.servicesSelected', 'selected')}
+                  </span>
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                  {categories.map((c) => {
+                    const catId = c.categoryId || c.id;
+                    const isSelected = formData.selectedCategories?.includes(catId);
+                    return (
+                      <div
+                        key={catId}
+                        onClick={() => toggleCategory(catId)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '12px 14px',
+                          borderRadius: 'var(--radius-lg)',
+                          border: `2px solid ${isSelected ? 'var(--forest-600)' : 'var(--border-light)'}`,
+                          backgroundColor: isSelected ? 'var(--forest-50)' : '#FFFFFF',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          userSelect: 'none',
+                        }}
+                      >
+                        <div style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '4px',
+                          border: `2px solid ${isSelected ? 'var(--forest-600)' : '#D1D5DB'}`,
+                          backgroundColor: isSelected ? 'var(--forest-600)' : 'transparent',
+                          color: '#FFFFFF',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          {isSelected && <CheckCircle2 size={14} />}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                          <span style={{ color: isSelected ? 'var(--forest-700)' : 'var(--text-muted)' }}>
+                            {getCategoryIcon(catId)}
+                          </span>
+                          <span style={{ fontSize: '13.5px', fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--forest-950)' : 'var(--text-main)' }}>
+                            {c.name}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
                   {categories.length === 0 && (
-                    <>
-                      <option value="ac-cooling">{t('categories.ac')}</option>
-                      <option value="electrical">{t('categories.electrician')}</option>
-                      <option value="plumbing">{t('categories.plumbing')}</option>
-                      <option value="appliances">{t('categories.appliances')}</option>
-                    </>
+                    ['ac-cooling', 'plumbing', 'electrical', 'appliances', 'carpentry', 'deep-cleaning'].map((catId) => {
+                      const isSelected = formData.selectedCategories?.includes(catId);
+                      return (
+                        <div
+                          key={catId}
+                          onClick={() => toggleCategory(catId)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '12px 14px',
+                            borderRadius: 'var(--radius-lg)',
+                            border: `2px solid ${isSelected ? 'var(--forest-600)' : 'var(--border-light)'}`,
+                            backgroundColor: isSelected ? 'var(--forest-50)' : '#FFFFFF',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span style={{ color: isSelected ? 'var(--forest-700)' : 'var(--text-muted)' }}>
+                            {getCategoryIcon(catId)}
+                          </span>
+                          <span style={{ fontSize: '13px', fontWeight: 600 }}>{catId}</span>
+                        </div>
+                      );
+                    })
                   )}
-                </select>
+                </div>
               </div>
 
               <div style={{ marginBottom: '16px' }}>
-                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>{t('provider.specialtyLabel')}</label>
+                <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>
+                  {t('provider.specialtyLabel', 'Describe your experience (Optional)')}
+                </label>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="e.g. Deep clean, compressor servicing, PCB diagnostics"
+                  placeholder={t('provider.specialtyPlaceholder', 'e.g. 5+ years in compressor repair, inverter PCB, pipe welding')}
                   value={formData.specialty}
                   onChange={(e) => handleInputChange('specialty', e.target.value)}
-                  required
                 />
               </div>
 

@@ -9,18 +9,70 @@ import { QUESTION_BANK_SEED } from '../data/questionBankData.js';
 
 dotenv.config();
 
-const loadData = async () => {
-  try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/fixnear';
-    await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 });
-    console.log('[Load Data CLI] Connected to MongoDB Atlas.');
+/**
+ * Validates a single question seed object
+ */
+export const validateSeedQuestion = (q, index, validCategoryIds) => {
+  const prefix = `[Question Seed Validation Error at index ${index} (category: ${q?.categoryId || 'unknown'})]`;
 
-    // 1. Sync Categories
-    console.log(`[Load Data CLI] Loading ${SEED_CATEGORIES.length} categories...`);
-    for (const cat of SEED_CATEGORIES) {
-      await Category.findOneAndUpdate(
-        { categoryId: cat.id },
-        {
+  if (!q) {
+    throw new Error(`${prefix} Question object is null or undefined.`);
+  }
+
+  if (!q.questionText || typeof q.questionText !== 'string' || q.questionText.trim().length === 0) {
+    throw new Error(`${prefix} questionText is missing or empty.`);
+  }
+
+  if (!q.categoryId || !validCategoryIds.has(q.categoryId)) {
+    throw new Error(`${prefix} categoryId '${q.categoryId}' does not exist in seeded categories.`);
+  }
+
+  if (!Array.isArray(q.options) || q.options.length !== 4) {
+    throw new Error(`${prefix} Question must have exactly 4 options. Found: ${q.options ? q.options.length : 0}.`);
+  }
+
+  for (let i = 0; i < 4; i++) {
+    if (typeof q.options[i] !== 'string' || q.options[i].trim().length === 0) {
+      throw new Error(`${prefix} Option index ${i} is empty or not a string.`);
+    }
+  }
+
+  if (
+    typeof q.correctIndex !== 'number' ||
+    !Number.isInteger(q.correctIndex) ||
+    q.correctIndex < 0 ||
+    q.correctIndex > 3
+  ) {
+    throw new Error(`${prefix} correctIndex must be an integer between 0 and 3. Found: ${q.correctIndex}.`);
+  }
+
+  return true;
+};
+
+/**
+ * Core loader function that can be executed from CLI or in tests
+ */
+export const runDataLoader = async () => {
+  // 0. Clean up bad data: delete questions with missing/empty questionText
+  const deleteResult = await Question.deleteMany({
+    $or: [
+      { questionText: { $exists: false } },
+      { questionText: null },
+      { questionText: '' },
+      { questionText: { $regex: /^\s*$/ } },
+    ],
+  });
+  if (deleteResult.deletedCount > 0) {
+    console.log(`[Load Data CLI] Cleaned up ${deleteResult.deletedCount} corrupted/empty question records.`);
+  }
+
+  // 1. Sync Categories
+  console.log(`[Load Data CLI] Loading ${SEED_CATEGORIES.length} categories...`);
+  const categoryOps = SEED_CATEGORIES.map((cat) => ({
+    updateOne: {
+      filter: { categoryId: cat.id },
+      update: {
+        $set: {
           categoryId: cat.id,
           name: cat.name,
           tagline: cat.tagline,
@@ -31,17 +83,20 @@ const loadData = async () => {
           accentText: cat.accentText,
           isActive: true,
         },
-        { upsert: true, new: true }
-      );
-    }
-    console.log(`[Load Data CLI] ✓ ${SEED_CATEGORIES.length} categories synchronized.`);
+      },
+      upsert: true,
+    },
+  }));
+  await Category.bulkWrite(categoryOps);
+  console.log(`[Load Data CLI] ✓ ${SEED_CATEGORIES.length} categories synchronized.`);
 
-    // 2. Sync Services
-    console.log(`[Load Data CLI] Loading ${SEED_SERVICES.length} services...`);
-    for (const srv of SEED_SERVICES) {
-      await Service.findOneAndUpdate(
-        { serviceId: srv.id },
-        {
+  // 2. Sync Services
+  console.log(`[Load Data CLI] Loading ${SEED_SERVICES.length} services...`);
+  const serviceOps = SEED_SERVICES.map((srv) => ({
+    updateOne: {
+      filter: { serviceId: srv.id },
+      update: {
+        $set: {
           serviceId: srv.id,
           categoryId: srv.categoryId,
           category: srv.category,
@@ -55,46 +110,107 @@ const loadData = async () => {
           scope: srv.scope || { included: [], excluded: [] },
           isActive: true,
         },
-        { upsert: true, new: true }
-      );
-    }
-    console.log(`[Load Data CLI] ✓ ${SEED_SERVICES.length} services synchronized.`);
+      },
+      upsert: true,
+    },
+  }));
+  await Service.bulkWrite(serviceOps);
+  console.log(`[Load Data CLI] ✓ ${SEED_SERVICES.length} services synchronized.`);
 
-    // 3. Sync 90 Test Questions
-    console.log(`[Load Data CLI] Loading ${QUESTION_BANK_SEED.length} questions into Question Bank...`);
-    for (const q of QUESTION_BANK_SEED) {
-      await Question.findOneAndUpdate(
-        { categoryId: q.categoryId, questionText: q.questionText },
-        {
-          categoryId: q.categoryId,
-          categoryName: q.categoryName,
-          questionText: q.questionText,
-          options: q.options,
-          correctIndex: q.correctIndex,
-          explanation: q.explanation || '',
-          isActive: true,
+  // 3. Validate and Sync Question Bank
+  const validCategoryIds = new Set(SEED_CATEGORIES.map((c) => c.id));
+  const catNameMap = new Map(SEED_CATEGORIES.map((c) => [c.id, c.name]));
+
+  console.log(`[Load Data CLI] Validating ${QUESTION_BANK_SEED.length} questions...`);
+  QUESTION_BANK_SEED.forEach((q, index) => {
+    validateSeedQuestion(q, index, validCategoryIds);
+  });
+  console.log(`[Load Data CLI] ✓ All ${QUESTION_BANK_SEED.length} questions validated successfully.`);
+
+  console.log(`[Load Data CLI] Bulk writing ${QUESTION_BANK_SEED.length} questions into Question Bank...`);
+  const questionOps = QUESTION_BANK_SEED.map((q) => {
+    const categoryName = q.categoryName || catNameMap.get(q.categoryId) || q.categoryId;
+    return {
+      updateOne: {
+        filter: { categoryId: q.categoryId, questionText: q.questionText.trim() },
+        update: {
+          $set: {
+            categoryId: q.categoryId,
+            categoryName,
+            topic: q.topic || 'Safety',
+            difficulty: q.difficulty || 'intermediate',
+            questionText: q.questionText.trim(),
+            options: q.options.map((opt) => opt.trim()),
+            correctIndex: q.correctIndex,
+            explanation: (q.explanation || '').trim(),
+            isActive: true,
+          },
         },
-        { upsert: true, new: true }
+        upsert: true,
+        runValidators: true,
+      },
+    };
+  });
+
+  const bulkResult = await Question.bulkWrite(questionOps);
+  console.log(
+    `[Load Data CLI] ✓ Question bank bulk write complete. Upserted: ${bulkResult.upsertedCount}, Modified: ${bulkResult.modifiedCount}, Matched: ${bulkResult.matchedCount}.`
+  );
+
+  // 4. Verify category question counts and ensure at least 15 per category
+  console.log('\n[Load Data CLI] Verifying question counts per trade category:');
+  const categoryCounts = {};
+  for (const cat of SEED_CATEGORIES) {
+    const count = await Question.countDocuments({ categoryId: cat.id, isActive: true });
+    categoryCounts[cat.id] = count;
+    console.log(`  - ${cat.name} (${cat.id}): ${count} active questions`);
+    if (count < 15) {
+      throw new Error(
+        `[Load Data CLI FATAL] Category '${cat.id}' has only ${count} questions. Minimum 15 questions required!`
       );
     }
-    console.log(`[Load Data CLI] ✓ ${QUESTION_BANK_SEED.length} examination questions synchronized.`);
+  }
 
-    // 4. Sync Global Settings
-    const settings = await Setting.getSettings();
-    console.log(`[Load Data CLI] ✓ Global platform settings initialized (Platform fee: ₹${settings.platformFee}, Commission: ${settings.platformCommissionPercent}%).`);
+  const totalQuestions = await Question.countDocuments();
+  console.log(`[Load Data CLI] Total questions in database: ${totalQuestions}`);
+
+  // 5. Sync Global Settings
+  const settings = await Setting.getSettings();
+  console.log(
+    `[Load Data CLI] ✓ Global platform settings initialized (Platform fee: ₹${settings.platformFee}, Commission: ${settings.platformCommissionPercent}%).`
+  );
+
+  return {
+    categoriesCount: SEED_CATEGORIES.length,
+    servicesCount: SEED_SERVICES.length,
+    totalQuestions,
+    categoryCounts,
+  };
+};
+
+const runCLI = async () => {
+  try {
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/fixnear';
+    await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 });
+    console.log('[Load Data CLI] Connected to MongoDB.');
+
+    const summary = await runDataLoader();
 
     console.log('\n======================================================');
     console.log('DATA LOAD SUCCESSFUL:');
-    console.log(`- Categories: ${SEED_CATEGORIES.length}`);
-    console.log(`- Services: ${SEED_SERVICES.length}`);
-    console.log(`- Questions: ${QUESTION_BANK_SEED.length}`);
+    console.log(`- Categories: ${summary.categoriesCount}`);
+    console.log(`- Services: ${summary.servicesCount}`);
+    console.log(`- Questions: ${summary.totalQuestions}`);
     console.log('======================================================\n');
   } catch (err) {
-    console.error('[Load Data CLI] Error loading data:', err.message);
+    console.error('\n[Load Data CLI ERROR]:', err.message);
+    process.exit(1);
   } finally {
     await mongoose.disconnect();
     process.exit(0);
   }
 };
 
-loadData();
+if (process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('server/scripts/loadData.js')) {
+  runCLI();
+}

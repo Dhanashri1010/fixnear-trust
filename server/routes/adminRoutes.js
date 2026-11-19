@@ -14,6 +14,7 @@ import {
   rejectProviderAction,
   requestProviderInfoAction,
   getProvidersList,
+  updateProviderSkillStatus,
   suspendProviderAction,
   reinstateProviderAction,
   getCustomersList,
@@ -162,6 +163,7 @@ router.post('/approvals/:id/request-info', validate(requestInfoSchema), requestP
 // 3. Providers
 router.get('/providers', getProvidersList);
 router.get('/providers/:id', getProviderDetails);
+router.patch('/providers/:id/skills/:categoryId', updateProviderSkillStatus);
 router.post('/providers/:id/suspend', validate(reasonSchema), suspendProviderAction);
 router.post('/providers/:id/reinstate', validate(reinstateSchema), reinstateProviderAction);
 

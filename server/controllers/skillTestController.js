@@ -3,8 +3,10 @@ import { Question } from '../models/Question.js';
 import { SkillTestSession } from '../models/SkillTestSession.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { Provider } from '../models/Provider.js';
+import { User } from '../models/User.js';
 import { Setting } from '../models/Setting.js';
 import { Category } from '../models/Category.js';
+import { sendSkillTestResultEmail } from '../utils/emailHelper.js';
 
 // GET /api/skill-test/:categoryId (starts or resumes exam session, returns 10 questions without answers)
 export const startSkillTest = async (req, res, next) => {
@@ -17,6 +19,42 @@ export const startSkillTest = async (req, res, next) => {
     }
 
     const settings = await Setting.getSettings();
+
+    // 0. Requirement 5: Refuse if category has fewer than 10 active questions
+    const activeQuestionsCount = await Question.countDocuments({ categoryId, isActive: true });
+    if (activeQuestionsCount < 10) {
+      return res.status(400).json({
+        success: false,
+        code: 'TEST_NOT_PREPARED',
+        message: 'This test is being prepared. Please check back soon.',
+      });
+    }
+
+    // 0b. Requirement 7: Check that categoryId is one of provider's selected skills
+    if (provider.skills && provider.skills.length > 0) {
+      const hasSkill = provider.skills.some((s) => s.categoryId === categoryId);
+      if (!hasSkill) {
+        return res.status(403).json({
+          success: false,
+          code: 'SKILL_NOT_SELECTED',
+          message: 'This skill test is for a service not selected in your profile. Please add it to your services first.',
+        });
+      }
+    } else {
+      // If skills array is empty (e.g. registered before multi-skill selection), auto-add this category as initial skill
+      const categoryDoc = await Category.findOne({ categoryId });
+      provider.skills = [
+        {
+          categoryId,
+          categoryName: categoryDoc?.name || categoryId,
+          passed: false,
+          testScore: 0,
+          badge: '',
+          status: 'not_taken',
+        },
+      ];
+      await provider.save();
+    }
 
     // 1. Check 24-hour category cooldown
     const activeCooldown = await TestAttempt.findOne({
@@ -37,7 +75,7 @@ export const startSkillTest = async (req, res, next) => {
       });
     }
 
-    // 2. Fix 2: Check for an active unsubmitted session for this provider & category
+    // 2. Check for an active unsubmitted session for this provider & category
     const existingSession = await SkillTestSession.findOne({
       providerId: provider._id,
       categoryId,
@@ -103,11 +141,22 @@ export const startSkillTest = async (req, res, next) => {
       }
     }
 
-    // 3. Fetch 10 random questions WITHOUT correctIndex or explanation
+    // 3. Fetch exactly 10 random questions WITHOUT correctIndex or explanation
     const questions = await Question.aggregate([
       { $match: { categoryId, isActive: true } },
       { $sample: { size: 10 } },
-      { $project: { correctIndex: 0, explanation: 0 } },
+      {
+        $project: {
+          _id: 1,
+          categoryId: 1,
+          categoryName: 1,
+          topic: 1,
+          difficulty: 1,
+          questionText: 1,
+          options: 1,
+          isActive: 1,
+        },
+      },
     ]);
 
     if (!questions || questions.length === 0) {
@@ -211,7 +260,7 @@ export const submitSkillTest = async (req, res, next) => {
       });
     }
 
-    // Fix 1: Rigorous Answer Validation
+    // Rigorous Answer Validation
     const sessionQIdStrings = session.questionIds.map((id) => String(id));
     const submittedAnswers = Array.isArray(answers) ? answers : [];
 
@@ -258,7 +307,7 @@ export const submitSkillTest = async (req, res, next) => {
       }
     }
 
-    // Fix 3: ATOMIC SUBMISSION (flip isSubmitted atomically)
+    // ATOMIC SUBMISSION (flip isSubmitted atomically)
     const atomicSession = await SkillTestSession.findOneAndUpdate(
       { _id: session._id, isSubmitted: false },
       { $set: { isSubmitted: true, submittedAt: new Date() } },
@@ -281,7 +330,7 @@ export const submitSkillTest = async (req, res, next) => {
     submittedAnswers.forEach((a) => answerMap.set(String(a.questionId), a.selectedIndex));
 
     let correctCount = 0;
-    const weakTopics = [];
+    const rawWeakTopics = [];
 
     session.questionIds.forEach((qId) => {
       const q = questionMap.get(String(qId));
@@ -289,10 +338,12 @@ export const submitSkillTest = async (req, res, next) => {
       if (q && userSelected !== undefined && userSelected === q.correctIndex) {
         correctCount++;
       } else if (q) {
-        weakTopics.push(q.questionText);
+        // Collect realistic topic (Safety, Tools, Troubleshooting, Installation, Maintenance)
+        rawWeakTopics.push(q.topic || 'Safety');
       }
     });
 
+    const uniqueWeakTopics = [...new Set(rawWeakTopics)];
     const totalQuestions = session.questionIds.length || 10;
     const scorePercent = Math.round((correctCount / totalQuestions) * 100);
     const passed = scorePercent >= settings.skillTestPassMark;
@@ -303,6 +354,8 @@ export const submitSkillTest = async (req, res, next) => {
     else if (scorePercent >= 70) badge = 'Bronze';
 
     let cooldownUntil = null;
+    const providerUser = await User.findById(provider.userId);
+
     if (passed) {
       const existingSkills = provider.skills || [];
       const skillIdx = existingSkills.findIndex((s) => s.categoryId === categoryId);
@@ -311,6 +364,7 @@ export const submitSkillTest = async (req, res, next) => {
         existingSkills[skillIdx].testScore = scorePercent;
         existingSkills[skillIdx].badge = badge;
         existingSkills[skillIdx].verifiedAt = new Date();
+        existingSkills[skillIdx].status = 'passed';
       } else {
         existingSkills.push({
           categoryId,
@@ -319,22 +373,57 @@ export const submitSkillTest = async (req, res, next) => {
           testScore: scorePercent,
           badge,
           verifiedAt: new Date(),
+          status: 'passed',
         });
       }
       provider.skills = existingSkills;
 
-      if (provider.status === 'take_skill_test') {
+      // Requirement 9: Provider can go to waiting_for_approval as soon as ONE skill is passed
+      const anyPassed = provider.skills.some((s) => s.passed);
+      if (anyPassed && (provider.status === 'take_skill_test' || !provider.status)) {
         provider.status = 'waiting_for_approval';
       }
       if (badge) {
         provider.badges = [...new Set([...(provider.badges || []), `${badge} Certified`])];
       }
       await provider.save();
+
+      // Localized Email for Test Passed
+      sendSkillTestResultEmail({
+        providerEmail: provider.email,
+        providerName: provider.name,
+        categoryName: session.categoryName,
+        score: scorePercent,
+        passed: true,
+        badge,
+        lang: providerUser?.preferredLanguage || 'en',
+      }).catch(() => {});
     } else {
       cooldownUntil = new Date(Date.now() + settings.skillTestCooldownHours * 3600 * 1000);
+      const existingSkills = provider.skills || [];
+      const skillIdx = existingSkills.findIndex((s) => s.categoryId === categoryId);
+      if (skillIdx >= 0) {
+        existingSkills[skillIdx].passed = false;
+        existingSkills[skillIdx].testScore = scorePercent;
+        existingSkills[skillIdx].status = 'failed';
+      }
+      provider.skills = existingSkills;
+      await provider.save();
+
+      // Requirement 9: Localized Email for Test Failed with Weak Topics & Cooldown Date
+      sendSkillTestResultEmail({
+        providerEmail: provider.email,
+        providerName: provider.name,
+        categoryName: session.categoryName,
+        score: scorePercent,
+        passed: false,
+        weakTopics: uniqueWeakTopics.slice(0, 3),
+        cooldownUntil,
+        lang: providerUser?.preferredLanguage || 'en',
+      }).catch(() => {});
     }
 
-    // Record attempt
+    // Record attempt in database
     await TestAttempt.create({
       providerId: provider._id,
       userId: req.user._id,
@@ -345,8 +434,8 @@ export const submitSkillTest = async (req, res, next) => {
       badge,
       totalQuestions,
       correctAnswers: correctCount,
-      weakTopics: weakTopics.slice(0, 3), // Top 3 weak areas
-      warningCount: Number(warningCount) || 0, // Informational tab-switch count
+      weakTopics: uniqueWeakTopics.slice(0, 3), // Realistic weak areas
+      warningCount: Number(warningCount) || 0,
       timeSpentSeconds,
       cooldownUntil,
     });
@@ -362,7 +451,7 @@ export const submitSkillTest = async (req, res, next) => {
       badge,
       totalQuestions,
       correctAnswers: correctCount,
-      weakTopics: weakTopics.slice(0, 3),
+      weakTopics: uniqueWeakTopics.slice(0, 3),
       warningCount: Number(warningCount) || 0,
       timeSpentSeconds,
       cooldownUntil,

@@ -383,6 +383,161 @@ export const sendProviderStatusEmail = async ({ providerEmail, providerName, sta
   });
 };
 
+// 4b. Provider Skill Test Result Email (Passed or Failed with Weak Topics & Cooldown)
+export const sendSkillTestResultEmail = async ({
+  providerEmail,
+  providerName,
+  categoryName,
+  score,
+  passed,
+  badge = '',
+  weakTopics = [],
+  cooldownUntil = null,
+  lang = 'en',
+}) => {
+  let subject = '';
+  let body = '';
+  const greeting = lang === 'hi' ? `नमस्ते ${providerName},` : lang === 'mr' ? `नमस्कार ${providerName},` : `Hello ${providerName},`;
+
+  const retryDateStr = cooldownUntil
+    ? new Date(cooldownUntil).toLocaleString(lang === 'hi' ? 'hi-IN' : lang === 'mr' ? 'mr-IN' : 'en-IN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'Asia/Kolkata',
+      })
+    : '';
+
+  if (lang === 'hi') {
+    if (passed) {
+      subject = `कौशल परीक्षा उत्तीर्ण: ${categoryName} (${score}%)`;
+      body = `
+        <p style="font-size: 15px; line-height: 1.6; color: #166534;">
+          बधाई हो! आपने <strong>${categoryName}</strong> कौशल परीक्षा <strong>${score}%</strong> अंकों के साथ उत्तीर्ण कर ली है${badge ? ` (${badge} प्रमाणित)` : ''}।
+        </p>
+        <p style="font-size: 14px; color: #334155;">
+          यह कौशल आपके तकनीशियन प्रोफ़ाइल में जुड़ गया है। जैसे ही आपका प्रोफ़ाइल एडमिन द्वारा स्वीकृत होगा, आपको इस श्रेणी के काम मिलने शुरू हो जाएंगे।
+        </p>
+      `;
+    } else {
+      subject = `कौशल परीक्षा परिणाम: ${categoryName}`;
+      body = `
+        <p style="font-size: 15px; line-height: 1.6; color: #991b1b;">
+          आपने <strong>${categoryName}</strong> कौशल परीक्षा में <strong>${score}%</strong> अंक प्राप्त किए हैं। उत्तीर्ण होने के लिए न्यूनतम 70% अंक आवश्यक हैं।
+        </p>
+        ${
+          weakTopics.length > 0
+            ? `<div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 14px; margin: 16px 0;">
+                <p style="margin: 0 0 6px 0; font-weight: 700; color: #991b1b; font-size: 13px;">सुधार के मुख्य क्षेत्र (कमजोर विषय):</p>
+                <ul style="margin: 0; padding-left: 20px; color: #7f1d1d; font-size: 13px;">
+                  ${weakTopics.map((t) => `<li>${t}</li>`).join('')}
+                </ul>
+              </div>`
+            : ''
+        }
+        ${
+          retryDateStr
+            ? `<p style="font-size: 14px; color: #854d0e; background: #fefce8; padding: 12px; border-radius: 6px;">
+                पुनः परीक्षा प्रयास का समय: <strong>${retryDateStr}</strong> के बाद।
+              </p>`
+            : ''
+        }
+        <p style="font-size: 13px; color: #64748b;">
+          इस दौरान आप अपनी अन्य चुनी हुई श्रेणियों की कौशल परीक्षाएं दे सकते हैं।
+        </p>
+      `;
+    }
+  } else if (lang === 'mr') {
+    if (passed) {
+      subject = `कौशल्य चाचणी उत्तीर्ण: ${categoryName} (${score}%)`;
+      body = `
+        <p style="font-size: 15px; line-height: 1.6; color: #166534;">
+          अभिनंदन! आपण <strong>${categoryName}</strong> कौशल्य चाचणी <strong>${score}%</strong> गुणांसह उत्तीर्ण केली आहे${badge ? ` (${badge} प्रमाणित)` : ''}।
+        </p>
+        <p style="font-size: 14px; color: #334155;">
+          हे कौशल्य आपल्या तंत्रज्ञ प्रोफाईलमध्ये जोडले गेले आहे. प्रशासकीय पडताळणी पूर्ण झाल्यावर आपल्याला या सेवेची कामे मिळण्यास सुरुवात होईल.
+        </p>
+      `;
+    } else {
+      subject = `कौशल्य चाचणी निकाल: ${categoryName}`;
+      body = `
+        <p style="font-size: 15px; line-height: 1.6; color: #991b1b;">
+          आपण <strong>${categoryName}</strong> कौशल्य चाचणीमध्ये <strong>${score}%</strong> गुण मिळवले आहेत. उत्तीर्ण होण्यासाठी किमान 70% गुणांची आवश्यकता आहे.
+        </p>
+        ${
+          weakTopics.length > 0
+            ? `<div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 14px; margin: 16px 0;">
+                <p style="margin: 0 0 6px 0; font-weight: 700; color: #991b1b; font-size: 13px;">पुनरावलोकन करण्याचे विषय:</p>
+                <ul style="margin: 0; padding-left: 20px; color: #7f1d1d; font-size: 13px;">
+                  ${weakTopics.map((t) => `<li>${t}</li>`).join('')}
+                </ul>
+              </div>`
+            : ''
+        }
+        ${
+          retryDateStr
+            ? `<p style="font-size: 14px; color: #854d0e; background: #fefce8; padding: 12px; border-radius: 6px;">
+                पुन्हा चाचणी देण्याची वेळ: <strong>${retryDateStr}</strong> नंतर.
+              </p>`
+            : ''
+        }
+        <p style="font-size: 13px; color: #64748b;">
+          या दरम्यान आपण इतर निवडलेल्या सेवांच्या चाचण्या देऊ शकता.
+        </p>
+      `;
+    }
+  } else {
+    // English default
+    if (passed) {
+      subject = `Skill Test Passed: ${categoryName} (${score}%)`;
+      body = `
+        <p style="font-size: 15px; line-height: 1.6; color: #166534;">
+          Congratulations! You have passed the <strong>${categoryName}</strong> skill certification test with a score of <strong>${score}%</strong>${badge ? ` (${badge} Certified)` : ''}.
+        </p>
+        <p style="font-size: 14px; color: #334155;">
+          This skill is now recorded on your technician profile. Once your account documents are verified by administration, you will be eligible to receive customer job offers for this trade.
+        </p>
+      `;
+    } else {
+      subject = `Skill Test Result: ${categoryName}`;
+      body = `
+        <p style="font-size: 15px; line-height: 1.6; color: #991b1b;">
+          You scored <strong>${score}%</strong> on the <strong>${categoryName}</strong> skill test. A minimum passing score of 70% is required.
+        </p>
+        ${
+          weakTopics.length > 0
+            ? `<div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 14px; margin: 16px 0;">
+                <p style="margin: 0 0 6px 0; font-weight: 700; color: #991b1b; font-size: 13px;">Key Weak Topics to Review:</p>
+                <ul style="margin: 0; padding-left: 20px; color: #7f1d1d; font-size: 13px;">
+                  ${weakTopics.map((t) => `<li>${t}</li>`).join('')}
+                </ul>
+              </div>`
+            : ''
+        }
+        ${
+          retryDateStr
+            ? `<p style="font-size: 14px; color: #854d0e; background: #fefce8; padding: 12px; border-radius: 6px;">
+                Test retry window opens on: <strong>${retryDateStr}</strong>
+              </p>`
+            : ''
+        }
+        <p style="font-size: 13px; color: #64748b;">
+          You can continue taking skill tests for your other selected trade services while this cooldown period is active.
+        </p>
+      `;
+    }
+  }
+
+  return sendEmailWithRetry({
+    to: providerEmail,
+    subject,
+    html: `
+      <h2 style="color: #0f172a; margin-top: 0;">${greeting}</h2>
+      ${body}
+    `,
+    lang,
+  });
+};
+
 // 5. Password Reset
 export const sendPasswordResetEmail = async ({ userEmail, userName, resetUrl, lang = 'en' }) => {
   let subject = 'Reset Your FixNear Account Password';
@@ -674,4 +829,5 @@ export default {
   sendComplaintResolvedEmail,
   sendWelcomeEmail,
   sendBookingCancelledEmail,
+  sendSkillTestResultEmail,
 };

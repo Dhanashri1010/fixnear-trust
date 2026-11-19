@@ -39,7 +39,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { providersAPI, bookingsAPI, paymentsAPI, getSocket } from '../../services/api';
+import { providersAPI, bookingsAPI, paymentsAPI, servicesAPI, getSocket } from '../../services/api';
 
 export default function ProviderDashboardPage() {
   const navigate = useNavigate();
@@ -82,24 +82,35 @@ export default function ProviderDashboardPage() {
   // Document preview state
   const [documentLoading, setDocumentLoading] = useState(null);
 
+  // Add another service state
+  const [availableCategories, setAvailableCategories] = useState([]);
+  const [showAddSkillModal, setShowAddSkillModal] = useState(false);
+  const [selectedNewSkill, setSelectedNewSkill] = useState('');
+  const [addingSkill, setAddingSkill] = useState(false);
+
   // Fetch Dashboard Data from API
   const fetchDashboardData = useCallback(async () => {
     try {
-      const [profileRes, bookingsRes] = await Promise.all([
+      const [profileRes, bookingsRes, catsRes] = await Promise.allSettled([
         providersAPI.getMyProfile(),
         bookingsAPI.getMyBookings(),
+        servicesAPI.getCategories(),
       ]);
 
-      if (profileRes.success) {
-        setProvider(profileRes.provider);
-        setIsOnline(Boolean(profileRes.provider?.isOnline));
-        if (profileRes.earnings) setEarnings(profileRes.earnings);
-        if (profileRes.settings) setSettings(profileRes.settings);
-        if (profileRes.reviews) setReviews(profileRes.reviews);
+      if (catsRes.status === 'fulfilled' && catsRes.value?.categories) {
+        setAvailableCategories(catsRes.value.categories);
       }
 
-      if (bookingsRes.success && Array.isArray(bookingsRes.bookings)) {
-        setBookings(bookingsRes.bookings);
+      if (profileRes.status === 'fulfilled' && profileRes.value?.success) {
+        setProvider(profileRes.value.provider);
+        setIsOnline(Boolean(profileRes.value.provider?.isOnline));
+        if (profileRes.value.earnings) setEarnings(profileRes.value.earnings);
+        if (profileRes.value.settings) setSettings(profileRes.value.settings);
+        if (profileRes.value.reviews) setReviews(profileRes.value.reviews);
+      }
+
+      if (bookingsRes.status === 'fulfilled' && bookingsRes.value?.success && Array.isArray(bookingsRes.value.bookings)) {
+        setBookings(bookingsRes.value.bookings);
 
         // Check if there is an unexpired incoming offer for this provider
         const pendingOffer = bookingsRes.bookings.find(
@@ -357,6 +368,30 @@ export default function ProviderDashboardPage() {
       showToast(err.message || 'Failed to confirm cash receipt.', 'error');
     } finally {
       setCashSubmittingId(null);
+    }
+  };
+
+  // Add another trade service handler
+  const handleAddSkillSubmit = async () => {
+    if (!selectedNewSkill) {
+      showToast(t('providerDashboard.selectServiceFirst', 'Please choose a service to add.'), 'error');
+      return;
+    }
+    setAddingSkill(true);
+    try {
+      const res = await providersAPI.addSkill(selectedNewSkill);
+      if (res.success) {
+        showToast(res.message || 'Service added! Take the skill test to verify.', 'success');
+        if (res.provider) setProvider(res.provider);
+        setShowAddSkillModal(false);
+        const targetCat = selectedNewSkill;
+        setSelectedNewSkill('');
+        navigate(`/provider/test/${targetCat}`);
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to add service.', 'error');
+    } finally {
+      setAddingSkill(false);
     }
   };
 
@@ -1171,10 +1206,26 @@ export default function ProviderDashboardPage() {
               </div>
             </div>
 
-            {/* Verified Skills Grid */}
-            <h3 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--forest-900)', marginBottom: '12px' }}>
-              {t('providerDashboard.skillsCert')}
-            </h3>
+            {/* Verified Skills Header & Add Service */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
+                {t('providerDashboard.skillsCert')}
+              </h3>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Link to="/provider/test" className="btn btn-outline btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <span>{t('providerDashboard.allTestsBtn', 'Your Skill Tests')}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowAddSkillModal(true)}
+                  className="btn btn-primary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={15} />
+                  <span>{t('providerDashboard.addServiceBtn', 'Add Another Service')}</span>
+                </button>
+              </div>
+            </div>
 
             {provider?.skills && provider.skills.length > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginBottom: '28px' }}>
@@ -1214,6 +1265,19 @@ export default function ProviderDashboardPage() {
                     <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                       {t('providerDashboard.scoreLabel')} <strong>{skill.testScore || 0}%</strong> {skill.passed ? t('providerDashboard.passedExam') : t('providerDashboard.requires70')}
                     </div>
+
+                    {!skill.passed && (
+                      <div style={{ marginTop: '12px' }}>
+                        <Link
+                          to={`/provider/test/${skill.categoryId}`}
+                          className="btn btn-primary btn-sm"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 12px' }}
+                        >
+                          <span>{t('providerTest.takeTestBtn', 'Take Test')}</span>
+                          <ArrowRight size={13} />
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1221,6 +1285,78 @@ export default function ProviderDashboardPage() {
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
                 {t('providerDashboard.noSkills')}
               </p>
+            )}
+
+            {/* Add Another Trade Service Modal */}
+            {showAddSkillModal && (
+              <div style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 9999,
+                padding: '16px',
+              }}>
+                <div style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: 'var(--radius-xl)',
+                  padding: '28px',
+                  maxWidth: '480px',
+                  width: '100%',
+                  boxShadow: 'var(--shadow-xl)',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-950)', margin: 0 }}>
+                      {t('providerDashboard.addServiceModalTitle', 'Add Another Trade Service')}
+                    </h3>
+                    <button type="button" onClick={() => setShowAddSkillModal(false)} className="btn btn-ghost btn-sm" style={{ padding: '4px' }}>
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginBottom: '18px', lineHeight: 1.5 }}>
+                    {t('providerDashboard.addServiceModalDesc', 'Expand your earning potential. Select an additional trade service, pass its 10-question safety test, and administration will verify it.')}
+                  </p>
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <label className="form-label" style={{ fontWeight: 700, fontSize: '13px' }}>
+                      {t('providerDashboard.selectServiceLabel', 'Choose Trade Service')}
+                    </label>
+                    <select
+                      className="form-control"
+                      value={selectedNewSkill}
+                      onChange={(e) => setSelectedNewSkill(e.target.value)}
+                      style={{ fontWeight: 600 }}
+                    >
+                      <option value="">{t('providerDashboard.selectServicePlaceholder', '-- Select Service --')}</option>
+                      {availableCategories
+                        .filter((c) => !provider?.skills?.some((s) => s.categoryId === (c.categoryId || c.id)))
+                        .map((c) => (
+                          <option key={c.categoryId || c.id} value={c.categoryId || c.id}>
+                            {c.name} {c.startingPrice ? `(from ₹${c.startingPrice})` : ''}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                    <button type="button" onClick={() => setShowAddSkillModal(false)} className="btn btn-outline btn-sm">
+                      {t('common.cancel')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddSkillSubmit}
+                      disabled={addingSkill || !selectedNewSkill}
+                      className="btn btn-primary btn-sm"
+                      style={{ fontWeight: 700 }}
+                    >
+                      {addingSkill ? t('common.submitting', 'Adding...') : t('providerDashboard.confirmAddService', 'Add Service & Take Test')}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* KYC Uploaded Documents Review */}

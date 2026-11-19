@@ -238,6 +238,8 @@ export const getProviderDetails = async (req, res, next) => {
 export const approveProviderAction = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { approvedSkillIds, rejectedSkillIds } = req.body || {};
+
     const provider = await Provider.findById(id);
     if (!provider) {
       return res.status(404).json({ success: false, message: 'Provider not found.' });
@@ -248,13 +250,36 @@ export const approveProviderAction = async (req, res, next) => {
     provider.verifiedBadge = true;
     provider.rejectionReason = '';
     provider.adminMessage = '';
+
+    // Requirement 9: Admin approval sees all skills and can approve some and reject others
+    if (provider.skills && provider.skills.length > 0) {
+      if (Array.isArray(approvedSkillIds) || Array.isArray(rejectedSkillIds)) {
+        provider.skills.forEach((skill) => {
+          if (Array.isArray(approvedSkillIds) && approvedSkillIds.includes(skill.categoryId)) {
+            skill.passed = true;
+            skill.status = 'approved';
+          }
+          if (Array.isArray(rejectedSkillIds) && rejectedSkillIds.includes(skill.categoryId)) {
+            skill.passed = false;
+            skill.status = 'rejected';
+          }
+        });
+      } else {
+        provider.skills.forEach((skill) => {
+          if (skill.passed) {
+            skill.status = 'approved';
+          }
+        });
+      }
+    }
+
     await provider.save();
 
     await notifyUser({
       userId: provider.userId,
       role: 'provider',
       title: 'Provider Application Approved! 🎉',
-      message: 'Congratulations! Your KYC documents and skill certification have been approved by administration. You can now toggle Online and receive customer dispatches.',
+      message: 'You are verified. Go online to receive jobs',
       type: 'system',
       link: '/provider/dashboard',
     });
@@ -279,6 +304,54 @@ export const approveProviderAction = async (req, res, next) => {
       success: true,
       message: `Provider ${provider.name} has been approved and activated.`,
       provider,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// PATCH /api/admin/providers/:id/skills/:categoryId (Approve/Reject individual skill)
+export const updateProviderSkillStatus = async (req, res, next) => {
+  try {
+    const { id, categoryId } = req.params;
+    const { status } = req.body;
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: "Status must be 'approved' or 'rejected'." });
+    }
+
+    const provider = await Provider.findById(id);
+    if (!provider) {
+      return res.status(404).json({ success: false, message: 'Provider not found.' });
+    }
+
+    const skill = provider.skills?.find((s) => s.categoryId === categoryId);
+    if (!skill) {
+      return res.status(404).json({ success: false, message: `Skill '${categoryId}' not found on provider.` });
+    }
+
+    skill.status = status;
+    if (status === 'approved') {
+      skill.passed = true;
+    } else if (status === 'rejected') {
+      skill.passed = false;
+    }
+
+    await provider.save();
+
+    await logAudit({
+      req,
+      action: 'UPDATE_PROVIDER_SKILL',
+      targetType: 'Provider',
+      targetId: provider._id,
+      details: { categoryId, skillName: skill.categoryName, status, providerName: provider.name },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Skill ${skill.categoryName || categoryId} marked as ${status}.`,
+      provider,
+      skill,
     });
   } catch (err) {
     next(err);
