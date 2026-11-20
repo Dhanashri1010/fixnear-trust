@@ -11,6 +11,7 @@ import { Category } from '../models/Category.js';
 import { User } from '../models/User.js';
 import { notifyUser } from './notificationController.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
+import { deletePrivateDocument } from '../utils/documentStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -211,6 +212,16 @@ export const registerProviderProfile = async (req, res, next) => {
 
     let provider = await Provider.findOne({ userId: req.user._id });
 
+    // Clean up previous documents if replaced
+    if (provider) {
+      if (idProofPublicId && provider.idProofPublicId && idProofPublicId !== provider.idProofPublicId) {
+        await deletePrivateDocument(provider.idProofPublicId, provider.idProofResourceType);
+      }
+      if (certificatePublicId && provider.certificatePublicId && certificatePublicId !== provider.certificatePublicId) {
+        await deletePrivateDocument(provider.certificatePublicId, provider.certificateResourceType);
+      }
+    }
+
     const resolvedIdProofType =
       idProofResourceType ||
       (idProofUrl?.toLowerCase().includes('.pdf') || idProofPublicId?.toLowerCase().endsWith('.pdf') ? 'raw' : 'image');
@@ -270,9 +281,14 @@ export const registerProviderProfile = async (req, res, next) => {
 
     if (provider) {
       const hasPassedSkill = (updateFields.skills || provider.skills)?.some((s) => s.passed);
-      if (provider.status === 'rejected' || provider.status === 'more_info_needed') {
+      if (
+        provider.status === 'rejected' ||
+        provider.status === 'more_info_needed' ||
+        provider.status === 'needs_info'
+      ) {
         updateFields.status = hasPassedSkill ? 'waiting_for_approval' : 'take_skill_test';
         updateFields.rejectionReason = '';
+        updateFields.adminNotes = '';
       }
       provider = await Provider.findOneAndUpdate({ userId: req.user._id }, { $set: updateFields }, { new: true });
     } else {
@@ -442,11 +458,16 @@ export const getPrivateDocumentSignedUrl = async (req, res, next) => {
       signedUrl = `/api/providers/documents/${type}/file${req.user.role === 'admin' && providerId ? `?providerId=${providerId}` : ''}`;
     }
 
+    const isPdf = resourceType === 'raw' || (rawUrl && rawUrl.toLowerCase().includes('.pdf')) || (publicId && publicId.toLowerCase().endsWith('.pdf'));
+    const contentType = isPdf ? 'pdf' : 'image';
+
     res.status(200).json({
       success: true,
       type,
       signedUrl,
+      url: signedUrl,
       resourceType,
+      contentType,
       expiresInSeconds: 600,
     });
   } catch (err) {
@@ -490,6 +511,8 @@ export const servePrivateDocumentFile = async (req, res, next) => {
       res.setHeader('Content-Type', 'application/pdf');
     } else if (ext === '.png') {
       res.setHeader('Content-Type', 'image/png');
+    } else if (ext === '.webp') {
+      res.setHeader('Content-Type', 'image/webp');
     } else {
       res.setHeader('Content-Type', 'image/jpeg');
     }

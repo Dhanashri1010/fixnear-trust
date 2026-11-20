@@ -296,7 +296,10 @@ export const i18n = {
       "SERVER_ERROR": "Something went wrong on the server. Please try again later.",
       "NO_ACTIVE_OFFER": "No active dispatch offer found for this job.",
       "SKILL_ALREADY_PASSED": "You have already passed this skill. You can improve your badge after 30 days.",
-      "SKILL_RETEST_REQUIRED": "A re-test has been required by the administration for this skill."
+      "SKILL_RETEST_REQUIRED": "A re-test has been required by the administration for this skill.",
+      "FILE_TOO_LARGE": "This file is bigger than 5 MB. Please choose a smaller file.",
+      "FILE_TYPE_NOT_ALLOWED": "Please upload a JPG, PNG, WebP or PDF file.",
+      "FILE_UNEXPECTED_FIELD": "Unexpected upload field received."
     },
     "booking": {
       "pageTitle": "Book Verified Home Service",
@@ -1238,7 +1241,12 @@ export const i18n = {
       "temporaryPassword": "Temporary Password",
       "tempPasswordHint": "Must contain at least 8 characters with at least one letter and one number.",
       "creating": "Creating...",
-      "createAdminAccount": "Create Admin Account"
+      "createAdminAccount": "Create Admin Account",
+      "openInNewTab": "Open in new tab",
+      "download": "Download",
+      "askProviderUploadAgain": "Ask provider to upload again",
+      "docLoadFailed": "Document could not be loaded.",
+      "docNotUploaded": "Document not uploaded"
     },
     "disputes": {
       "raiseDisputeTitle": "Raise Dispute or Workmanship Complaint",
@@ -1345,7 +1353,15 @@ export const i18n = {
       "uploadCertBtn": "Upload Certificate",
       "agreementText": "I agree to FixNear Trust safety standards, transparent rate card compliance, and identity verification. I understand that fraudulent finish codes or off-platform demands will result in permanent suspension.",
       "savingProfile": "Saving Profile...",
-      "completeAndStartTest": "Complete & Start Skill Test"
+      "completeAndStartTest": "Complete & Start Skill Test",
+      "removeDoc": "Remove",
+      "replaceDoc": "Replace",
+      "retryUpload": "Retry Upload",
+      "uploadFailed": "Upload failed. Please try again.",
+      "uploadProgress": "Uploading...",
+      "fixAndSendAgain": "Fix and submit again",
+      "rejectionNote": "Application status: Needs corrections before re-submitting.",
+      "feedback": "Feedback"
     }
   },
   "hi": {
@@ -1611,7 +1627,10 @@ export const i18n = {
       "SERVER_ERROR": "सर्वर पर कुछ गलत हो गया। कृपया बाद में पुनः प्रयास करें।",
       "NO_ACTIVE_OFFER": "इस कार्य के लिए कोई सक्रिय प्रेषण प्रस्ताव नहीं मिला।",
       "SKILL_ALREADY_PASSED": "आप इस कौशल परीक्षा को पहले ही उत्तीर्ण कर चुके हैं। आप 30 दिनों के बाद अपने बैज में सुधार कर सकते हैं।",
-      "SKILL_RETEST_REQUIRED": "प्रशासन द्वारा इस कौशल के लिए पुनः परीक्षा अनिवार्य की गई है।"
+      "SKILL_RETEST_REQUIRED": "प्रशासन द्वारा इस कौशल के लिए पुनः परीक्षा अनिवार्य की गई है।",
+      "FILE_TOO_LARGE": "यह फ़ाइल 5 एमबी से बड़ी है। कृपया एक छोटी फ़ाइल चुनें।",
+      "FILE_TYPE_NOT_ALLOWED": "कृपया जेपीजी, पीएनजी, वेबपी या पीडीएफ फ़ाइल अपलोड करें।",
+      "FILE_UNEXPECTED_FIELD": "अप्रत्याशित अपलोड फ़ील्ड प्राप्त हुई।"
     },
     "booking": {
       "pageTitle": "सत्यापित गृह सेवा बुक करें",
@@ -2553,7 +2572,12 @@ export const i18n = {
       "temporaryPassword": "अस्थायी पासवर्ड",
       "tempPasswordHint": "कम से कम ८ अक्षर, जिसमें कम से कम एक अक्षर और एक संख्या हो।",
       "creating": "बनाया जा रहा है...",
-      "createAdminAccount": "व्यवस्थापक खाता बनाएं"
+      "createAdminAccount": "व्यवस्थापक खाता बनाएं",
+      "openInNewTab": "नए टैब में खोलें",
+      "download": "डाउनलोड करें",
+      "askProviderUploadAgain": "प्रदाता से पुनः अपलोड करने का अनुरोध करें",
+      "docLoadFailed": "दस्तावेज़ लोड नहीं किया जा सका।",
+      "docNotUploaded": "दस्तावेज़ अपलोड नहीं किया गया"
     },
     "disputes": {
       "raiseDisputeTitle": "विवाद या कार्य में कमी की शिकायत दर्ज करें",
@@ -2660,7 +2684,15 @@ export const i18n = {
       "uploadCertBtn": "प्रमाणपत्र अपलोड करें",
       "agreementText": "मैं फिक्सनियर ट्रस्ट के सुरक्षा मानकों, पारदर्शी दर सूची और पहचान सत्यापन से सहमत हूं। मैं समझता हूं कि गलत फिनिश कोड या ऑफलाइन नकद मांगने पर स्थायी निलंबन होगा।",
       "savingProfile": "प्रोफ़ाइल सहेजी जा रही है...",
-      "completeAndStartTest": "पंजीकरण पूरा करें व कौशल परीक्षा शुरू करें"
+      "completeAndStartTest": "पंजीकरण पूरा करें व कौशल परीक्षा शुरू करें",
+      "removeDoc": "हटाएं",
+      "replaceDoc": "बदलें",
+      "retryUpload": "पुनः अपलोड करें",
+      "uploadFailed": "अपलोड विफल रहा। कृपया पुनः प्रयास करें।",
+      "uploadProgress": "अपलोड हो रहा है...",
+      "fixAndSendAgain": "सुधारें और पुनः जमा करें",
+      "rejectionNote": "आवेदन स्थिति: पुनः जमा करने से पहले सुधार आवश्यक हैं।",
+      "feedback": "प्रतिक्रिया"
     }
   },
   "mr": {
@@ -2926,7 +2958,10 @@ export const i18n = {
       "SERVER_ERROR": "सर्व्हरवर काहीतरी चूक झाली. कृपया नंतर पुन्हा प्रयत्न करा.",
       "NO_ACTIVE_OFFER": "या कामासाठी कोणतीही सक्रिय पाठवणी ऑफर आढळली नाही.",
       "SKILL_ALREADY_PASSED": "तुम्ही ही कौशल्य चाचणी आधीच उत्तीर्ण केली आहे. तुम्ही 30 दिवसांनंतर तुमचा बॅज सुधारू शकता.",
-      "SKILL_RETEST_REQUIRED": "प्रशासनाकडून या कौशल्यासाठी फेरचाचणी आवश्यक करण्यात आली आहे."
+      "SKILL_RETEST_REQUIRED": "प्रशासनाकडून या कौशल्यासाठी फेरचाचणी आवश्यक करण्यात आली आहे.",
+      "FILE_TOO_LARGE": "ही फाईल 5 MB पेक्षा मोठी आहे. कृपया लहान फाईल निवडा.",
+      "FILE_TYPE_NOT_ALLOWED": "कृपया JPG, PNG, WebP किंवा PDF फाईल अपलोड करा.",
+      "FILE_UNEXPECTED_FIELD": "अनपेक्षित अपलोड फील्ड प्राप्त झाली."
     },
     "booking": {
       "pageTitle": "प्रमाणित घरगुती सेवा बुक करा",
@@ -3868,7 +3903,12 @@ export const i18n = {
       "temporaryPassword": "तात्पुरता पासवर्ड",
       "tempPasswordHint": "किमान ८ अक्षरे, ज्यामध्ये किमान एक अक्षर आणि एक संख्या असावी.",
       "creating": "तयार करत आहे...",
-      "createAdminAccount": "प्रशासक खाते तयार करा"
+      "createAdminAccount": "प्रशासक खाते तयार करा",
+      "openInNewTab": "नवीन टॅबमध्ये उघडा",
+      "download": "डाउनलोड करा",
+      "askProviderUploadAgain": "सेवा प्रदात्यास पुन्हा अपलोड करण्यास सांगा",
+      "docLoadFailed": "दस्तऐवज लोड करता आला नाही.",
+      "docNotUploaded": "दस्तऐवज अपलोड केलेले नाही"
     },
     "disputes": {
       "raiseDisputeTitle": "तक्रार किंवा वादाची नोंद करा",
@@ -3975,7 +4015,15 @@ export const i18n = {
       "uploadCertBtn": "प्रमाणपत्र अपलोड करा",
       "agreementText": "मी फिक्सनियर ट्रस्ट सुरक्षा मानके, पारदर्शक दर कार्ड आणि ओळख पडताळणीस सहमती दर्शवतो. खोटे फिनिश कोड किंवा ऑफलाइन पैशांची मागणी केल्यास कायमचे निलंबन होईल हे मला मान्य आहे.",
       "savingProfile": "प्रोफाइल जतन होत आहे...",
-      "completeAndStartTest": "पूर्ण करा आणि कौशल्य चाचणी सुरू करा"
+      "completeAndStartTest": "पूर्ण करा आणि कौशल्य चाचणी सुरू करा",
+      "removeDoc": "काढून टाका",
+      "replaceDoc": "बदला",
+      "retryUpload": "पुन्हा अपलोड करा",
+      "uploadFailed": "अपलोड अयशस्वी. कृपया पुन्हा प्रयत्न करा.",
+      "uploadProgress": "अपलोड होत आहे...",
+      "fixAndSendAgain": "दुरुस्त करा आणि पुन्हा सादर करा",
+      "rejectionNote": "अर्ज स्थिती: पुन्हा सादर करण्यापूर्वी सुधारणा आवश्यक आहेत.",
+      "feedback": "प्रतिक्रिया"
     }
   }
 };

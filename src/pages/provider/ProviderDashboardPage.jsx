@@ -395,19 +395,24 @@ export default function ProviderDashboardPage() {
     }
   };
 
+  const resolveDocumentUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
+      return url;
+    }
+    const backendBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+    return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
   // Safe document view handler
   const handleViewDocument = async (type) => {
     setDocumentLoading(type);
     try {
       const res = await providersAPI.getPrivateDocumentSignedUrl(type);
-      if (res.success && res.url) {
-        window.open(res.url, '_blank', 'noopener,noreferrer');
-      } else {
-        window.open(`/api/providers/documents/${type}/file`, '_blank', 'noopener,noreferrer');
-      }
+      const targetUrl = res.signedUrl || res.url || `/api/providers/documents/${type}/file`;
+      window.open(resolveDocumentUrl(targetUrl), '_blank', 'noopener,noreferrer');
     } catch (err) {
-      // Fallback to streaming endpoint directly
-      window.open(`/api/providers/documents/${type}/file`, '_blank', 'noopener,noreferrer');
+      window.open(resolveDocumentUrl(`/api/providers/documents/${type}/file`), '_blank', 'noopener,noreferrer');
     } finally {
       setDocumentLoading(null);
     }

@@ -82,7 +82,9 @@ export const providersAPI = {
   addSkill: (categoryId) => api.post('/providers/skills/add', { categoryId }),
   updateOnlineStatus: (isOnline) => api.patch('/providers/me/status', { isOnline }),
   getPrivateDocumentSignedUrl: (type, providerId) =>
-    api.get(`/providers/documents/${type}${providerId ? `?providerId=${providerId}` : ''}`),
+    api.get(`/providers/documents/${type}`, {
+      params: providerId ? { providerId } : undefined,
+    }),
 };
 
 // Bookings API
@@ -138,14 +140,15 @@ export const uploadAPI = {
       },
     });
   },
-  uploadPrivateDoc: (file, docType = 'idProof') => {
+  uploadPrivateDoc: (file, docType = 'idProof', onUploadProgress) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('docType', docType);
     return api.post('/upload/private', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': undefined,
       },
+      onUploadProgress,
     });
   },
 };

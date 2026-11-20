@@ -102,9 +102,14 @@ export default function ProviderRegisterPage() {
 
   const [idFileName, setIdFileName] = useState('');
   const [certFileName, setCertFileName] = useState('');
+  const [idFileSize, setIdFileSize] = useState('');
+  const [certFileSize, setCertFileSize] = useState('');
   const [idPreviewUrl, setIdPreviewUrl] = useState('');
   const [certPreviewUrl, setCertPreviewUrl] = useState('');
   const [uploadingField, setUploadingField] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState({ idProof: 0, certificate: 0 });
+  const [uploadError, setUploadError] = useState({ idProof: null, certificate: null });
+  const [failedFile, setFailedFile] = useState({ idProof: null, certificate: null });
 
   // Redirect unauthenticated visitors to partner signup
   useEffect(() => {
@@ -191,40 +196,65 @@ export default function ProviderRegisterPage() {
     }));
   };
 
+  const formatFileSize = (bytes) => {
+    if (!bytes || isNaN(bytes)) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   // Real Private KYC File Upload
-  const handleRealFileUpload = async (e, field, setFileName, setPreviewUrl) => {
-    const file = e.target.files?.[0];
+  const performUpload = async (file, field) => {
     if (!file) return;
 
     // 1. Enforce 5 MB maximum size limit
     const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
     if (file.size > MAX_SIZE) {
-      showToast('File size exceeds the 5 MB limit. Please select a smaller file.', 'error');
-      e.target.value = '';
+      const errTxt = t('errors.FILE_TOO_LARGE', 'This file is bigger than 5 MB. Please choose a smaller file.');
+      showToast(errTxt, 'error');
+      setUploadError((prev) => ({ ...prev, [field]: errTxt }));
       return;
     }
 
     // 2. Enforce JPG, PNG, WebP, and PDF formats
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'application/pdf'];
     if (!allowedTypes.includes(file.type)) {
-      showToast('Invalid format. Please upload JPG, PNG, WebP, or PDF files only.', 'error');
-      e.target.value = '';
+      const errTxt = t('errors.FILE_TYPE_NOT_ALLOWED', 'Please upload a JPG, PNG, WebP or PDF file.');
+      showToast(errTxt, 'error');
+      setUploadError((prev) => ({ ...prev, [field]: errTxt }));
       return;
     }
 
     setUploadingField(field);
-    setFileName(file.name);
+    setUploadProgress((prev) => ({ ...prev, [field]: 0 }));
+    setUploadError((prev) => ({ ...prev, [field]: null }));
+
+    if (field === 'idProof') {
+      setIdFileName(file.name);
+      setIdFileSize(formatFileSize(file.size));
+      if (file.type.startsWith('image/')) {
+        setIdPreviewUrl(URL.createObjectURL(file));
+      } else {
+        setIdPreviewUrl('pdf-document');
+      }
+    } else {
+      setCertFileName(file.name);
+      setCertFileSize(formatFileSize(file.size));
+      if (file.type.startsWith('image/')) {
+        setCertPreviewUrl(URL.createObjectURL(file));
+      } else {
+        setCertPreviewUrl('pdf-document');
+      }
+    }
 
     try {
-      // Local immediate preview
-      if (file.type.startsWith('image/')) {
-        const localUrl = URL.createObjectURL(file);
-        setPreviewUrl(localUrl);
-      } else {
-        setPreviewUrl('pdf-document');
-      }
+      const res = await uploadAPI.uploadPrivateDoc(file, field, (progressEvent) => {
+        if (progressEvent.total) {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress((prev) => ({ ...prev, [field]: percent }));
+        }
+      });
 
-      const res = await uploadAPI.uploadPrivateDoc(file, field);
       if (res.success && res.publicId) {
         const urlKey = field === 'idProof' ? 'idProofUrl' : 'certificateUrl';
         const publicIdKey = field === 'idProof' ? 'idProofPublicId' : 'certificatePublicId';
@@ -236,16 +266,55 @@ export default function ProviderRegisterPage() {
           [publicIdKey]: res.publicId,
           [resourceTypeKey]: res.resourceType || (file.type === 'application/pdf' ? 'raw' : 'image'),
         }));
+        setFailedFile((prev) => ({ ...prev, [field]: null }));
         showToast(`${field === 'idProof' ? 'ID Proof' : 'Certificate'} uploaded securely.`, 'success');
       } else {
-        throw new Error(res.message || 'Upload failed');
+        throw new Error(res.message || t('provider.uploadFailed', 'Upload failed. Please try again.'));
       }
     } catch (err) {
-      showToast(err.message || 'Failed to upload document. Please try again.', 'error');
-      setPreviewUrl('');
-      setFileName('');
+      const errMsg = err.code && t('errors.' + err.code)
+        ? t('errors.' + err.code)
+        : err.message || t('provider.uploadFailed', 'Upload failed. Please try again.');
+      showToast(errMsg, 'error');
+      setFailedFile((prev) => ({ ...prev, [field]: file }));
+      setUploadError((prev) => ({ ...prev, [field]: errMsg }));
     } finally {
       setUploadingField(null);
+    }
+  };
+
+  const handleRealFileUpload = (e, field) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    performUpload(file, field);
+    e.target.value = '';
+  };
+
+  const handleRemoveDoc = (field) => {
+    if (field === 'idProof') {
+      setIdFileName('');
+      setIdFileSize('');
+      setIdPreviewUrl('');
+      setFormData((prev) => ({
+        ...prev,
+        idProofUrl: '',
+        idProofPublicId: '',
+        idProofResourceType: 'image',
+      }));
+      setFailedFile((prev) => ({ ...prev, idProof: null }));
+      setUploadError((prev) => ({ ...prev, idProof: null }));
+    } else {
+      setCertFileName('');
+      setCertFileSize('');
+      setCertPreviewUrl('');
+      setFormData((prev) => ({
+        ...prev,
+        certificateUrl: '',
+        certificatePublicId: '',
+        certificateResourceType: 'image',
+      }));
+      setFailedFile((prev) => ({ ...prev, certificate: null }));
+      setUploadError((prev) => ({ ...prev, certificate: null }));
     }
   };
 
@@ -803,6 +872,35 @@ export default function ProviderRegisterPage() {
                 </h2>
               </div>
 
+              {/* Correction Banner for Rejected or Needs-Info Providers */}
+              {(existingProvider?.status === 'rejected' ||
+                existingProvider?.status === 'needs_info' ||
+                existingProvider?.status === 'more_info_needed') && (
+                <div style={{
+                  backgroundColor: '#FFFBEB',
+                  border: '1.5px solid #FCD34D',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '14px 18px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                }}>
+                  <AlertCircle size={20} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#92400E' }}>
+                      {t('provider.rejectionNote', 'Application status: Needs corrections before re-submitting.')}
+                    </div>
+                    {(existingProvider.rejectionReason || existingProvider.adminNotes) && (
+                      <div style={{ fontSize: '13px', color: '#B45309', marginTop: '4px' }}>
+                        <strong>{t('provider.feedback')}: </strong>
+                        <span>{existingProvider.rejectionReason || existingProvider.adminNotes}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* ID Proof Upload */}
               <div style={{ marginBottom: '24px' }}>
                 <label className="form-label" style={{ fontWeight: 600, fontSize: '13px' }}>
@@ -814,33 +912,89 @@ export default function ProviderRegisterPage() {
                   padding: '24px',
                   textAlign: 'center',
                   backgroundColor: idPreviewUrl ? 'var(--forest-50)' : 'transparent',
-                  position: 'relative'
+                  position: 'relative',
                 }}>
                   {uploadingField === 'idProof' ? (
                     <div>
                       <div className="spinner" style={{ margin: '0 auto 12px' }} />
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--forest-800)' }}>
-                        {t('provider.uploadingDoc')}
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--forest-800)', marginBottom: '8px' }}>
+                        {t('provider.uploadProgress', 'Uploading...')} {idFileName} ({uploadProgress.idProof}%)
+                      </div>
+                      <div style={{ width: '80%', maxWidth: '300px', height: '6px', backgroundColor: '#E5E7EB', borderRadius: '3px', margin: '0 auto', overflow: 'hidden' }}>
+                        <div style={{ width: `${uploadProgress.idProof}%`, height: '100%', backgroundColor: 'var(--forest-600)', transition: 'width 0.2s ease' }} />
                       </div>
                     </div>
-                  ) : idPreviewUrl ? (
+                  ) : uploadError.idProof ? (
                     <div>
-                      <CheckCircle2 size={32} color="var(--forest-700)" style={{ margin: '0 auto 8px' }} />
+                      <AlertCircle size={32} color="#DC2626" style={{ margin: '0 auto 8px' }} />
+                      <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#DC2626', marginBottom: '10px' }}>
+                        {uploadError.idProof}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                        {failedFile.idProof && (
+                          <button
+                            type="button"
+                            onClick={() => performUpload(failedFile.idProof, 'idProof')}
+                            className="btn btn-outline btn-sm"
+                            style={{ borderColor: '#DC2626', color: '#DC2626' }}
+                          >
+                            {t('provider.retryUpload', 'Retry Upload')}
+                          </button>
+                        )}
+                        <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
+                          <span>{t('provider.selectFileBtn')}</span>
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleRealFileUpload(e, 'idProof')}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ) : idPreviewUrl || formData.idProofPublicId ? (
+                    <div>
+                      {idPreviewUrl && idPreviewUrl !== 'pdf-document' ? (
+                        <div style={{ marginBottom: '10px' }}>
+                          <img
+                            src={idPreviewUrl}
+                            alt="ID Preview"
+                            style={{ maxHeight: '140px', maxWidth: '240px', objectFit: 'contain', borderRadius: '8px', border: '1px solid var(--border-light)' }}
+                          />
+                        </div>
+                      ) : (
+                        <FileText size={36} color="var(--forest-700)" style={{ margin: '0 auto 8px' }} />
+                      )}
                       <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)' }}>
                         {idFileName || t('provider.docSecureVault')}
                       </div>
+                      {idFileSize && (
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {idFileSize}
+                        </div>
+                      )}
                       <div style={{ fontSize: '12px', color: 'var(--forest-700)', marginTop: '4px' }}>
                         {t('provider.docSecureVault')}
                       </div>
-                      <label className="btn btn-outline btn-sm" style={{ marginTop: '12px', cursor: 'pointer' }}>
-                        <span>{t('provider.changeDoc')}</span>
-                        <input
-                          type="file"
-                          accept=".jpg,.jpeg,.png,.webp,.pdf"
-                          style={{ display: 'none' }}
-                          onChange={(e) => handleRealFileUpload(e, 'idProof', setIdFileName, setIdPreviewUrl)}
-                        />
-                      </label>
+                      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '12px' }}>
+                        <label className="btn btn-outline btn-sm" style={{ cursor: 'pointer' }}>
+                          <span>{t('provider.replaceDoc', 'Replace')}</span>
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleRealFileUpload(e, 'idProof')}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDoc('idProof')}
+                          className="btn btn-outline btn-sm"
+                          style={{ color: '#DC2626', borderColor: '#FCA5A5' }}
+                        >
+                          {t('provider.removeDoc', 'Remove')}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div>
@@ -855,9 +1009,9 @@ export default function ProviderRegisterPage() {
                         <span>{t('provider.selectFileBtn')}</span>
                         <input
                           type="file"
-                          accept=".jpg,.jpeg,.png,.webp,.pdf"
+                          accept="image/*,application/pdf"
                           style={{ display: 'none' }}
-                          onChange={(e) => handleRealFileUpload(e, 'idProof', setIdFileName, setIdPreviewUrl)}
+                          onChange={(e) => handleRealFileUpload(e, 'idProof')}
                         />
                       </label>
                     </div>
@@ -875,28 +1029,86 @@ export default function ProviderRegisterPage() {
                   borderRadius: 'var(--radius-lg)',
                   padding: '20px',
                   textAlign: 'center',
-                  backgroundColor: certPreviewUrl ? 'var(--forest-50)' : 'transparent'
+                  backgroundColor: certPreviewUrl ? 'var(--forest-50)' : 'transparent',
                 }}>
                   {uploadingField === 'certificate' ? (
                     <div>
                       <div className="spinner" style={{ margin: '0 auto 10px' }} />
-                      <div style={{ fontSize: '13px', color: 'var(--forest-800)' }}>{t('provider.uploadingCert')}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--forest-800)', marginBottom: '6px' }}>
+                        {t('provider.uploadProgress', 'Uploading...')} {certFileName} ({uploadProgress.certificate}%)
+                      </div>
+                      <div style={{ width: '80%', maxWidth: '300px', height: '6px', backgroundColor: '#E5E7EB', borderRadius: '3px', margin: '0 auto', overflow: 'hidden' }}>
+                        <div style={{ width: `${uploadProgress.certificate}%`, height: '100%', backgroundColor: 'var(--forest-600)', transition: 'width 0.2s ease' }} />
+                      </div>
                     </div>
-                  ) : certPreviewUrl ? (
+                  ) : uploadError.certificate ? (
                     <div>
-                      <CheckCircle2 size={26} color="var(--forest-700)" style={{ margin: '0 auto 6px' }} />
+                      <AlertCircle size={28} color="#DC2626" style={{ margin: '0 auto 6px' }} />
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#DC2626', marginBottom: '8px' }}>
+                        {uploadError.certificate}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                        {failedFile.certificate && (
+                          <button
+                            type="button"
+                            onClick={() => performUpload(failedFile.certificate, 'certificate')}
+                            className="btn btn-outline btn-sm"
+                            style={{ borderColor: '#DC2626', color: '#DC2626' }}
+                          >
+                            {t('provider.retryUpload', 'Retry Upload')}
+                          </button>
+                        )}
+                        <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
+                          <span>{t('provider.selectFileBtn')}</span>
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleRealFileUpload(e, 'certificate')}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ) : certPreviewUrl || formData.certificatePublicId ? (
+                    <div>
+                      {certPreviewUrl && certPreviewUrl !== 'pdf-document' ? (
+                        <div style={{ marginBottom: '8px' }}>
+                          <img
+                            src={certPreviewUrl}
+                            alt="Certificate Preview"
+                            style={{ maxHeight: '120px', maxWidth: '200px', objectFit: 'contain', borderRadius: '6px', border: '1px solid var(--border-light)' }}
+                          />
+                        </div>
+                      ) : (
+                        <FileText size={28} color="var(--forest-700)" style={{ margin: '0 auto 6px' }} />
+                      )}
                       <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>
                         {certFileName || 'Certificate Uploaded'}
                       </div>
-                      <label className="btn btn-outline btn-sm" style={{ marginTop: '10px', cursor: 'pointer' }}>
-                        <span>{t('provider.change')}</span>
-                        <input
-                          type="file"
-                          accept=".jpg,.jpeg,.png,.webp,.pdf"
-                          style={{ display: 'none' }}
-                          onChange={(e) => handleRealFileUpload(e, 'certificate', setCertFileName, setCertPreviewUrl)}
-                        />
-                      </label>
+                      {certFileSize && (
+                        <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {certFileSize}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '10px' }}>
+                        <label className="btn btn-outline btn-sm" style={{ cursor: 'pointer' }}>
+                          <span>{t('provider.replaceDoc', 'Replace')}</span>
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleRealFileUpload(e, 'certificate')}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDoc('certificate')}
+                          className="btn btn-outline btn-sm"
+                          style={{ color: '#DC2626', borderColor: '#FCA5A5' }}
+                        >
+                          {t('provider.removeDoc', 'Remove')}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div>
@@ -911,9 +1123,9 @@ export default function ProviderRegisterPage() {
                         <span>{t('provider.uploadCertBtn')}</span>
                         <input
                           type="file"
-                          accept=".jpg,.jpeg,.png,.webp,.pdf"
+                          accept="image/*,application/pdf"
                           style={{ display: 'none' }}
-                          onChange={(e) => handleRealFileUpload(e, 'certificate', setCertFileName, setCertPreviewUrl)}
+                          onChange={(e) => handleRealFileUpload(e, 'certificate')}
                         />
                       </label>
                     </div>
@@ -926,7 +1138,7 @@ export default function ProviderRegisterPage() {
                 backgroundColor: 'var(--bg-warm)',
                 padding: '14px 16px',
                 borderRadius: 'var(--radius-md)',
-                marginBottom: '24px'
+                marginBottom: '24px',
               }}>
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
                   <input
@@ -956,13 +1168,18 @@ export default function ProviderRegisterPage() {
                   type="button"
                   className="btn btn-primary"
                   onClick={handleFinalSubmit}
-                  disabled={loading || uploadingField !== null}
+                  disabled={loading || uploadingField !== null || (!formData.idProofPublicId && !formData.idProofUrl)}
                   style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
                   {loading ? (
                     <>
                       <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
                       <span>{t('provider.savingProfile')}</span>
+                    </>
+                  ) : (existingProvider?.status === 'rejected' || existingProvider?.status === 'needs_info' || existingProvider?.status === 'more_info_needed') ? (
+                    <>
+                      <span>{t('provider.fixAndSendAgain', 'Fix and submit again')}</span>
+                      <ArrowRight size={16} />
                     </>
                   ) : (
                     <>

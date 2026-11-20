@@ -22,7 +22,8 @@ import {
   ShieldCheck,
   AlertTriangle,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Download
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
@@ -44,6 +45,23 @@ export default function AdminApprovalsDesk() {
   // Document modal preview
   const [previewDocUrl, setPreviewDocUrl] = useState(null);
   const [previewDocTitle, setPreviewDocTitle] = useState('');
+  const [previewDocContentType, setPreviewDocContentType] = useState('image');
+  const [docLoadError, setDocLoadError] = useState(false);
+
+  const resolveDocumentUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
+      return url;
+    }
+    const backendBase = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+    return `${backendBase}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
+  const handleAskReupload = (docType) => {
+    const docName = docType === 'certificate' ? 'trade certification' : 'Government ID proof';
+    setInfoMessage(`The uploaded ${docName} is missing or could not be loaded/verified. Please upload a clear JPG, PNG or PDF document.`);
+    setInfoModalOpen(true);
+  };
 
   // Modals for actions
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -586,99 +604,143 @@ export default function AdminApprovalsDesk() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
 
-                    {/* Document 1: ID Proof */}
-                    <div style={{
-                      backgroundColor: 'var(--bg-warm)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '16px',
-                      border: '1px solid var(--border-light)'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>
-                          {t('admin.govtIdProof')}
-                        </span>
-                        <span className="badge badge-neutral" style={{ fontSize: '10.5px' }}>
-                          {t('providerDashboard.privateKycDocs')}
-                        </span>
+                      {/* Document 1: ID Proof */}
+                      <div style={{
+                        backgroundColor: 'var(--bg-warm)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '16px',
+                        border: '1px solid var(--border-light)'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>
+                            {t('admin.govtIdProof')}
+                          </span>
+                          <span className="badge badge-neutral" style={{ fontSize: '10.5px' }}>
+                            {t('providerDashboard.privateKycDocs')}
+                          </span>
+                        </div>
+
+                        {activeDocs.idProof?.url ? (
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPreviewDocUrl(activeDocs.idProof.url);
+                                setPreviewDocTitle(`${activeProvider.name} - ${t('admin.govtIdProof')}`);
+                                setPreviewDocContentType(activeDocs.idProof.contentType || 'image');
+                                setDocLoadError(false);
+                              }}
+                              className="btn btn-secondary btn-sm"
+                              style={{ flex: 1, minWidth: '70px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                              <Eye size={13} />
+                              <span>{t('admin.view')}</span>
+                            </button>
+                            <a
+                              href={resolveDocumentUrl(activeDocs.idProof.url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-outline btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              title={t('admin.openInNewTab', 'Open in new tab')}
+                            >
+                              <ExternalLink size={13} />
+                            </a>
+                            <a
+                              href={resolveDocumentUrl(activeDocs.idProof.url)}
+                              download
+                              className="btn btn-outline btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              title={t('admin.download', 'Download')}
+                            >
+                              <Download size={13} />
+                            </a>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ fontSize: '12px', color: '#DC2626', marginBottom: '8px' }}>
+                              {t('admin.docNotUploaded', 'Document not uploaded')}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAskReupload('idProof')}
+                              className="btn btn-outline btn-sm"
+                              style={{ fontSize: '11px', padding: '4px 8px', color: '#D97706', borderColor: '#FDE68A' }}
+                            >
+                              {t('admin.askProviderUploadAgain', 'Ask provider to upload again')}
+                            </button>
+                          </div>
+                        )}
                       </div>
 
-                      {activeDocs.idProof?.url ? (
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPreviewDocUrl(activeDocs.idProof.url);
-                              setPreviewDocTitle(`${activeProvider.name} - ${t('admin.govtIdProof')}`);
-                            }}
-                            className="btn btn-secondary btn-sm"
-                            style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                          >
-                            <Eye size={13} />
-                            <span>{t('admin.view')}</span>
-                          </button>
-                          <a
-                            href={activeDocs.idProof.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-outline btn-sm"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <ExternalLink size={13} />
-                          </a>
+                      {/* Document 2: Certificate */}
+                      <div style={{
+                        backgroundColor: 'var(--bg-warm)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '16px',
+                        border: '1px solid var(--border-light)'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>
+                            {t('admin.tradeCertificate')}
+                          </span>
+                          <span className="badge badge-neutral" style={{ fontSize: '10.5px' }}>
+                            {t('admin.skillExamScore')}
+                          </span>
                         </div>
-                      ) : (
-                        <div style={{ fontSize: '12px', color: '#DC2626' }}>
-                          {t('providerDashboard.idNotUploaded')}
-                        </div>
-                      )}
-                    </div>
 
-                    {/* Document 2: Certificate */}
-                    <div style={{
-                      backgroundColor: 'var(--bg-warm)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '16px',
-                      border: '1px solid var(--border-light)'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)' }}>
-                          {t('admin.tradeCertificate')}
-                        </span>
-                        <span className="badge badge-neutral" style={{ fontSize: '10.5px' }}>
-                          {t('admin.skillExamScore')}
-                        </span>
+                        {activeDocs.certificate?.url ? (
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPreviewDocUrl(activeDocs.certificate.url);
+                                setPreviewDocTitle(`${activeProvider.name} - ${t('admin.tradeCertificate')}`);
+                                setPreviewDocContentType(activeDocs.certificate.contentType || 'image');
+                                setDocLoadError(false);
+                              }}
+                              className="btn btn-secondary btn-sm"
+                              style={{ flex: 1, minWidth: '70px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                              <Eye size={13} />
+                              <span>{t('admin.view')}</span>
+                            </button>
+                            <a
+                              href={resolveDocumentUrl(activeDocs.certificate.url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-outline btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              title={t('admin.openInNewTab', 'Open in new tab')}
+                            >
+                              <ExternalLink size={13} />
+                            </a>
+                            <a
+                              href={resolveDocumentUrl(activeDocs.certificate.url)}
+                              download
+                              className="btn btn-outline btn-sm"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              title={t('admin.download', 'Download')}
+                            >
+                              <Download size={13} />
+                            </a>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                              {t('providerDashboard.missing')}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAskReupload('certificate')}
+                              className="btn btn-outline btn-sm"
+                              style={{ fontSize: '11px', padding: '4px 8px', color: '#D97706', borderColor: '#FDE68A' }}
+                            >
+                              {t('admin.askProviderUploadAgain', 'Ask provider to upload again')}
+                            </button>
+                          </div>
+                        )}
                       </div>
-
-                      {activeDocs.certificate?.url ? (
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPreviewDocUrl(activeDocs.certificate.url);
-                              setPreviewDocTitle(`${activeProvider.name} - ${t('admin.tradeCertificate')}`);
-                            }}
-                            className="btn btn-secondary btn-sm"
-                            style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                          >
-                            <Eye size={13} />
-                            <span>{t('admin.view')}</span>
-                          </button>
-                          <a
-                            href={activeDocs.certificate.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-outline btn-sm"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <ExternalLink size={13} />
-                          </a>
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                          {t('providerDashboard.missing')}
-                        </div>
-                      )}
-                    </div>
 
                   </div>
                 </div>
@@ -841,26 +903,73 @@ export default function AdminApprovalsDesk() {
               borderBottom: '1px solid var(--border-light)',
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center'
+              alignItems: 'center',
+              gap: '12px',
+              flexWrap: 'wrap',
             }}>
               <span style={{ fontWeight: 800, fontSize: '15px', color: 'var(--forest-900)' }}>
                 {previewDocTitle}
               </span>
-              <button
-                type="button"
-                onClick={() => setPreviewDocUrl(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-              >
-                <X size={20} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <a
+                  href={resolveDocumentUrl(previewDocUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-outline btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <ExternalLink size={13} />
+                  <span>{t('admin.openInNewTab', 'Open in new tab')}</span>
+                </a>
+                <a
+                  href={resolveDocumentUrl(previewDocUrl)}
+                  download
+                  className="btn btn-outline btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <Download size={13} />
+                  <span>{t('admin.download', 'Download')}</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDocUrl(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', marginLeft: '6px' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             <div style={{ padding: '20px', overflowY: 'auto', textAlign: 'center', flex: 1, backgroundColor: 'var(--bg-warm)' }}>
-              {previewDocUrl.toLowerCase().endsWith('.pdf') ? (
-                <iframe src={previewDocUrl} style={{ width: '100%', height: '500px', border: 'none' }} title={previewDocTitle} />
+              {docLoadError ? (
+                <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+                  <AlertCircle size={36} color="#DC2626" style={{ margin: '0 auto 12px' }} />
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '8px' }}>
+                    {t('admin.docLoadFailed', 'Document could not be loaded.')}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewDocUrl(null);
+                      handleAskReupload('idProof');
+                    }}
+                    className="btn btn-primary btn-sm"
+                    style={{ marginTop: '10px' }}
+                  >
+                    {t('admin.askProviderUploadAgain', 'Ask provider to upload again')}
+                  </button>
+                </div>
+              ) : previewDocContentType === 'pdf' ? (
+                <iframe
+                  src={resolveDocumentUrl(previewDocUrl)}
+                  onError={() => setDocLoadError(true)}
+                  style={{ width: '100%', height: '520px', border: 'none', borderRadius: '8px' }}
+                  title={previewDocTitle}
+                />
               ) : (
                 <img
-                  src={previewDocUrl}
+                  src={resolveDocumentUrl(previewDocUrl)}
+                  onError={() => setDocLoadError(true)}
                   alt={previewDocTitle}
                   style={{ maxWidth: '100%', maxHeight: '550px', borderRadius: '8px', objectFit: 'contain' }}
                 />

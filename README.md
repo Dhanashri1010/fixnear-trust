@@ -226,9 +226,9 @@ Visit `http://localhost:5173` in your browser.
 | `RAZORPAY_KEY_ID` | Optional | `rzp_test_...` | Public key ID for Razorpay online payment integration. |
 | `RAZORPAY_KEY_SECRET` | Optional | `...` | Secret key used for Razorpay order generation & HMAC-SHA256 signature checks. |
 | `RAZORPAY_WEBHOOK_SECRET`| Optional | `...` | Secret key configured in Razorpay dashboard to verify HMAC-SHA256 signature of incoming webhooks. |
-| `CLOUDINARY_CLOUD_NAME`| Optional | `fixnear-cloud` | Cloudinary cloud identifier for image assets and document storage. |
-| `CLOUDINARY_API_KEY` | Optional | `123456789012345` | Cloudinary API access key. |
-| `CLOUDINARY_API_SECRET`| Optional | `...` | Cloudinary API access secret. |
+| `CLOUDINARY_CLOUD_NAME`| Required in Production | `fixnear-cloud` | Cloudinary cloud identifier for image assets and document storage. |
+| `CLOUDINARY_API_KEY` | Required in Production | `123456789012345` | Cloudinary API access key. |
+| `CLOUDINARY_API_SECRET`| Required in Production | `...` | Cloudinary API access secret. |
 | `SMTP_HOST` | Optional | `smtp.gmail.com` | SMTP relay server for sending transactional emails. |
 | `SMTP_PORT` | Optional | `587` | SMTP port (587 for TLS, 465 for SSL). |
 | `SMTP_USER` | Optional | `alerts@fixnear.com` | SMTP authentication username. |
@@ -280,6 +280,30 @@ To automatically capture background payment completions and refund events:
    - `order.paid`
    - `refund.processed`
 6. The server validates incoming webhooks using the byte-exact RAW request body and cryptographic `crypto.timingSafeEqual` comparison, ensuring zero replay or tampering attacks.
+
+---
+
+## ☁️ Cloudinary Setup (Photo Uploads & Private KYC Vault)
+
+FixNear Trust uses Cloudinary for hosting job photo uploads and storing private identity documents (Aadhaar / Voter ID / Trade Certificates).
+
+### Development vs Production Mode
+- **Local Development / Testing**: If Cloudinary credentials are omitted from `server/.env`, the server automatically falls back to an isolated local directory (`server/uploads-private/<userId>/`).
+- **Production Mode (`NODE_ENV=production`)**: **Cloudinary is strictly required.** In production, private document uploads return HTTP `503 Service Unavailable` if Cloudinary is not configured.
+
+### Setup Instructions
+1. Create a free account at [Cloudinary](https://cloudinary.com).
+2. On your Cloudinary Dashboard, locate your **Cloud Name**, **API Key**, and **API Secret**.
+3. Add these credentials to `server/.env`:
+   ```env
+   CLOUDINARY_CLOUD_NAME=your_cloud_name
+   CLOUDINARY_API_KEY=your_api_key
+   CLOUDINARY_API_SECRET=your_api_secret
+   ```
+4. **Security & Private KYC Vault Architecture**:
+   - Provider KYC documents (Government ID and Certifications) are uploaded under `fixnear_kyc_private/<userId>/` with `type: 'authenticated'` and appropriate resource types (`image` or `raw` for PDFs).
+   - Authenticated assets are inaccessible to the public internet; they can only be read via short-lived, cryptographically signed URLs generated on-demand by the backend (`expires_at: 10 minutes`), accessible solely to the owning provider and verified administrators.
+   - When a provider updates or replaces an identity document or trade certificate, previous file versions are automatically destroyed in Cloudinary via `cloudinary.uploader.destroy()`.
 
 ---
 

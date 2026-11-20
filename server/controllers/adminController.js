@@ -224,6 +224,15 @@ export const getProviderDetails = async (req, res, next) => {
       certificateSignedUrl = `/api/providers/documents/certificate/file?providerId=${provider._id}`;
     }
 
+    const idProofIsPdf =
+      provider.idProofResourceType === 'raw' ||
+      (provider.idProofUrl && provider.idProofUrl.toLowerCase().includes('.pdf')) ||
+      (provider.idProofPublicId && provider.idProofPublicId.toLowerCase().endsWith('.pdf'));
+    const certIsPdf =
+      provider.certificateResourceType === 'raw' ||
+      (provider.certificateUrl && provider.certificateUrl.toLowerCase().includes('.pdf')) ||
+      (provider.certificatePublicId && provider.certificatePublicId.toLowerCase().endsWith('.pdf'));
+
     res.status(200).json({
       success: true,
       provider,
@@ -233,11 +242,13 @@ export const getProviderDetails = async (req, res, next) => {
           url: idProofSignedUrl,
           publicId: provider.idProofPublicId,
           resourceType: provider.idProofResourceType || 'image',
+          contentType: idProofIsPdf ? 'pdf' : 'image',
         },
         certificate: {
           url: certificateSignedUrl,
           publicId: provider.certificatePublicId,
           resourceType: provider.certificateResourceType || 'image',
+          contentType: certIsPdf ? 'pdf' : 'image',
         },
       },
     });

@@ -6,6 +6,10 @@ import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { authenticate, authorize } from '../middleware/auth.js';
+import {
+  detectFileTypeFromBuffer,
+  isCloudinaryConfigured,
+} from '../utils/documentStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,33 +31,51 @@ const upload = multer({
 });
 
 // Private KYC docs (supports images and PDF up to 5 MB)
-const privateDocUpload = multer({
+const privateDocMulter = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'application/pdf'];
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const allowedExts = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+
+    if (allowedMimes.includes(file.mimetype) && (ext ? allowedExts.includes(ext) : true)) {
       cb(null, true);
     } else {
-      cb(new Error('Only JPG, PNG, and PDF files up to 5 MB are allowed.'));
+      const err = new Error('Please upload a JPG, PNG, WebP or PDF file.');
+      err.code = 'FILE_TYPE_NOT_ALLOWED';
+      cb(err);
     }
   },
 });
 
-const isCloudinaryConfigured = () => {
-  return !!(
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
-  );
-};
-
-if (isCloudinaryConfigured()) {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
+// Multer error handling wrapper middleware for private document upload
+const handlePrivateDocUpload = (req, res, next) => {
+  privateDocMulter.single('file')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            code: 'FILE_TOO_LARGE',
+            message: 'This file is bigger than 5 MB. Please choose a smaller file.',
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          code: 'FILE_UNEXPECTED_FIELD',
+          message: err.message || 'Unexpected upload field received.',
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        code: 'FILE_TYPE_NOT_ALLOWED',
+        message: 'Please upload a JPG, PNG, WebP or PDF file.',
+      });
+    }
+    next();
   });
-}
+};
 
 // POST /api/upload (up to 3 photos)
 router.post('/upload', authenticate, upload.array('photos', 3), async (req, res, next) => {
@@ -97,69 +119,112 @@ router.post('/upload', authenticate, upload.array('photos', 3), async (req, res,
 });
 
 // POST /api/upload/private (ID proof / Certificate - private/authenticated per-user folder)
-router.post('/upload/private', authenticate, authorize('provider', 'admin'), privateDocUpload.single('file'), async (req, res, next) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: 'No file uploaded.' });
-    }
-
-    const isPdf = req.file.mimetype === 'application/pdf';
-    const resourceType = isPdf ? 'raw' : 'image';
-    const ext = isPdf ? '.pdf' : path.extname(req.file.originalname) || '.jpg';
-    const userFolder = `fixnear_kyc_private/${req.user._id}`;
-    const docType = req.body?.docType === 'certificate' ? 'certificate' : 'idProof';
-
-    if (!isCloudinaryConfigured()) {
-      if (process.env.NODE_ENV === 'production') {
-        return res.status(503).json({
+router.post(
+  '/upload/private',
+  authenticate,
+  authorize('provider', 'admin'),
+  handlePrivateDocUpload,
+  async (req, res, next) => {
+    try {
+      if (!req.file || !req.file.buffer) {
+        return res.status(400).json({
           success: false,
-          message: 'Private document upload storage is not configured in production.',
+          code: 'NO_FILE_UPLOADED',
+          message: 'No file uploaded.',
         });
       }
 
-      // Development / Test local storage: store under server/uploads-private/<userId>/
-      const userDir = path.resolve(__dirname, '../uploads-private', String(req.user._id));
-      if (!fs.existsSync(userDir)) {
-        fs.mkdirSync(userDir, { recursive: true });
+      // Verify file content via magic numbers
+      const detectedType = detectFileTypeFromBuffer(req.file.buffer);
+      if (!detectedType) {
+        return res.status(400).json({
+          success: false,
+          code: 'FILE_TYPE_NOT_ALLOWED',
+          message: 'Please upload a JPG, PNG, WebP or PDF file.',
+        });
       }
-      const filename = `doc_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
-      const filePath = path.join(userDir, filename);
-      fs.writeFileSync(filePath, req.file.buffer);
 
-      const publicId = `${userFolder}/${filename}`;
-      return res.status(200).json({
-        success: true,
-        publicId,
-        resourceType,
-        url: `/api/providers/documents/${docType}/file`,
-        message: 'File saved securely to local private storage.',
-      });
-    }
+      // Verify claimed type vs content inspection
+      const normalizedClaimedMime = req.file.mimetype === 'image/jpg' ? 'image/jpeg' : req.file.mimetype;
+      const isClaimedPdf = normalizedClaimedMime === 'application/pdf';
+      const isDetectedPdf = detectedType === 'application/pdf';
 
-    const result = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: userFolder,
-          type: 'authenticated', // Private authenticated asset
-          resource_type: resourceType,
-        },
-        (error, res) => {
-          if (error) return reject(error);
-          resolve(res);
+      if (isClaimedPdf !== isDetectedPdf) {
+        return res.status(400).json({
+          success: false,
+          code: 'FILE_TYPE_NOT_ALLOWED',
+          message: 'Please upload a JPG, PNG, WebP or PDF file.',
+        });
+      }
+
+      const isPdf = isDetectedPdf;
+      const resourceType = isPdf ? 'raw' : 'image';
+      const contentType = isPdf ? 'pdf' : 'image';
+      const ext = isPdf
+        ? '.pdf'
+        : detectedType === 'image/png'
+        ? '.png'
+        : detectedType === 'image/webp'
+        ? '.webp'
+        : '.jpg';
+
+      const userFolder = `fixnear_kyc_private/${req.user._id}`;
+      const docType = req.body?.docType === 'certificate' ? 'certificate' : 'idProof';
+
+      if (!isCloudinaryConfigured()) {
+        if (process.env.NODE_ENV === 'production') {
+          return res.status(503).json({
+            success: false,
+            message: 'Private document upload storage is not configured in production.',
+          });
         }
-      );
-      stream.end(req.file.buffer);
-    });
 
-    res.status(200).json({
-      success: true,
-      publicId: result.public_id,
-      resourceType,
-      url: result.secure_url,
-    });
-  } catch (err) {
-    next(err);
+        // Development / Test local storage: store under server/uploads-private/<userId>/
+        const userDir = path.resolve(__dirname, '../uploads-private', String(req.user._id));
+        if (!fs.existsSync(userDir)) {
+          fs.mkdirSync(userDir, { recursive: true });
+        }
+        const filename = `doc_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
+        const filePath = path.join(userDir, filename);
+        fs.writeFileSync(filePath, req.file.buffer);
+
+        const publicId = `${userFolder}/${filename}`;
+        return res.status(200).json({
+          success: true,
+          publicId,
+          resourceType,
+          contentType,
+          url: `/api/providers/documents/${docType}/file`,
+          message: 'File saved securely to local private storage.',
+        });
+      }
+
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: userFolder,
+            type: 'authenticated', // Private authenticated asset
+            resource_type: resourceType,
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        stream.end(req.file.buffer);
+      });
+
+      res.status(200).json({
+        success: true,
+        publicId: result.public_id,
+        resourceType,
+        contentType,
+        url: result.secure_url,
+      });
+    } catch (err) {
+      next(err);
+    }
   }
-});
+);
 
 export default router;
