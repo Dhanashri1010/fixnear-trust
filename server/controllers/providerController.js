@@ -9,9 +9,15 @@ import { Booking } from '../models/Booking.js';
 import { Setting } from '../models/Setting.js';
 import { Category } from '../models/Category.js';
 import { User } from '../models/User.js';
+import { Upload } from '../models/Upload.js';
 import { notifyUser } from './notificationController.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
-import { deletePrivateDocument } from '../utils/documentStorage.js';
+import {
+  deletePrivateDocument,
+  isValidKycPublicId,
+  resolveLocalKycPath,
+  isCloudinaryConfigured,
+} from '../utils/documentStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -194,20 +200,42 @@ export const registerProviderProfile = async (req, res, next) => {
       certificateResourceType,
     } = req.body;
 
-    // Fix 5: Validate publicIds belong to user's private folder
+    // Validate publicIds belong to user's private folder, match strict pattern and exist in Upload collection
     const userFolderPrefix = `fixnear_kyc_private/${req.user._id}/`;
-    if (idProofPublicId && !idProofPublicId.startsWith(userFolderPrefix)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid ID proof publicId. Document must be stored in your private folder '${userFolderPrefix}'.`,
-      });
+    if (idProofPublicId) {
+      if (!isValidKycPublicId(idProofPublicId, req.user._id)) {
+        return res.status(400).json({
+          success: false,
+          code: 'INVALID_PUBLIC_ID',
+          message: `Invalid ID proof publicId. Document must be stored in your private folder '${userFolderPrefix}'.`,
+        });
+      }
+      const uploadDoc = await Upload.findOne({ publicId: idProofPublicId, userId: req.user._id });
+      if (!uploadDoc) {
+        return res.status(400).json({
+          success: false,
+          code: 'UPLOAD_NOT_FOUND',
+          message: 'ID proof document upload record not found. Please upload your document again.',
+        });
+      }
     }
 
-    if (certificatePublicId && !certificatePublicId.startsWith(userFolderPrefix)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid certificate publicId. Document must be stored in your private folder '${userFolderPrefix}'.`,
-      });
+    if (certificatePublicId) {
+      if (!isValidKycPublicId(certificatePublicId, req.user._id)) {
+        return res.status(400).json({
+          success: false,
+          code: 'INVALID_PUBLIC_ID',
+          message: `Invalid certificate publicId. Document must be stored in your private folder '${userFolderPrefix}'.`,
+        });
+      }
+      const uploadDoc = await Upload.findOne({ publicId: certificatePublicId, userId: req.user._id });
+      if (!uploadDoc) {
+        return res.status(400).json({
+          success: false,
+          code: 'UPLOAD_NOT_FOUND',
+          message: 'Certificate document upload record not found. Please upload your document again.',
+        });
+      }
     }
 
     let provider = await Provider.findOne({ userId: req.user._id });
@@ -215,10 +243,10 @@ export const registerProviderProfile = async (req, res, next) => {
     // Clean up previous documents if replaced
     if (provider) {
       if (idProofPublicId && provider.idProofPublicId && idProofPublicId !== provider.idProofPublicId) {
-        await deletePrivateDocument(provider.idProofPublicId, provider.idProofResourceType);
+        await deletePrivateDocument(provider.idProofPublicId, provider.idProofResourceType, req.user._id);
       }
       if (certificatePublicId && provider.certificatePublicId && certificatePublicId !== provider.certificatePublicId) {
-        await deletePrivateDocument(provider.certificatePublicId, provider.certificateResourceType);
+        await deletePrivateDocument(provider.certificatePublicId, provider.certificateResourceType, req.user._id);
       }
     }
 
@@ -416,10 +444,17 @@ export const updateProviderStatus = async (req, res, next) => {
 export const getPrivateDocumentSignedUrl = async (req, res, next) => {
   try {
     const { type } = req.params; // 'idProof' or 'certificate'
+    if (type !== 'idProof' && type !== 'certificate') {
+      return res.status(400).json({ success: false, message: 'Invalid document type requested.' });
+    }
+
     const providerId = req.query.providerId;
 
     let provider;
     if (req.user.role === 'admin' && providerId) {
+      if (!mongoose.isValidObjectId(providerId)) {
+        return res.status(400).json({ success: false, message: 'Invalid provider ID.' });
+      }
       provider = await Provider.findById(providerId);
     } else {
       provider = await Provider.findOne({ userId: req.user._id });
@@ -441,8 +476,19 @@ export const getPrivateDocumentSignedUrl = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Document not found.' });
     }
 
+    // Validate publicId if present
+    if (publicId) {
+      if (!isValidKycPublicId(publicId, provider.userId)) {
+        return res.status(400).json({ success: false, message: 'Invalid document public ID format.' });
+      }
+      const uploadDoc = await Upload.findOne({ publicId, userId: provider.userId });
+      if (!uploadDoc) {
+        return res.status(400).json({ success: false, message: 'Document upload record not found.' });
+      }
+    }
+
     let signedUrl = rawUrl;
-    if (publicId && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+    if (publicId && isCloudinaryConfigured()) {
       try {
         signedUrl = cloudinary.url(publicId, {
           sign_url: true,
@@ -453,7 +499,7 @@ export const getPrivateDocumentSignedUrl = async (req, res, next) => {
       } catch (signErr) {
         signedUrl = rawUrl;
       }
-    } else if (publicId && publicId.startsWith('fixnear_kyc_private/')) {
+    } else if (publicId) {
       // Local dev/test fallback
       signedUrl = `/api/providers/documents/${type}/file${req.user.role === 'admin' && providerId ? `?providerId=${providerId}` : ''}`;
     }
@@ -478,14 +524,31 @@ export const getPrivateDocumentSignedUrl = async (req, res, next) => {
 // GET /api/providers/documents/:type/file (Serves local private file if stored on disk)
 export const servePrivateDocumentFile = async (req, res, next) => {
   try {
+    // 1. Refuse in production or when Cloudinary is configured
+    if (process.env.NODE_ENV === 'production' || isCloudinaryConfigured()) {
+      return res.status(404).json({
+        success: false,
+        message: 'Local document serving is not available.',
+      });
+    }
+
     const { type } = req.params;
+    if (type !== 'idProof' && type !== 'certificate') {
+      return res.status(400).json({ success: false, message: 'Invalid document type requested.' });
+    }
+
     const providerId = req.query.providerId;
 
     let provider;
     if (req.user.role === 'admin' && providerId) {
+      if (!mongoose.isValidObjectId(providerId)) {
+        return res.status(400).json({ success: false, message: 'Invalid provider ID.' });
+      }
       provider = await Provider.findById(providerId);
-    } else {
+    } else if (req.user.role === 'provider') {
       provider = await Provider.findOne({ userId: req.user._id });
+    } else {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
     if (!provider) {
@@ -499,8 +562,24 @@ export const servePrivateDocumentFile = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Document not found.' });
     }
 
-    const relativePath = publicId.replace(/^fixnear_kyc_private\//, '');
-    const localDiskPath = path.resolve(__dirname, '../uploads-private', relativePath);
+    // 2. Validate strict format against provider.userId
+    if (!isValidKycPublicId(publicId, provider.userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid document public ID format.' });
+    }
+
+    // 3. Verify ownership in Upload collection
+    const uploadDoc = await Upload.findOne({ publicId, userId: provider.userId });
+    if (!uploadDoc) {
+      return res.status(400).json({ success: false, message: 'Document upload record not found.' });
+    }
+
+    // 4. Resolve local path safely
+    let localDiskPath;
+    try {
+      localDiskPath = resolveLocalKycPath(publicId, provider.userId);
+    } catch (err) {
+      return res.status(400).json({ success: false, message: 'Invalid document path.' });
+    }
 
     if (!fs.existsSync(localDiskPath)) {
       return res.status(404).json({ success: false, message: 'Local document file not found.' });

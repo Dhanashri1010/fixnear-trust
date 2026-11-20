@@ -11,6 +11,7 @@
     "create-test-provider": "node scripts/createTestProvider.js",
     "approve-provider": "node scripts/approveProvider.js",
     "load-data": "node scripts/loadData.js",
+    "fix-kyc-paths": "node scripts/fixKycPaths.js",
     "test": "vitest run"
   },
   "dependencies": {

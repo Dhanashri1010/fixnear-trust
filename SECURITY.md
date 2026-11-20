@@ -103,9 +103,14 @@ FixNear Trust is a security-first, verified local home services platform. This d
 - **HTTP Header Security**:
   - `helmet` is configured with strict Content Security Policy (CSP), frameguard, DNS prefetch control, and HSTS headers.
   - Razorpay checkout scripts (`https://checkout.razorpay.com`) and frame ancestors are whitelisted explicitly.
-- **Private Document Protection**:
+- **Private Document Protection & Path Traversal Prevention**:
   - Sensitive files (Government ID proofs and trade certificates) are stored in private Cloudinary storage or access-controlled local disk storage.
   - Technicians and administrators view documents only through short-lived, time-limited signed URLs (`/api/providers/documents/:type`).
+  - Uploaded file paths are never taken from the client. Paths are rebuilt on the server from the user id and a validated file name.
+  - Public IDs are strictly validated via `isValidKycPublicId` to match `fixnear_kyc_private/<userId>/<filename>` with permitted extensions (`.jpg`, `.jpeg`, `.png`, `.webp`, `.pdf`) and no traversal sequences (`..`, `/`, `\`, `%`).
+  - Document registration and file retrieval strictly require an authentic record in the `Upload` collection matching the user ID.
+  - Local disk path resolution via `resolveLocalKycPath` enforces canonical boundary prefixes and resolves symlink realpaths via `fs.realpathSync`.
+  - In production or when Cloudinary is configured, local document serving is disabled (`404 Not Found`).
 
 ---
 

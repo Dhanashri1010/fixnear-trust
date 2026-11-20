@@ -15,6 +15,7 @@ import { Question } from '../models/Question.js';
 import { SkillTestSession } from '../models/SkillTestSession.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { AuditLog } from '../models/AuditLog.js';
+import { Upload } from '../models/Upload.js';
 import { checkExpiredOffers } from '../controllers/bookingController.js';
 
 let mongod;
@@ -48,6 +49,7 @@ beforeEach(async () => {
   await Question.deleteMany({});
   await SkillTestSession.deleteMany({});
   await TestAttempt.deleteMany({});
+  await Upload.deleteMany({});
   await AuditLog.collection.deleteMany({});
 });
 
@@ -1360,6 +1362,19 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     // Valid registration with per-user folder publicId
     const validIdPublicId = `fixnear_kyc_private/${provUser.body.user.id}/id_doc_partner_123.jpg`;
     const validCertPublicId = `fixnear_kyc_private/${provUser.body.user.id}/cert_partner_456.jpg`;
+
+    await Upload.create({
+      userId: provUser.body.user.id,
+      publicId: validIdPublicId,
+      resourceType: 'image',
+      contentType: 'image',
+    });
+    await Upload.create({
+      userId: provUser.body.user.id,
+      publicId: validCertPublicId,
+      resourceType: 'image',
+      contentType: 'image',
+    });
 
     const regStepRes = await request(app)
       .post('/api/providers/register')

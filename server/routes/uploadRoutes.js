@@ -9,7 +9,9 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import {
   detectFileTypeFromBuffer,
   isCloudinaryConfigured,
+  resolveLocalKycPath,
 } from '../utils/documentStorage.js';
+import { Upload } from '../models/Upload.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -180,15 +182,25 @@ router.post(
         }
 
         // Development / Test local storage: store under server/uploads-private/<userId>/
-        const userDir = path.resolve(__dirname, '../uploads-private', String(req.user._id));
+        const filename = `doc_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
+        const publicId = `${userFolder}/${filename}`;
+
+        // Rebuild safely and resolve boundary
+        const filePath = resolveLocalKycPath(publicId, req.user._id);
+        const userDir = path.dirname(filePath);
         if (!fs.existsSync(userDir)) {
           fs.mkdirSync(userDir, { recursive: true });
         }
-        const filename = `doc_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`;
-        const filePath = path.join(userDir, filename);
         fs.writeFileSync(filePath, req.file.buffer);
 
-        const publicId = `${userFolder}/${filename}`;
+        // Record ownership in Upload collection
+        await Upload.create({
+          userId: req.user._id,
+          publicId,
+          resourceType,
+          contentType,
+        });
+
         return res.status(200).json({
           success: true,
           publicId,
@@ -212,6 +224,14 @@ router.post(
           }
         );
         stream.end(req.file.buffer);
+      });
+
+      // Record ownership in Upload collection
+      await Upload.create({
+        userId: req.user._id,
+        publicId: result.public_id,
+        resourceType,
+        contentType,
       });
 
       res.status(200).json({

@@ -17,12 +17,14 @@ import { AuditLog } from '../models/AuditLog.js';
 import { Payment } from '../models/Payment.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { Notification } from '../models/Notification.js';
+import { Upload } from '../models/Upload.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { notifyUser } from './notificationController.js';
 import { sendComplaintResolvedEmail, sendProviderStatusEmail, sendRetestRequiredEmail } from '../utils/emailHelper.js';
 import { offerBookingToNextProvider } from './bookingController.js';
 import { toBookingPayload } from '../utils/bookingSerializer.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
+import { isValidKycPublicId, isCloudinaryConfigured } from '../utils/documentStorage.js';
 import { io } from '../server.js';
 import { v2 as cloudinary } from 'cloudinary';
 import path from 'path';
@@ -194,34 +196,52 @@ export const getProviderDetails = async (req, res, next) => {
     let idProofSignedUrl = provider.idProofUrl || '';
     let certificateSignedUrl = provider.certificateUrl || '';
 
-    if (provider.idProofPublicId && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
-      try {
-        idProofSignedUrl = cloudinary.url(provider.idProofPublicId, {
-          sign_url: true,
-          type: 'authenticated',
-          resource_type: provider.idProofResourceType || 'image',
-          expires_at: Math.floor(Date.now() / 1000) + 900,
-        });
-      } catch (e) {
-        idProofSignedUrl = `/api/providers/documents/idProof/file?providerId=${provider._id}`;
+    if (provider.idProofPublicId && isValidKycPublicId(provider.idProofPublicId, provider.userId)) {
+      const uploadDoc = await Upload.findOne({ publicId: provider.idProofPublicId, userId: provider.userId });
+      if (uploadDoc) {
+        if (isCloudinaryConfigured()) {
+          try {
+            idProofSignedUrl = cloudinary.url(provider.idProofPublicId, {
+              sign_url: true,
+              type: 'authenticated',
+              resource_type: provider.idProofResourceType || 'image',
+              expires_at: Math.floor(Date.now() / 1000) + 900,
+            });
+          } catch (e) {
+            idProofSignedUrl = `/api/providers/documents/idProof/file?providerId=${provider._id}`;
+          }
+        } else {
+          idProofSignedUrl = `/api/providers/documents/idProof/file?providerId=${provider._id}`;
+        }
+      } else {
+        idProofSignedUrl = '';
       }
     } else if (provider.idProofPublicId) {
-      idProofSignedUrl = `/api/providers/documents/idProof/file?providerId=${provider._id}`;
+      idProofSignedUrl = '';
     }
 
-    if (provider.certificatePublicId && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
-      try {
-        certificateSignedUrl = cloudinary.url(provider.certificatePublicId, {
-          sign_url: true,
-          type: 'authenticated',
-          resource_type: provider.certificateResourceType || 'image',
-          expires_at: Math.floor(Date.now() / 1000) + 900,
-        });
-      } catch (e) {
-        certificateSignedUrl = `/api/providers/documents/certificate/file?providerId=${provider._id}`;
+    if (provider.certificatePublicId && isValidKycPublicId(provider.certificatePublicId, provider.userId)) {
+      const uploadDoc = await Upload.findOne({ publicId: provider.certificatePublicId, userId: provider.userId });
+      if (uploadDoc) {
+        if (isCloudinaryConfigured()) {
+          try {
+            certificateSignedUrl = cloudinary.url(provider.certificatePublicId, {
+              sign_url: true,
+              type: 'authenticated',
+              resource_type: provider.certificateResourceType || 'image',
+              expires_at: Math.floor(Date.now() / 1000) + 900,
+            });
+          } catch (e) {
+            certificateSignedUrl = `/api/providers/documents/certificate/file?providerId=${provider._id}`;
+          }
+        } else {
+          certificateSignedUrl = `/api/providers/documents/certificate/file?providerId=${provider._id}`;
+        }
+      } else {
+        certificateSignedUrl = '';
       }
     } else if (provider.certificatePublicId) {
-      certificateSignedUrl = `/api/providers/documents/certificate/file?providerId=${provider._id}`;
+      certificateSignedUrl = '';
     }
 
     const idProofIsPdf =

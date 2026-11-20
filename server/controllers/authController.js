@@ -18,6 +18,7 @@ import { SupportTicket } from '../models/SupportTicket.js';
 import { Notification } from '../models/Notification.js';
 import { TestAttempt } from '../models/TestAttempt.js';
 import { FailedCleanup } from '../models/FailedCleanup.js';
+import { Upload } from '../models/Upload.js';
 import { offerBookingToNextProvider } from './bookingController.js';
 import { sendPasswordResetEmail, sendPasswordChangedEmail, sendWelcomeEmail } from '../utils/emailHelper.js';
 
@@ -424,28 +425,34 @@ const cleanupUserFiles = async (userId, provider = null) => {
   }
 
   // 1. Delete local private files under server/uploads-private/<userId>/
-  const localUserDir = path.resolve(__dirname, '../uploads-private', String(userId));
-  if (fs.existsSync(localUserDir)) {
+  const uploadsRoot = path.resolve(__dirname, '../uploads-private');
+  const normalizedRoot = uploadsRoot.endsWith(path.sep) ? uploadsRoot : uploadsRoot + path.sep;
+  const localUserDir = path.resolve(uploadsRoot, String(userId));
+
+  if (localUserDir.startsWith(normalizedRoot) && path.basename(localUserDir) === String(userId) && fs.existsSync(localUserDir)) {
     try {
-      const files = fs.readdirSync(localUserDir);
-      for (const file of files) {
-        const fullPath = path.join(localUserDir, file);
-        try {
-          fs.unlinkSync(fullPath);
-        } catch (unlinkErr) {
-          await FailedCleanup.create({
-            userId,
-            providerId: provider?._id,
-            assetType: 'local_private_file',
-            filePath: fullPath,
-            storageType: 'local_disk',
-            error: unlinkErr.message,
-          });
+      const realUserDir = fs.realpathSync(localUserDir);
+      if (realUserDir.startsWith(normalizedRoot) && path.basename(realUserDir) === String(userId)) {
+        const files = fs.readdirSync(realUserDir);
+        for (const file of files) {
+          const fullPath = path.join(realUserDir, file);
+          try {
+            fs.unlinkSync(fullPath);
+          } catch (unlinkErr) {
+            await FailedCleanup.create({
+              userId,
+              providerId: provider?._id,
+              assetType: 'local_private_file',
+              filePath: fullPath,
+              storageType: 'local_disk',
+              error: unlinkErr.message,
+            });
+          }
         }
+        try {
+          fs.rmdirSync(realUserDir);
+        } catch (rmErr) {}
       }
-      try {
-        fs.rmdirSync(localUserDir);
-      } catch (rmErr) {}
     } catch (dirErr) {
       await FailedCleanup.create({
         userId,
@@ -457,6 +464,9 @@ const cleanupUserFiles = async (userId, provider = null) => {
       });
     }
   }
+
+  // Remove ownership tracking records from Upload collection
+  await Upload.deleteMany({ userId });
 
   // 2. Delete private assets from Cloudinary
   const isCloudinaryConfigured = Boolean(

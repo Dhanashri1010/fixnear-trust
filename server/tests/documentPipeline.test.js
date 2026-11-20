@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import { app } from '../server.js';
 import { User } from '../models/User.js';
 import { Provider } from '../models/Provider.js';
+import { Upload } from '../models/Upload.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,6 +53,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await User.deleteMany({});
   await Provider.deleteMany({});
+  await Upload.deleteMany({});
 
   // 1. Create provider user & profile
   providerUser = await User.create({
