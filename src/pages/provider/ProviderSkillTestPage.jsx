@@ -394,7 +394,7 @@ export default function ProviderSkillTestPage() {
                     backgroundColor: '#FFFFFF',
                     borderRadius: 'var(--radius-lg)',
                     padding: '20px 24px',
-                    border: `1.5px solid ${isPassed ? '#86EFAC' : isRetestRequired ? '#FDE68A' : 'var(--border-light)'}`,
+                    border: `1.5px solid ${isRetestRequired ? '#FDE68A' : skill.status === 'approved' ? '#86EFAC' : isPassed ? '#FDE68A' : 'var(--border-light)'}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -408,8 +408,8 @@ export default function ProviderSkillTestPage() {
                       width: '46px',
                       height: '46px',
                       borderRadius: 'var(--radius-md)',
-                      backgroundColor: isPassed ? '#DCFCE7' : isRetestRequired ? '#FEF3C7' : 'var(--forest-50)',
-                      color: isPassed ? '#15803D' : isRetestRequired ? '#B45309' : 'var(--forest-800)',
+                      backgroundColor: isRetestRequired ? '#FEF3C7' : skill.status === 'approved' ? '#DCFCE7' : isPassed ? '#FEF3C7' : 'var(--forest-50)',
+                      color: isRetestRequired ? '#B45309' : skill.status === 'approved' ? '#15803D' : isPassed ? '#B45309' : 'var(--forest-800)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -433,7 +433,7 @@ export default function ProviderSkillTestPage() {
                           }}>
                             {t('providerTest.retestRequiredBadge', 'Re-test Required by Admin')}
                           </span>
-                        ) : isPassed ? (
+                        ) : skill.status === 'approved' ? (
                           <span style={{
                             backgroundColor: '#DCFCE7',
                             color: '#15803D',
@@ -442,15 +442,28 @@ export default function ProviderSkillTestPage() {
                             padding: '2px 8px',
                             borderRadius: '12px'
                           }}>
-                            {skill.badge ? `${skill.badge} Certified` : 'Passed'}
+                            {skill.badge ? `${skill.badge} Certified` : t('admin.approved', 'Approved')}
+                          </span>
+                        ) : isPassed ? (
+                          <span style={{
+                            backgroundColor: '#FEF3C7',
+                            color: '#B45309',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '12px'
+                          }}>
+                            {t('providerDashboard.waitingForApproval', 'Waiting for approval')}
                           </span>
                         ) : null}
                       </div>
                       <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '3px' }}>
                         {isRetestRequired
                           ? `${t('providerTest.retestNotice', 'Administration required a re-test:')} ${skill.retestReason || 'Quality check'}`
-                          : isPassed
+                          : skill.status === 'approved'
                           ? `${t('providerTest.passedWithScore', 'Passed with')} ${skill.testScore || 80}% • ${t('providerTest.verifiedTradeBadge', 'Verified for customer jobs')}`
+                          : isPassed
+                          ? `${t('providerTest.passedWithScore', 'Passed with')} ${skill.testScore || 80}% • ${t('providerDashboard.waitingForApproval', 'Waiting for approval')}`
                           : skill.testScore > 0
                           ? `${t('providerTest.lastScore', 'Last score')}: ${skill.testScore}% (${t('providerTest.requires70', '70% required')})`
                           : t('providerTest.notTakenYet', 'Test not taken yet • 10 questions • 15 mins')}

@@ -2029,7 +2029,7 @@ describe('Final Round - Sequential Invoices, Quotation Locks, Account Data & Del
     prov1.status = 'approved';
     prov1.isOnline = true;
     prov1.city = 'Mumbai';
-    prov1.skills = [{ categoryId: 'appliance-repair', categoryName: 'Appliance Repair', passed: true }];
+    prov1.skills = [{ categoryId: 'appliance-repair', categoryName: 'Appliance Repair', passed: true, status: 'approved' }];
     prov1.idProofPublicId = 'cloudinary_private_id_proof_del_123';
     prov1.idProofResourceType = 'image';
     prov1.certificatePublicId = 'cloudinary_private_cert_del_456';
@@ -2040,7 +2040,7 @@ describe('Final Round - Sequential Invoices, Quotation Locks, Account Data & Del
     prov2.status = 'approved';
     prov2.isOnline = true;
     prov2.city = 'Mumbai';
-    prov2.skills = [{ categoryId: 'appliance-repair', categoryName: 'Appliance Repair', passed: true }];
+    prov2.skills = [{ categoryId: 'appliance-repair', categoryName: 'Appliance Repair', passed: true, status: 'approved' }];
     await prov2.save();
 
     // 3. Create a local file on disk in server/uploads-private/<userId>/
@@ -2191,7 +2191,7 @@ describe('Final Round - Sequential Invoices, Quotation Locks, Account Data & Del
     providerDoc.city = 'Mumbai';
     providerDoc.specialty = 'Electrical Repair';
     providerDoc.skills = [
-      { categoryId: 'electrical-repair', categoryName: 'Electrical Repair', passed: true },
+      { categoryId: 'electrical-repair', categoryName: 'Electrical Repair', passed: true, status: 'approved' },
     ];
     await providerDoc.save();
 

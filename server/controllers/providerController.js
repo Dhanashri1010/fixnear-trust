@@ -8,6 +8,8 @@ import { Review } from '../models/Review.js';
 import { Booking } from '../models/Booking.js';
 import { Setting } from '../models/Setting.js';
 import { Category } from '../models/Category.js';
+import { User } from '../models/User.js';
+import { notifyUser } from './notificationController.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -27,11 +29,16 @@ export const getProviders = async (req, res, next) => {
     if (category || service) {
       const catVal = category || service;
       const catRegex = new RegExp(escapeRegex(catVal), 'i');
-      filter.$or = [
-        { 'skills.categoryId': catVal },
-        { 'skills.categoryName': catRegex },
-        { specialty: catRegex },
-      ];
+      filter.skills = {
+        $elemMatch: {
+          $or: [
+            { categoryId: catVal },
+            { categoryName: catRegex },
+          ],
+          passed: true,
+          status: 'approved',
+        },
+      };
     }
 
     if (minRating) {
@@ -324,6 +331,22 @@ export const addProviderSkill = async (req, res, next) => {
     };
     provider.skills.push(newSkill);
     await provider.save();
+
+    // If provider is already approved, notify admins that provider added a new skill
+    if (provider.status === 'approved') {
+      const admins = await User.find({ role: 'admin' });
+      for (const admin of admins) {
+        await notifyUser({
+          userId: admin._id,
+          role: 'admin',
+          title: 'New Service Added',
+          message: `Provider ${provider.name} added '${categoryDoc.name}' to their profile.`,
+          code: 'NEW_SKILL_ADDED',
+          type: 'approval',
+          link: '/admin/approvals',
+        });
+      }
+    }
 
     res.status(200).json({
       success: true,

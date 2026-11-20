@@ -322,11 +322,15 @@ export default function AdminApprovalsDesk() {
                           {cand.specialty || 'General Service'} • {cand.city}
                         </div>
                       </div>
-                      {passedSkill && (
+                      {cand.status === 'approved' && cand.skills?.some(s => s.passed && s.status === 'passed') ? (
+                        <span className="badge badge-warning" style={{ fontSize: '11px', fontWeight: 800 }}>
+                          {t('admin.newServiceWaitingApproval', 'New service waiting for approval')}
+                        </span>
+                      ) : passedSkill ? (
                         <span className="badge badge-success" style={{ fontSize: '11px', fontWeight: 800 }}>
                           {passedSkill.testScore}%
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -363,9 +367,15 @@ export default function AdminApprovalsDesk() {
                         <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
                           {activeProvider.name}
                         </h3>
-                        <span className="badge badge-warning" style={{ fontSize: '11px', fontWeight: 800 }}>
-                          {t('admin.waitingApproval')}
-                        </span>
+                        {activeProvider.status === 'approved' && activeProvider.skills?.some(s => s.passed && s.status === 'passed') ? (
+                          <span className="badge badge-warning" style={{ fontSize: '11px', fontWeight: 800 }}>
+                            {t('admin.newServiceWaitingApproval', 'New service waiting for approval')}
+                          </span>
+                        ) : (
+                          <span className="badge badge-warning" style={{ fontSize: '11px', fontWeight: 800 }}>
+                            {t('admin.waitingApproval')}
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -432,8 +442,9 @@ export default function AdminApprovalsDesk() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
                       {activeProvider.skills.map((skill, idx) => {
                         const isRetestRequired = skill.status === 'retest_required';
-                        const isSkillApproved = !isRetestRequired && (skill.status === 'approved' || (skill.passed && skill.status !== 'rejected'));
+                        const isSkillApproved = !isRetestRequired && skill.status === 'approved';
                         const isSkillRejected = !isRetestRequired && skill.status === 'rejected';
+                        const isSkillNewWaiting = !isRetestRequired && skill.passed && skill.status === 'passed';
 
                         return (
                           <div
@@ -451,8 +462,13 @@ export default function AdminApprovalsDesk() {
                             }}
                           >
                             <div>
-                              <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--forest-950)' }}>
-                                {skill.categoryName || skill.categoryId}
+                              <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--forest-950)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span>{skill.categoryName || skill.categoryId}</span>
+                                {isSkillNewWaiting && (
+                                  <span className="badge badge-warning" style={{ fontSize: '10.5px', fontWeight: 800 }}>
+                                    {t('admin.newServiceWaitingApproval', 'New service waiting for approval')}
+                                  </span>
+                                )}
                               </div>
                               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                                 {t('providerDashboard.scoreLabel', 'Score:')} <strong>{skill.testScore || 0}%</strong>
@@ -462,7 +478,13 @@ export default function AdminApprovalsDesk() {
                                   fontWeight: 700,
                                   color: isSkillApproved ? '#16A34A' : isRetestRequired ? '#D97706' : isSkillRejected ? '#DC2626' : '#D97706'
                                 }}>
-                                  {isRetestRequired ? t('providerTest.retestRequiredBadge', 'Retest Required') : isSkillApproved ? t('admin.approved', 'Approved') : isSkillRejected ? t('admin.rejected', 'Rejected') : (skill.passed ? t('admin.passedPendingAdmin', 'Passed (Pending Admin)') : t('admin.notPassed', 'Not Passed'))}
+                                  {isRetestRequired
+                                    ? t('providerTest.retestRequiredBadge', 'Retest Required')
+                                    : isSkillApproved
+                                    ? t('admin.approved', 'Approved')
+                                    : isSkillRejected
+                                    ? t('admin.rejected', 'Rejected')
+                                    : (skill.passed ? t('admin.newServiceWaitingApproval', 'New service waiting for approval') : t('admin.notPassed', 'Not Passed'))}
                                 </span>
                               </div>
                             </div>

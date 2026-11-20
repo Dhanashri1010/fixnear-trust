@@ -8,6 +8,7 @@ import { User } from '../models/User.js';
 import { Setting } from '../models/Setting.js';
 import { Category } from '../models/Category.js';
 import { sendSkillTestResultEmail } from '../utils/emailHelper.js';
+import { notifyUser } from './notificationController.js';
 
 /**
  * Generates a randomized permutation of [0, 1, 2, 3] for option shuffling.
@@ -598,6 +599,21 @@ export const submitSkillTest = async (req, res, next) => {
           provider.badges = [...new Set([...(provider.badges || []), `${badge} Certified`])];
         }
         await provider.save();
+
+        if (provider.status === 'approved') {
+          const admins = await User.find({ role: 'admin' });
+          for (const admin of admins) {
+            await notifyUser({
+              userId: admin._id,
+              role: 'admin',
+              title: 'New Service Waiting for Approval',
+              message: `Provider ${provider.name} passed the skill test for '${session.categoryName || categoryId}' and is waiting for approval.`,
+              code: 'NEW_SKILL_WAITING_APPROVAL',
+              type: 'approval',
+              link: '/admin/approvals',
+            });
+          }
+        }
 
         sendSkillTestResultEmail({
           providerEmail: provider.email,

@@ -148,7 +148,18 @@ export const getAdminStats = async (req, res, next) => {
 // GET /api/admin/approvals
 export const getApprovalsList = async (req, res, next) => {
   try {
-    const candidates = await Provider.find({ status: 'waiting_for_approval' })
+    const candidates = await Provider.find({
+      $or: [
+        {
+          status: 'waiting_for_approval',
+          skills: { $elemMatch: { passed: true } },
+        },
+        {
+          status: 'approved',
+          skills: { $elemMatch: { passed: true, status: 'passed' } },
+        },
+      ],
+    })
       .populate('userId', 'email phone name createdAt isBlocked')
       .sort({ updatedAt: -1 });
 
@@ -246,6 +257,14 @@ export const approveProviderAction = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Provider not found.' });
     }
 
+    const hasAnyPassed = provider.skills?.some((s) => s.passed === true);
+    if (!hasAnyPassed) {
+      return res.status(400).json({
+        success: false,
+        message: 'This provider has not passed any skill test yet.',
+      });
+    }
+
     const oldStatus = provider.status;
     provider.status = 'approved';
     provider.verifiedBadge = true;
@@ -335,10 +354,18 @@ export const updateProviderSkillStatus = async (req, res, next) => {
       return res.status(404).json({ success: false, message: `Skill '${categoryId}' not found on provider.` });
     }
 
-    skill.status = status;
     if (status === 'approved') {
+      const hasAnyPassed = provider.skills?.some((s) => s.passed === true);
+      if (!hasAnyPassed) {
+        return res.status(400).json({
+          success: false,
+          message: 'This provider has not passed any skill test yet.',
+        });
+      }
+      skill.status = 'approved';
       skill.passed = true;
     } else if (status === 'rejected') {
+      skill.status = 'rejected';
       skill.passed = false;
     }
 
@@ -593,7 +620,6 @@ export const getProvidersList = async (req, res, next) => {
       filter.$or = [
         { 'skills.categoryId': skill },
         { 'skills.categoryName': new RegExp(escapeRegex(skill), 'i') },
-        { specialty: new RegExp(escapeRegex(skill), 'i') },
       ];
     }
     if (flagged === 'true' || flagged === true) {

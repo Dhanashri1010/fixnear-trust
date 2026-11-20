@@ -108,30 +108,21 @@ export const createBooking = async (req, res, next) => {
     // (Strict: removed fallback that picks any provider in the city)
     const escapedCity = escapeRegex(bookingCity);
     const escapedCategory = escapeRegex(service.category);
-    const escapedSpecialty = escapeRegex(service.category || service.categoryId);
 
     const providerQuery = {
       status: 'approved',
       isOnline: true,
       city: new RegExp(`^${escapedCity}$`, 'i'),
-      $or: [
-        {
-          skills: {
-            $elemMatch: {
-              $or: [
-                { categoryId: service.categoryId },
-                { categoryName: new RegExp(escapedCategory, 'i') },
-              ],
-              passed: true,
-              status: { $ne: 'retest_required' },
-            },
-          },
+      skills: {
+        $elemMatch: {
+          $or: [
+            { categoryId: service.categoryId },
+            { categoryName: new RegExp(escapedCategory, 'i') },
+          ],
+          passed: true,
+          status: 'approved',
         },
-        {
-          skills: { $size: 0 },
-          specialty: new RegExp(escapedSpecialty, 'i'),
-        },
-      ],
+      },
     };
 
     const matchingProviders = await Provider.find(providerQuery).sort({ ratingAvg: -1, jobsDone: -1 });
@@ -1123,17 +1114,13 @@ export const updateBookingStatus = async (req, res, next) => {
 
       // Check skill
       const service = await Service.findOne({ serviceId: booking.serviceId });
-      const hasSkill =
-        providerDoc.skills?.some(
-          (s) =>
-            s.passed &&
-            s.status !== 'retest_required' &&
-            (s.categoryId === service?.categoryId ||
-              s.categoryName?.toLowerCase() === service?.category?.toLowerCase())
-        ) ||
-        ((!providerDoc.skills || providerDoc.skills.length === 0) &&
-          service &&
-          new RegExp(escapeRegex(service.category || service.categoryId), 'i').test(providerDoc.specialty));
+      const hasSkill = providerDoc.skills?.some(
+        (s) =>
+          s.passed &&
+          s.status === 'approved' &&
+          (s.categoryId === service?.categoryId ||
+            s.categoryName?.toLowerCase() === service?.category?.toLowerCase())
+      );
 
       if (!hasSkill) {
         return res.status(400).json({
@@ -1437,24 +1424,16 @@ export const offerBookingToNextProvider = async (bookingId) => {
     status: 'approved',
     isOnline: true,
     city: new RegExp(`^${escapeRegex(booking.city.trim())}$`, 'i'),
-    $or: [
-      {
-        skills: {
-          $elemMatch: {
-            $or: [
-              { categoryId: service.categoryId },
-              { categoryName: new RegExp(escapeRegex(service.category), 'i') },
-            ],
-            passed: true,
-            status: { $ne: 'retest_required' },
-          },
-        },
+    skills: {
+      $elemMatch: {
+        $or: [
+          { categoryId: service.categoryId },
+          { categoryName: new RegExp(escapeRegex(service.category), 'i') },
+        ],
+        passed: true,
+        status: 'approved',
       },
-      {
-        skills: { $size: 0 },
-        specialty: new RegExp(escapeRegex(service.category || service.categoryId), 'i'),
-      },
-    ],
+    },
   };
 
   const nextProviders = await Provider.find(query).sort({ ratingAvg: -1, jobsDone: -1 });

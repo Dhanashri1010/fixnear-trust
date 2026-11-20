@@ -1235,8 +1235,8 @@ export default function ProviderDashboardPage() {
                     style={{
                       padding: '20px',
                       borderRadius: 'var(--radius-lg)',
-                      border: `1.5px solid ${skill.status === 'retest_required' ? '#FDE68A' : skill.passed ? 'var(--forest-600)' : '#E5E7EB'}`,
-                      backgroundColor: skill.status === 'retest_required' ? '#FEF3C7' : skill.passed ? 'var(--forest-50)' : '#F9FAFB'
+                      border: `1.5px solid ${skill.status === 'retest_required' ? '#FDE68A' : skill.status === 'approved' ? 'var(--forest-600)' : skill.passed ? '#FDE68A' : '#E5E7EB'}`,
+                      backgroundColor: skill.status === 'retest_required' ? '#FEF3C7' : skill.status === 'approved' ? 'var(--forest-50)' : skill.passed ? '#FEF3C7' : '#F9FAFB'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
@@ -1244,7 +1244,7 @@ export default function ProviderDashboardPage() {
                         width: '40px',
                         height: '40px',
                         borderRadius: 'var(--radius-md)',
-                        backgroundColor: skill.status === 'retest_required' ? '#B45309' : skill.passed ? 'var(--forest-700)' : '#9CA3AF',
+                        backgroundColor: skill.status === 'retest_required' ? '#B45309' : skill.status === 'approved' ? 'var(--forest-700)' : skill.passed ? '#B45309' : '#9CA3AF',
                         color: '#FFFFFF',
                         display: 'flex',
                         alignItems: 'center',
@@ -1256,8 +1256,14 @@ export default function ProviderDashboardPage() {
                         <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--forest-900)' }}>
                           {skill.categoryName || 'Trade Craft'}
                         </div>
-                        <div style={{ fontSize: '12px', color: skill.status === 'retest_required' ? '#B45309' : skill.passed ? 'var(--forest-700)' : '#6B7280', fontWeight: 700 }}>
-                          {skill.status === 'retest_required' ? t('providerTest.retestRequiredBadge', 'Re-test Required by Admin') : skill.passed ? t('providerDashboard.verifiedSkillBadge') : t('providerDashboard.certPending')}
+                        <div style={{ fontSize: '12px', color: skill.status === 'retest_required' ? '#B45309' : skill.status === 'approved' ? 'var(--forest-700)' : skill.passed ? '#B45309' : '#6B7280', fontWeight: 700 }}>
+                          {skill.status === 'retest_required'
+                            ? t('providerTest.retestRequiredBadge', 'Re-test Required by Admin')
+                            : skill.status === 'approved'
+                            ? t('providerDashboard.verifiedSkillBadge')
+                            : skill.passed
+                            ? t('providerDashboard.waitingForApproval', 'Waiting for approval')
+                            : t('providerDashboard.certPending')}
                         </div>
                       </div>
                     </div>

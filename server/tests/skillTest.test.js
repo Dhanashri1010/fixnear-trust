@@ -502,6 +502,9 @@ describe('Skill Test Engine & Question Bank Suite', () => {
     // Admin approves provider
     provAfterPlumbing.status = 'approved';
     provAfterPlumbing.isOnline = true;
+    provAfterPlumbing.skills.forEach((s) => {
+      if (s.passed) s.status = 'approved';
+    });
     await provAfterPlumbing.save();
 
     // 4. Test Dispatch: Booking for Plumbing MUST match Rohan Shinde
@@ -1112,5 +1115,462 @@ describe('Skill Test Engine & Question Bank Suite', () => {
       });
 
     expect(unauthorizedRes.status).toBe(403);
+  });
+
+  it('a provider who just passed an added skill gets no offers until admin approves that skill', async () => {
+    // 1. Create an admin
+    const adminUser = await User.create({
+      name: 'Super Admin Approver',
+      email: 'approver.admin@fixnear.com',
+      password: 'AdminPassword123!',
+      role: 'admin',
+    });
+    const adminLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'approver.admin@fixnear.com', password: 'AdminPassword123!' });
+    const adminCookie = adminLogin.headers['set-cookie'];
+
+    // 2. Create customer and provider in Nashik
+    const custUser = await User.create({
+      name: 'Rupali Deshmukh',
+      email: 'rupali.deshmukh@fixnear.com',
+      password: 'CustomerPass123!',
+      phone: '9820011991',
+      city: 'Nashik',
+      role: 'customer',
+    });
+    const custCookie = (
+      await request(app).post('/api/auth/login').send({ email: 'rupali.deshmukh@fixnear.com', password: 'CustomerPass123!' })
+    ).headers['set-cookie'];
+
+    const provUser = await User.create({
+      name: 'Ajay Kadam',
+      email: 'ajay.kadam@fixnear.com',
+      password: 'ProviderPass123!',
+      phone: '9820011992',
+      city: 'Nashik',
+      role: 'provider',
+    });
+    const provCookie = (
+      await request(app).post('/api/auth/login').send({ email: 'ajay.kadam@fixnear.com', password: 'ProviderPass123!' })
+    ).headers['set-cookie'];
+
+    const provider = await Provider.create({
+      userId: provUser._id,
+      name: provUser.name,
+      email: provUser.email,
+      phone: provUser.phone,
+      city: 'Nashik',
+      status: 'approved',
+      isOnline: true,
+      skills: [],
+    });
+
+    // Ensure category and service exist
+    await Category.findOneAndUpdate(
+      { categoryId: 'deep-cleaning' },
+      { $setOnInsert: { categoryId: 'deep-cleaning', name: 'Deep Cleaning', icon: 'sparkles', description: 'Deep home cleaning' } },
+      { upsert: true }
+    );
+    const cleanService = await Service.findOneAndUpdate(
+      { serviceId: 'deep-clean-nashik' },
+      {
+        $setOnInsert: {
+          serviceId: 'deep-clean-nashik',
+          title: 'Full House Deep Cleaning',
+          category: 'Deep Cleaning',
+          categoryId: 'deep-cleaning',
+          startingPrice: 1999,
+          isActive: true,
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    // 3. Provider adds deep-cleaning skill
+    const addSkillRes = await request(app)
+      .post('/api/providers/skills/add')
+      .set('Cookie', provCookie)
+      .send({ categoryId: 'deep-cleaning' });
+    expect(addSkillRes.status).toBe(200);
+
+    // 4. Provider takes and passes the deep-cleaning skill test
+    const startRes = await request(app)
+      .get('/api/skill-test/deep-cleaning')
+      .set('Cookie', provCookie);
+    expect(startRes.status).toBe(200);
+    const { sessionId } = startRes.body;
+
+    const sessionInDb = await SkillTestSession.findById(sessionId);
+    const questionDocs = await Question.find({ _id: { $in: sessionInDb.questionIds } }).select('+correctIndex');
+    const qMap = new Map();
+    questionDocs.forEach((q) => qMap.set(String(q._id), q));
+
+    const answers = sessionInDb.questionIds.map((qId) => {
+      const q = qMap.get(String(qId));
+      const sq = sessionInDb.shuffledQuestions.find((s) => String(s.questionId) === String(qId));
+      const userSelected = sq ? sq.optionOrder.indexOf(q.correctIndex) : q.correctIndex;
+      return { questionId: qId, selectedIndex: userSelected };
+    });
+
+    const submitRes = await request(app)
+      .post('/api/skill-test/deep-cleaning/submit')
+      .set('Cookie', provCookie)
+      .send({ sessionId, answers, warningCount: 0 });
+    expect(submitRes.status).toBe(200);
+    expect(submitRes.body.passed).toBe(true);
+
+    // Verify skill is in status 'passed', NOT 'approved'
+    const provAfterPass = await Provider.findById(provider._id);
+    const cleanSkill = provAfterPass.skills.find((s) => s.categoryId === 'deep-cleaning');
+    expect(cleanSkill.passed).toBe(true);
+    expect(cleanSkill.status).toBe('passed');
+
+    // Verify admin received notification and provider shows in admin approvals list
+    const adminNotif = await Notification.findOne({
+      userId: adminUser._id,
+      code: 'NEW_SKILL_WAITING_APPROVAL',
+    });
+    expect(adminNotif).toBeDefined();
+
+    const approvalsRes = await request(app)
+      .get('/api/admin/approvals')
+      .set('Cookie', adminCookie);
+    expect(approvalsRes.status).toBe(200);
+    expect(approvalsRes.body.candidates.some((c) => String(c._id) === String(provider._id))).toBe(true);
+
+    // 5. Customer tries to book deep cleaning -> MUST FAIL with BOOKING_NO_PROVIDER because skill is only 'passed', not 'approved'!
+    const bookFailRes = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: cleanService.serviceId,
+        address: 'College Road, Nashik',
+        city: 'Nashik',
+        scheduledDate: '2026-12-20',
+        timeSlot: '11:00 AM',
+      });
+    expect(bookFailRes.status).toBe(400);
+    expect(bookFailRes.body.code).toBe('BOOKING_NO_PROVIDER');
+
+    // 6. Admin approves the deep-cleaning skill
+    const approveSkillRes = await request(app)
+      .patch(`/api/admin/providers/${provider._id}/skills/deep-cleaning`)
+      .set('Cookie', adminCookie)
+      .send({ status: 'approved' });
+    expect(approveSkillRes.status).toBe(200);
+    expect(approveSkillRes.body.skill.status).toBe('approved');
+    expect(approveSkillRes.body.skill.passed).toBe(true);
+
+    // 7. Customer books again -> MUST SUCCEED now that skill is approved!
+    const bookSuccessRes = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: cleanService.serviceId,
+        address: 'College Road, Nashik',
+        city: 'Nashik',
+        scheduledDate: '2026-12-20',
+        timeSlot: '11:00 AM',
+      });
+    expect(bookSuccessRes.status).toBe(201);
+    expect(bookSuccessRes.body.success).toBe(true);
+    const savedBooking = await Booking.findById(bookSuccessRes.body.booking._id);
+    expect(savedBooking.offeredTo.length).toBeGreaterThan(0);
+    expect(String(savedBooking.offeredTo[0].providerId)).toBe(String(provider._id));
+  });
+
+  it('a provider with empty skills and a matching specialty text gets no offers', async () => {
+    // 1. Create provider with empty skills and specialty 'Carpentry' in Thane
+    const provUser = await User.create({
+      name: 'Vikas Patil',
+      email: 'vikas.patil.specialty@fixnear.com',
+      password: 'ProviderPass123!',
+      phone: '9820011993',
+      city: 'Thane',
+      role: 'provider',
+    });
+
+    await Provider.create({
+      userId: provUser._id,
+      name: provUser.name,
+      email: provUser.email,
+      phone: provUser.phone,
+      city: 'Thane',
+      specialty: 'Carpentry',
+      skills: [],
+      status: 'approved',
+      isOnline: true,
+    });
+
+    // Ensure service exists in Thane
+    const carpService = await Service.findOneAndUpdate(
+      { serviceId: 'carp-service-thane' },
+      {
+        $setOnInsert: {
+          serviceId: 'carp-service-thane',
+          title: 'Custom Furniture Assembly',
+          category: 'Carpentry',
+          categoryId: 'carpentry',
+          startingPrice: 599,
+          isActive: true,
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    // 2. Customer books carpentry in Thane
+    const custUser = await User.create({
+      name: 'Sonal Sen',
+      email: 'sonal.sen.thane@fixnear.com',
+      password: 'CustomerPass123!',
+      phone: '9820011994',
+      city: 'Thane',
+      role: 'customer',
+    });
+    const custCookie = (
+      await request(app).post('/api/auth/login').send({ email: 'sonal.sen.thane@fixnear.com', password: 'CustomerPass123!' })
+    ).headers['set-cookie'];
+
+    const bookRes = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: carpService.serviceId,
+        address: 'Ghodbunder Road, Thane',
+        city: 'Thane',
+        scheduledDate: '2026-12-21',
+        timeSlot: '10:00 AM',
+      });
+
+    // Provider with no approved skill must receive NO offers!
+    expect(bookRes.status).toBe(400);
+    expect(bookRes.body.code).toBe('BOOKING_NO_PROVIDER');
+  });
+
+  it('admin approval fails with friendly message for a provider with no passed skill', async () => {
+    // 1. Admin login
+    const adminUser = await User.findOne({ email: 'approver.admin@fixnear.com' });
+    const adminCookie = (
+      await request(app).post('/api/auth/login').send({ email: 'approver.admin@fixnear.com', password: 'AdminPassword123!' })
+    ).headers['set-cookie'];
+
+    // 2. Provider with no passed skill
+    const provUser = await User.create({
+      name: 'Unverified Tech',
+      email: 'unverified.tech@fixnear.com',
+      password: 'ProviderPass123!',
+      phone: '9820011995',
+      city: 'Mumbai',
+      role: 'provider',
+    });
+    const provider = await Provider.create({
+      userId: provUser._id,
+      name: provUser.name,
+      email: provUser.email,
+      phone: provUser.phone,
+      city: 'Mumbai',
+      status: 'take_skill_test',
+      skills: [
+        {
+          categoryId: 'painting',
+          categoryName: 'Painting',
+          passed: false,
+          status: 'not_taken',
+          testScore: 0,
+        },
+      ],
+    });
+
+    // 3. Provider must not show in admin approvals list (only providers with at least one passed skill show)
+    const listRes = await request(app)
+      .get('/api/admin/approvals')
+      .set('Cookie', adminCookie);
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.candidates.some((c) => String(c._id) === String(provider._id))).toBe(false);
+
+    // 4. Admin tries approveProviderAction -> must return 400 with friendly message
+    const approveActionRes = await request(app)
+      .post(`/api/admin/approvals/${provider._id}/approve`)
+      .set('Cookie', adminCookie)
+      .send({});
+    expect(approveActionRes.status).toBe(400);
+    expect(approveActionRes.body.success).toBe(false);
+    expect(approveActionRes.body.message).toBe('This provider has not passed any skill test yet.');
+
+    // 5. Admin tries per-skill approval route -> must return 400 with friendly message
+    const skillApproveRes = await request(app)
+      .patch(`/api/admin/providers/${provider._id}/skills/painting`)
+      .set('Cookie', adminCookie)
+      .send({ status: 'approved' });
+    expect(skillApproveRes.status).toBe(400);
+    expect(skillApproveRes.body.success).toBe(false);
+    expect(skillApproveRes.body.message).toBe('This provider has not passed any skill test yet.');
+  });
+
+  it('approving a skill makes the provider eligible for that service only (not for other services)', async () => {
+    // 1. Admin login
+    const adminCookie = (
+      await request(app).post('/api/auth/login').send({ email: 'approver.admin@fixnear.com', password: 'AdminPassword123!' })
+    ).headers['set-cookie'];
+
+    // 2. Customer login
+    const custUser = await User.create({
+      name: 'Pooja Hegde',
+      email: 'pooja.hegde@fixnear.com',
+      password: 'CustomerPass123!',
+      phone: '9820011996',
+      city: 'Nagpur',
+      role: 'customer',
+    });
+    const custCookie = (
+      await request(app).post('/api/auth/login').send({ email: 'pooja.hegde@fixnear.com', password: 'CustomerPass123!' })
+    ).headers['set-cookie'];
+
+    // 3. Services in Nagpur: AC, Plumbing, Electrical
+    const acService = await Service.findOneAndUpdate(
+      { serviceId: 'ac-nagpur' },
+      {
+        $setOnInsert: {
+          serviceId: 'ac-nagpur',
+          title: 'AC Maintenance',
+          category: 'Air Conditioning',
+          categoryId: 'ac-cooling',
+          startingPrice: 799,
+          isActive: true,
+        },
+      },
+      { upsert: true, new: true }
+    );
+    const plumService = await Service.findOneAndUpdate(
+      { serviceId: 'plum-nagpur' },
+      {
+        $setOnInsert: {
+          serviceId: 'plum-nagpur',
+          title: 'Tap Leak Repair',
+          category: 'Plumbing',
+          categoryId: 'plumbing',
+          startingPrice: 399,
+          isActive: true,
+        },
+      },
+      { upsert: true, new: true }
+    );
+    const elecService = await Service.findOneAndUpdate(
+      { serviceId: 'elec-nagpur' },
+      {
+        $setOnInsert: {
+          serviceId: 'elec-nagpur',
+          title: 'Wiring Repair',
+          category: 'Electrical',
+          categoryId: 'electrical',
+          startingPrice: 499,
+          isActive: true,
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    // 4. Provider in Nagpur: has ac-cooling approved, plumbing passed (waiting approval), electrical not taken
+    const provUser = await User.create({
+      name: 'Mahesh Kale',
+      email: 'mahesh.kale@fixnear.com',
+      password: 'ProviderPass123!',
+      phone: '9820011997',
+      city: 'Nagpur',
+      role: 'provider',
+    });
+    const provider = await Provider.create({
+      userId: provUser._id,
+      name: provUser.name,
+      email: provUser.email,
+      phone: provUser.phone,
+      city: 'Nagpur',
+      status: 'approved',
+      isOnline: true,
+      skills: [
+        {
+          categoryId: 'ac-cooling',
+          categoryName: 'Air Conditioning',
+          passed: true,
+          status: 'approved',
+          testScore: 88,
+        },
+        {
+          categoryId: 'plumbing',
+          categoryName: 'Plumbing',
+          passed: true,
+          status: 'passed',
+          testScore: 78,
+        },
+      ],
+    });
+
+    // 5. Eligible for AC booking -> SUCCEEDS
+    const acBook = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: acService.serviceId,
+        address: 'Civil Lines, Nagpur',
+        city: 'Nagpur',
+        scheduledDate: '2026-12-22',
+        timeSlot: '09:00 AM',
+      });
+    expect(acBook.status).toBe(201);
+    const savedAcBooking = await Booking.findById(acBook.body.booking._id);
+    expect(savedAcBooking.offeredTo.length).toBeGreaterThan(0);
+    expect(String(savedAcBooking.offeredTo[0].providerId)).toBe(String(provider._id));
+
+    // 6. Not yet approved for Plumbing -> FAILS
+    const plumBookFail = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: plumService.serviceId,
+        address: 'Civil Lines, Nagpur',
+        city: 'Nagpur',
+        scheduledDate: '2026-12-22',
+        timeSlot: '11:00 AM',
+      });
+    expect(plumBookFail.status).toBe(400);
+    expect(plumBookFail.body.code).toBe('BOOKING_NO_PROVIDER');
+
+    // 7. Admin approves Plumbing
+    const approvePlum = await request(app)
+      .patch(`/api/admin/providers/${provider._id}/skills/plumbing`)
+      .set('Cookie', adminCookie)
+      .send({ status: 'approved' });
+    expect(approvePlum.status).toBe(200);
+
+    // 8. Now eligible for Plumbing -> SUCCEEDS
+    const plumBookSuccess = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: plumService.serviceId,
+        address: 'Civil Lines, Nagpur',
+        city: 'Nagpur',
+        scheduledDate: '2026-12-22',
+        timeSlot: '11:00 AM',
+      });
+    expect(plumBookSuccess.status).toBe(201);
+    const savedPlumBooking = await Booking.findById(plumBookSuccess.body.booking._id);
+    expect(savedPlumBooking.offeredTo.length).toBeGreaterThan(0);
+    expect(String(savedPlumBooking.offeredTo[0].providerId)).toBe(String(provider._id));
+
+    // 9. Still NOT eligible for Electrical (service provider does not have) -> FAILS
+    const elecBookFail = await request(app)
+      .post('/api/bookings')
+      .set('Cookie', custCookie)
+      .send({
+        serviceId: elecService.serviceId,
+        address: 'Civil Lines, Nagpur',
+        city: 'Nagpur',
+        scheduledDate: '2026-12-22',
+        timeSlot: '03:00 PM',
+      });
+    expect(elecBookFail.status).toBe(400);
+    expect(elecBookFail.body.code).toBe('BOOKING_NO_PROVIDER');
   });
 });

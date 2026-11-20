@@ -160,7 +160,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: carpUser.phone,
       city: 'Mumbai',
       specialty: 'Carpentry',
-      skills: [{ categoryId: 'carpentry', categoryName: 'Carpentry', passed: true, testScore: 90 }],
+      skills: [{ categoryId: 'carpentry', categoryName: 'Carpentry', passed: true, status: 'approved', testScore: 90 }],
       status: 'approved',
       isOnline: true,
     });
@@ -214,7 +214,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: provUser.phone,
       city: 'Mumbai',
       specialty: 'Air Conditioning',
-      skills: [{ categoryId: 'ac-cooling', categoryName: 'Air Conditioning', passed: true, testScore: 92 }],
+      skills: [{ categoryId: 'ac-cooling', categoryName: 'Air Conditioning', passed: true, status: 'approved', testScore: 92 }],
       status: 'approved',
       isOnline: true,
       ratingAvg: 4.9,
@@ -300,7 +300,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: provUser.phone,
       city: 'Mumbai',
       specialty: 'Plumbing',
-      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 88 }],
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 88 }],
       status: 'approved',
       isOnline: true,
     });
@@ -365,7 +365,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: provUser.phone,
       city: 'Mumbai',
       specialty: 'Electrical',
-      skills: [{ categoryId: 'electrical', categoryName: 'Electrical', passed: true, testScore: 95 }],
+      skills: [{ categoryId: 'electrical', categoryName: 'Electrical', passed: true, status: 'approved', testScore: 95 }],
       status: 'approved',
       isOnline: true,
     });
@@ -422,7 +422,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: provUser.phone,
       city: 'Mumbai',
       specialty: 'Appliances',
-      skills: [{ categoryId: 'appliances', categoryName: 'Appliances', passed: true, testScore: 89 }],
+      skills: [{ categoryId: 'appliances', categoryName: 'Appliances', passed: true, status: 'approved', testScore: 89 }],
       status: 'approved',
       isOnline: true,
     });
@@ -518,7 +518,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: provUser.phone,
       city: 'Mumbai',
       specialty: 'Plumbing',
-      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 94 }],
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 94 }],
       status: 'approved',
       isOnline: true,
       ratingAvg: 4.8,
@@ -625,7 +625,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: provUser.phone,
       city: 'Mumbai',
       specialty: 'Electrical',
-      skills: [{ categoryId: 'electrical', categoryName: 'Electrical', passed: true, testScore: 96 }],
+      skills: [{ categoryId: 'electrical', categoryName: 'Electrical', passed: true, status: 'approved', testScore: 96 }],
       status: 'approved',
       isOnline: true,
     });
@@ -737,7 +737,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: provUser.phone,
       city: 'Mumbai',
       specialty: 'Plumbing',
-      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 91 }],
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 91 }],
       status: 'approved',
       isOnline: true,
       ratingAvg: 5.0,
@@ -880,7 +880,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: userA.phone,
       city: 'Mumbai',
       specialty: 'Plumbing',
-      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 92 }],
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 92 }],
       status: 'approved',
       isOnline: true,
       ratingAvg: 4.9,
@@ -904,7 +904,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: userB.phone,
       city: 'Mumbai',
       specialty: 'Plumbing',
-      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 88 }],
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 88 }],
       status: 'approved',
       isOnline: true,
       ratingAvg: 4.5,
@@ -928,7 +928,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: userC.phone,
       city: 'Mumbai',
       specialty: 'Plumbing',
-      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 85 }],
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 85 }],
       status: 'suspended',
       isOnline: true,
     });
@@ -1020,7 +1020,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: user1.phone,
       city: 'Mumbai',
       specialty: 'Plumbing',
-      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 95 }],
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 95 }],
       status: 'approved',
       isOnline: true,
       ratingAvg: 5.0,
@@ -1044,7 +1044,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: user2.phone,
       city: 'Mumbai',
       specialty: 'Plumbing',
-      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 90 }],
+      skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 90 }],
       status: 'approved',
       isOnline: true,
       ratingAvg: 4.7,
@@ -1161,7 +1161,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: provUser.phone,
       city: 'Mum(bai',
       specialty: 'Electrical',
-      skills: [{ categoryId: 'electrical', categoryName: 'Electrical', passed: true, testScore: 90 }],
+      skills: [{ categoryId: 'electrical', categoryName: 'Electrical', passed: true, status: 'approved', testScore: 90 }],
       status: 'approved',
       isOnline: true,
     });
@@ -1205,15 +1205,15 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
   it('prevents double-dispatch: concurrent decline and expiry race creates exactly one new offer', async () => {
     // Setup Provider 1 (Rating 5.0), Provider 2 (Rating 4.8), Provider 3 (Rating 4.5)
     const u1 = await User.create({ name: 'Tech One', email: 't1@fixnear.com', password: 'SecurePass123', phone: '9876543141', city: 'Mumbai', role: 'provider' });
-    const p1 = await Provider.create({ userId: u1._id, name: u1.name, email: u1.email, phone: u1.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 95 }], status: 'approved', isOnline: true, ratingAvg: 5.0, jobsDone: 10 });
+    const p1 = await Provider.create({ userId: u1._id, name: u1.name, email: u1.email, phone: u1.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 95 }], status: 'approved', isOnline: true, ratingAvg: 5.0, jobsDone: 10 });
     const log1 = await request(app).post('/api/auth/login').send({ email: 't1@fixnear.com', password: 'SecurePass123' });
     const c1 = log1.headers['set-cookie'];
 
     const u2 = await User.create({ name: 'Tech Two', email: 't2@fixnear.com', password: 'SecurePass123', phone: '9876543142', city: 'Mumbai', role: 'provider' });
-    const p2 = await Provider.create({ userId: u2._id, name: u2.name, email: u2.email, phone: u2.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 90 }], status: 'approved', isOnline: true, ratingAvg: 4.8, jobsDone: 8 });
+    const p2 = await Provider.create({ userId: u2._id, name: u2.name, email: u2.email, phone: u2.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 90 }], status: 'approved', isOnline: true, ratingAvg: 4.8, jobsDone: 8 });
 
     const u3 = await User.create({ name: 'Tech Three', email: 't3@fixnear.com', password: 'SecurePass123', phone: '9876543143', city: 'Mumbai', role: 'provider' });
-    await Provider.create({ userId: u3._id, name: u3.name, email: u3.email, phone: u3.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 85 }], status: 'approved', isOnline: true, ratingAvg: 4.5, jobsDone: 5 });
+    await Provider.create({ userId: u3._id, name: u3.name, email: u3.email, phone: u3.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 85 }], status: 'approved', isOnline: true, ratingAvg: 4.5, jobsDone: 5 });
 
     const cust = await request(app).post('/api/auth/register').send({ name: 'Customer Race', email: 'race@fixnear.com', password: 'SecurePass123', phone: '9876543144', city: 'Mumbai', role: 'customer' });
     const custCookie = cust.headers['set-cookie'];
@@ -1248,10 +1248,10 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
   it('automatically recovers a stuck expired booking with no pending offer and re-offers to next provider', async () => {
     // Setup Provider 1 (already declined) & Provider 2 (eligible)
     const u1 = await User.create({ name: 'Stuck P1', email: 'stuck1@fixnear.com', password: 'SecurePass123', phone: '9876543151', city: 'Mumbai', role: 'provider' });
-    const p1 = await Provider.create({ userId: u1._id, name: u1.name, email: u1.email, phone: u1.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 92 }], status: 'approved', isOnline: true });
+    const p1 = await Provider.create({ userId: u1._id, name: u1.name, email: u1.email, phone: u1.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 92 }], status: 'approved', isOnline: true });
 
     const u2 = await User.create({ name: 'Stuck P2', email: 'stuck2@fixnear.com', password: 'SecurePass123', phone: '9876543152', city: 'Mumbai', role: 'provider' });
-    const p2 = await Provider.create({ userId: u2._id, name: u2.name, email: u2.email, phone: u2.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 89 }], status: 'approved', isOnline: true });
+    const p2 = await Provider.create({ userId: u2._id, name: u2.name, email: u2.email, phone: u2.phone, city: 'Mumbai', specialty: 'Plumbing', skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 89 }], status: 'approved', isOnline: true });
 
     const cust = await request(app).post('/api/auth/register').send({ name: 'Stuck Cust', email: 'stuckcust@fixnear.com', password: 'SecurePass123', phone: '9876543153', city: 'Mumbai', role: 'customer' });
 
@@ -1703,7 +1703,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
           status: 'approved',
           isOnline: true,
           specialty: 'AC Repair',
-          skills: [{ categoryId: 'ac-repair', categoryName: 'AC Repair', passed: true, testScore: 90 }],
+          skills: [{ categoryId: 'ac-repair', categoryName: 'AC Repair', passed: true, status: 'approved', testScore: 90 }],
         },
       },
       { new: true }
@@ -1809,7 +1809,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
       phone: provUser.phone,
       city: 'Mumbai',
       specialty: 'Electrical',
-      skills: [{ categoryId: 'electrical', categoryName: 'Electrical', passed: true, testScore: 92 }],
+      skills: [{ categoryId: 'electrical', categoryName: 'Electrical', passed: true, status: 'approved', testScore: 92 }],
       status: 'approved',
       isOnline: true,
     });
@@ -2016,7 +2016,7 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
         phone: pUser.phone,
         city: 'Mumbai',
         specialty: 'Plumbing',
-        skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, testScore: 90 }],
+        skills: [{ categoryId: 'plumbing', categoryName: 'Plumbing', passed: true, status: 'approved', testScore: 90 }],
         status: 'waiting_for_approval',
         isOnline: true,
         ratingAvg: 4.5,
