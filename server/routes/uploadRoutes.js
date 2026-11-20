@@ -107,6 +107,7 @@ router.post('/upload/private', authenticate, authorize('provider', 'admin'), pri
     const resourceType = isPdf ? 'raw' : 'image';
     const ext = isPdf ? '.pdf' : path.extname(req.file.originalname) || '.jpg';
     const userFolder = `fixnear_kyc_private/${req.user._id}`;
+    const docType = req.body?.docType === 'certificate' ? 'certificate' : 'idProof';
 
     if (!isCloudinaryConfigured()) {
       if (process.env.NODE_ENV === 'production') {
@@ -130,7 +131,7 @@ router.post('/upload/private', authenticate, authorize('provider', 'admin'), pri
         success: true,
         publicId,
         resourceType,
-        url: `/api/providers/documents/idProof/file`,
+        url: `/api/providers/documents/${docType}/file`,
         message: 'File saved securely to local private storage.',
       });
     }

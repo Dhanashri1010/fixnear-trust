@@ -224,7 +224,7 @@ export default function ProviderRegisterPage() {
         setPreviewUrl('pdf-document');
       }
 
-      const res = await uploadAPI.uploadPrivateDoc(file);
+      const res = await uploadAPI.uploadPrivateDoc(file, field);
       if (res.success && res.publicId) {
         const urlKey = field === 'idProof' ? 'idProofUrl' : 'certificateUrl';
         const publicIdKey = field === 'idProof' ? 'idProofPublicId' : 'certificatePublicId';

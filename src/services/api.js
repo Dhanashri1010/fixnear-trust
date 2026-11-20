@@ -138,6 +138,16 @@ export const uploadAPI = {
       },
     });
   },
+  uploadPrivateDoc: (file, docType = 'idProof') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('docType', docType);
+    return api.post('/upload/private', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };
 
 // Admin API (Phase D)
