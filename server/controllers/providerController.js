@@ -137,6 +137,7 @@ export const getMyProviderProfile = async (req, res, next) => {
     let earningsToday = 0;
     let earningsWeek = 0;
     let earningsMonth = 0;
+    let earningsLifetime = 0;
 
     completedBookings.forEach((b) => {
       const gross = b.invoice?.totalAmount || b.basePrice || 0;
@@ -144,6 +145,7 @@ export const getMyProviderProfile = async (req, res, next) => {
       const net = Math.max(0, Math.round(gross * (1 - commissionPercent / 100) - fee));
       const jobDate = b.updatedAt || b.createdAt;
 
+      earningsLifetime += net;
       if (jobDate >= todayStart) earningsToday += net;
       if (jobDate >= weekAgo) earningsWeek += net;
       if (jobDate >= monthAgo) earningsMonth += net;
@@ -152,6 +154,7 @@ export const getMyProviderProfile = async (req, res, next) => {
     provider.earningsToday = earningsToday;
     provider.earningsWeek = earningsWeek;
     provider.earningsMonth = earningsMonth;
+    provider.earningsLifetime = earningsLifetime;
     provider.jobsDone = completedBookings.length;
     await provider.save();
 
@@ -171,6 +174,7 @@ export const getMyProviderProfile = async (req, res, next) => {
         today: earningsToday,
         week: earningsWeek,
         month: earningsMonth,
+        lifetime: earningsLifetime,
         totalJobs: completedBookings.length,
       },
     });

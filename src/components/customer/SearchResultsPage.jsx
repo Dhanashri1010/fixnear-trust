@@ -271,11 +271,17 @@ export default function SearchResultsPage() {
                               <ShieldCheck size={14} color="var(--forest-700)" />
                             </div>
                             <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{tech.specialty || t('home.certifiedSpecialist', 'Service Specialist')}</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
-                              <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                              <strong>{tech.ratingAvg || 4.9}</strong>
-                              <span style={{ color: 'var(--text-muted)' }}>({tech.ratingCount || 0} {t('catalog.verifiedRatings', 'reviews')})</span>
-                            </div>
+                            {tech.ratingAvg !== null && tech.ratingAvg !== undefined && (tech.ratingCount || 0) > 0 ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                                <Star size={12} color="#F59E0B" fill="#F59E0B" />
+                                <strong>{Number(tech.ratingAvg).toFixed(1)}</strong>
+                                <span style={{ color: 'var(--text-muted)' }}>({tech.ratingCount || 0} {t('catalog.verifiedRatings', 'reviews')})</span>
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                {t('technician.noReviewsYet', 'New — no reviews yet')}
+                              </div>
+                            )}
                           </div>
                         </div>
 

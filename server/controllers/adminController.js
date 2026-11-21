@@ -1617,6 +1617,11 @@ export const resolveDisputeAction = async (req, res, next) => {
     dispute.refundAmount = refNum;
     dispute.providerPayout = payNum;
     dispute.resolvedAt = new Date();
+    if (dec === 'REFUND_CUSTOMER' && refNum > 0) {
+      dispute.refundStatus = 'PROCESSING';
+    } else {
+      dispute.refundStatus = 'NONE';
+    }
     await dispute.save();
 
     // Update booking disputeStatus; Job status stays unchanged!
@@ -1632,11 +1637,17 @@ export const resolveDisputeAction = async (req, res, next) => {
         if (payment.method === 'ONLINE' && payment.razorpayPaymentId && process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
           try {
             if (process.env.NODE_ENV === 'test') {
-              payment.refundId = `rfnd_mock_${Date.now()}`;
+              const mockRefundId = `rfnd_mock_${Date.now()}`;
+              payment.refundId = mockRefundId;
               payment.refundAmount = refNum;
               payment.refundNotes = note.trim();
               payment.status = refNum >= payment.amount ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
               await payment.save();
+
+              dispute.refundStatus = 'REFUNDED';
+              dispute.refundId = mockRefundId;
+              dispute.refundAt = new Date();
+              await dispute.save();
             } else {
               const Razorpay = (await import('razorpay')).default;
               const rzp = new Razorpay({
@@ -1652,14 +1663,26 @@ export const resolveDisputeAction = async (req, res, next) => {
               payment.refundNotes = note.trim();
               payment.status = refNum >= payment.amount ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
               await payment.save();
+
+              dispute.refundStatus = 'REFUNDED';
+              dispute.refundId = rzpRefund.id;
+              dispute.refundAt = new Date();
+              await dispute.save();
             }
           } catch (refErr) {
             console.error('[Razorpay Refund Error]:', refErr.message);
+            dispute.refundStatus = 'FAILED';
+            await dispute.save();
           }
         } else if (payment.method === 'CASH') {
           payment.refundNotes = 'To be settled outside the app';
           payment.refundAmount = refNum;
           await payment.save();
+
+          dispute.refundStatus = 'REFUNDED';
+          dispute.refundId = 'CASH_OFFLINE';
+          dispute.refundAt = new Date();
+          await dispute.save();
         }
       }
     }

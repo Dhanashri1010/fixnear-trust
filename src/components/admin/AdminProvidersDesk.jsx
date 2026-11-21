@@ -285,7 +285,7 @@ export default function AdminProvidersDesk() {
                       <td style={{ padding: '16px 18px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 800, fontSize: '13.5px', color: '#B45309' }}>
                           <Star size={14} fill="#F59E0B" color="#F59E0B" />
-                          <span>{tech.ratingAvg ? tech.ratingAvg.toFixed(1) : '5.0'}</span>
+                          <span>{tech.ratingAvg ? tech.ratingAvg.toFixed(1) : '—'}</span>
                           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>
                             ({tech.ratingCount || 0})
                           </span>

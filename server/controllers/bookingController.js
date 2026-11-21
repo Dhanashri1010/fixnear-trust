@@ -1034,7 +1034,7 @@ export const submitComplaint = async (req, res, next) => {
 export const updateBookingStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status: nextStatus, finishCode } = req.body;
+    const { status: nextStatus, finishCode, beforePhotos, afterPhotos } = req.body;
     const isObjectId = mongoose.isValidObjectId(id);
 
     const booking = await Booking.findOne({
@@ -1290,9 +1290,14 @@ export const updateBookingStatus = async (req, res, next) => {
 
       // Bill calculation: base price + approved quotation + platform fee snapshot
       const approvedExtra = booking.quotation?.status === 'APPROVED' ? (booking.quotation.total || 0) : 0;
-      const platformFee = booking.platformFeeSnapshot ?? 20;
+      const invoiceCalc = calculateInvoice({
+        baseAmount: booking.basePrice,
+        extraAmount: approvedExtra,
+        platformFee: booking.platformFeeSnapshot,
+        commissionRate: booking.commissionRateSnapshot,
+      });
       booking.invoice.extraAmount = approvedExtra;
-      booking.invoice.totalAmount = booking.basePrice + approvedExtra + platformFee;
+      booking.invoice.totalAmount = invoiceCalc.totalAmount;
       booking.invoice.status = 'UNPAID';
       booking.paymentMethod = 'PAY_ON_SERVICE';
       booking.paymentStatus = 'CASH_RECEIVED';
@@ -1301,6 +1306,13 @@ export const updateBookingStatus = async (req, res, next) => {
         providerDoc.jobsDone = (providerDoc.jobsDone || 0) + 1;
         await providerDoc.save();
       }
+    }
+
+    if (Array.isArray(beforePhotos) && beforePhotos.length > 0) {
+      booking.beforePhotos = beforePhotos.slice(0, 5);
+    }
+    if (Array.isArray(afterPhotos) && afterPhotos.length > 0) {
+      booking.afterPhotos = afterPhotos.slice(0, 5);
     }
 
     booking.status = nextStatus;

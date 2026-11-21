@@ -65,6 +65,19 @@ const disputeSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    refundStatus: {
+      type: String,
+      enum: ['NONE', 'PENDING', 'PROCESSING', 'REFUNDED', 'FAILED'],
+      default: 'NONE',
+    },
+    refundId: {
+      type: String,
+      default: '',
+    },
+    refundAt: {
+      type: Date,
+      default: null,
+    },
     providerPayout: {
       type: Number,
       default: 0,

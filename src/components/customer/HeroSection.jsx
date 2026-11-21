@@ -227,7 +227,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                       </div>
                       <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                         <span className="badge badge-forest" style={{ fontSize: '11px', padding: '1px 6px' }}>
-                          ★ {topProvider.ratingAvg} {t('home.ratingLabel', 'Rating')}
+                          ★ {topProvider.ratingAvg ? Number(topProvider.ratingAvg).toFixed(1) : '5.0'} {t('home.ratingLabel', 'Rating')}
                         </span>
                         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                           {topProvider.jobsDone || 42} {t('home.jobsCompleted', '+ jobs completed')}

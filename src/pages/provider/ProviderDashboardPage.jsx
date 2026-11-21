@@ -48,7 +48,7 @@ export default function ProviderDashboardPage() {
   const { t, formatCurrency, formatDate } = useLanguage();
 
   const [provider, setProvider] = useState(null);
-  const [earnings, setEarnings] = useState({ today: 0, week: 0, month: 0, totalJobs: 0 });
+  const [earnings, setEarnings] = useState({ today: 0, week: 0, month: 0, lifetime: 0, totalJobs: 0 });
   const [settings, setSettings] = useState({ commissionPercent: 10, platformFee: 20 });
   const [reviews, setReviews] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -424,7 +424,8 @@ export default function ProviderDashboardPage() {
 
   const providerName = provider?.name || userProfile?.name || currentUser?.name || 'Technician Partner';
   const providerStatus = provider?.status || 'take_skill_test';
-  const providerRating = provider?.ratingAvg || 5.0;
+  const hasProviderRating = provider?.ratingAvg !== null && provider?.ratingAvg !== undefined && (provider?.ratingCount || 0) > 0;
+  const providerRating = hasProviderRating ? Number(provider.ratingAvg).toFixed(1) : t('technician.newBadge', 'New');
   const providerJobsCount = provider?.jobsDone || completedJobs.length;
 
   if (loading) {
@@ -1145,6 +1146,16 @@ export default function ProviderDashboardPage() {
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('providerDashboard.monthNet')}</div>
                 <div style={{ fontSize: '28px', fontWeight: 800, color: '#15803D', marginTop: '4px' }}>
                   ₹{(earnings?.month || 0).toLocaleString()}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  {t('providerDashboard.acrossCompletedJobs')} ({earnings?.totalJobs || completedJobs.length})
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: '22px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>{t('providerDashboard.lifetimeNet')}</div>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '4px' }}>
+                  ₹{(earnings?.lifetime || provider?.earningsLifetime || 0).toLocaleString()}
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>
                   {t('providerDashboard.acrossCompletedJobs')} ({earnings?.totalJobs || completedJobs.length})

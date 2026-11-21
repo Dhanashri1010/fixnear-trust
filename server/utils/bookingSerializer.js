@@ -37,6 +37,8 @@ export const toBookingPayload = (booking, viewer = 'provider') => {
     timeSlot: b.timeSlot,
     notes: b.notes || '',
     photos: Array.isArray(b.photos) ? b.photos : [],
+    beforePhotos: Array.isArray(b.beforePhotos) ? b.beforePhotos : [],
+    afterPhotos: Array.isArray(b.afterPhotos) ? b.afterPhotos : [],
     status: b.status,
     disputeStatus: b.disputeStatus || 'NONE',
     timeline: Array.isArray(b.timeline)
