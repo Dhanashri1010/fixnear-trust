@@ -36,8 +36,9 @@ export default function AdminOverviewTab() {
     setError(null);
     try {
       const res = await adminAPI.getStats();
-      if (res.success && res.stats) {
-        setStats(res.stats);
+      const payload = res.data || res;
+      if (payload?.success && payload?.stats) {
+        setStats(payload.stats);
       }
     } catch (err) {
       console.error('Failed to load admin stats:', err);

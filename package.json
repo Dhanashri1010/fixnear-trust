@@ -13,7 +13,9 @@
     "create-test-provider": "npm --prefix server run create-test-provider",
     "approve-provider": "npm --prefix server run approve-provider --",
     "load-data": "npm --prefix server run load-data",
-    "fix-kyc-paths": "npm --prefix server run fix-kyc-paths"
+    "fix-kyc-paths": "npm --prefix server run fix-kyc-paths",
+    "seed-demo": "npm --prefix server run seed-demo",
+    "clean-demo": "npm --prefix server run clean-demo"
   },
   "dependencies": {
     "axios": "^1.21.0",

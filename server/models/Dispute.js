@@ -73,6 +73,11 @@ const disputeSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    isDemo: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     resolvedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

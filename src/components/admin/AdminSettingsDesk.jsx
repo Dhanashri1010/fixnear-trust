@@ -34,13 +34,15 @@ export default function AdminSettingsDesk() {
       setLoading(true);
       setError(null);
       const res = await adminAPI.getSettings();
-      if (res.data?.success && res.data?.data) {
+      const payload = res.data || res;
+      const s = payload?.settings || payload?.data;
+      if (payload?.success && s) {
         setSettings({
-          platformFee: res.data.data.platformFee ?? 49,
-          commissionRate: res.data.data.commissionRate ?? 15,
-          testPassPercentage: res.data.data.testPassPercentage ?? 80,
-          testDurationMinutes: res.data.data.testDurationMinutes ?? 15,
-          cooldownHours: res.data.data.cooldownHours ?? 24,
+          platformFee: s.platformFee ?? 20,
+          commissionRate: s.commissionPercent ?? s.commissionRate ?? 10,
+          testPassPercentage: s.passMark ?? s.testPassPercentage ?? 80,
+          testDurationMinutes: s.testDurationMinutes ?? 15,
+          cooldownHours: s.testCooldownHours ?? s.cooldownHours ?? 24,
         });
       }
     } catch (err) {
@@ -93,8 +95,16 @@ export default function AdminSettingsDesk() {
     }
 
     try {
-      const res = await adminAPI.updateSettings(settings);
-      if (res.data?.success) {
+      const payloadToSend = {
+        platformFee: settings.platformFee,
+        commissionPercent: settings.commissionRate,
+        passMark: settings.testPassPercentage,
+        testDurationMinutes: settings.testDurationMinutes,
+        testCooldownHours: settings.cooldownHours,
+      };
+      const res = await adminAPI.updateSettings(payloadToSend);
+      const payload = res.data || res;
+      if (payload?.success) {
         setMessage('Settings successfully updated and applied in real-time across the platform.');
       }
     } catch (err) {

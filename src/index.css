@@ -408,3 +408,120 @@ textarea {
     font-size: 13.5px;
   }
 }
+
+/* ===================================================================
+   Responsive Component Grids & Layout Flow Helpers
+   Eliminate mobile clipping, horizontal blowouts & text overlapping
+   =================================================================== */
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.95fr);
+  gap: 48px;
+  align-items: center;
+}
+@media (max-width: 900px) {
+  .hero-grid {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+  }
+}
+
+.hero-trust-indicators {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border-light);
+}
+@media (max-width: 640px) {
+  .hero-trust-indicators {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    margin-top: 24px !important;
+    padding-top: 20px !important;
+  }
+}
+
+.approvals-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .approvals-layout-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.tracking-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.1fr);
+  gap: 24px;
+  align-items: flex-start;
+}
+@media (max-width: 900px) {
+  .tracking-layout-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.catalog-layout-grid {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .catalog-layout-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.support-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 32px;
+}
+@media (max-width: 860px) {
+  .support-layout-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.technician-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.2fr);
+  gap: 32px;
+}
+@media (max-width: 860px) {
+  .technician-profile-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.modal-2col-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 600px) {
+  .modal-2col-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.break-words-safe {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.truncate-safe {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

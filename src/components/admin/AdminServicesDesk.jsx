@@ -57,8 +57,10 @@ export default function AdminServicesDesk() {
         adminAPI.getCategories(),
       ]);
 
-      if (srvRes.success) setServices(srvRes.services || []);
-      if (catRes.success) setCategories(catRes.categories || []);
+      const srvPayload = srvRes.data || srvRes;
+      const catPayload = catRes.data || catRes;
+      if (srvPayload?.success) setServices(srvPayload.services || []);
+      if (catPayload?.success) setCategories(catPayload.categories || []);
     } catch (err) {
       showToast('Failed to load services: ' + err.message, 'error');
     } finally {
@@ -397,7 +399,7 @@ export default function AdminServicesDesk() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="modal-2col-grid">
                 <div>
                   <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>{t('admin.category')}</label>
                   <select
@@ -434,7 +436,7 @@ export default function AdminServicesDesk() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="modal-2col-grid">
                 <div>
                   <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>{t('admin.startingPrice')} (₹)</label>
                   <input

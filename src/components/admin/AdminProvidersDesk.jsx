@@ -60,8 +60,9 @@ export default function AdminProvidersDesk() {
       if (cityFilter !== 'all') params.city = cityFilter;
 
       const res = await adminAPI.getProviders(params);
-      if (res.success) {
-        setProviders(res.providers || []);
+      const payload = res.data || res;
+      if (payload?.success) {
+        setProviders(payload.providers || []);
       }
     } catch (err) {
       setError(err.message || 'Failed to load providers.');

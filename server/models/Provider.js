@@ -105,7 +105,7 @@ const providerSchema = new mongoose.Schema(
     },
     ratingAvg: {
       type: Number,
-      default: 5.0,
+      default: null,
       min: 1.0,
       max: 5.0,
     },
@@ -132,6 +132,11 @@ const providerSchema = new mongoose.Schema(
     badges: {
       type: [String],
       default: ['Skill Verified'],
+    },
+    isDemo: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   {

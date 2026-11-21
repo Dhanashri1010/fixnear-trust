@@ -38,8 +38,9 @@ export default function AdminReviewsDesk() {
         isHidden: visibilityFilter !== 'all' ? (visibilityFilter === 'hidden') : undefined,
         search: search.trim() || undefined,
       });
-      if (res.data?.success) {
-        setReviews(res.data.reviews || []);
+      const payload = res.data || res;
+      if (payload?.success) {
+        setReviews(payload.reviews || []);
       }
     } catch (err) {
       console.error('Failed to load reviews:', err);
@@ -77,7 +78,8 @@ export default function AdminReviewsDesk() {
         reason: reasonText.trim() || undefined,
       });
 
-      if (res.data?.success) {
+      const payload = res.data || res;
+      if (payload?.success) {
         setActionSuccess(
           targetHidden
             ? `Review by ${review.authorName} hidden and removed from provider's public rating.`

@@ -186,7 +186,7 @@ export default function SupportDeskPage() {
         </div>
 
         {/* 2-Column: FAQs and Real Support Ticket Submission */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: '32px' }}>
+        <div className="support-layout-grid">
           
           {/* FAQs */}
           <div>

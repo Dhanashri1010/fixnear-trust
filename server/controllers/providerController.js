@@ -18,6 +18,7 @@ import {
   resolveLocalKycPath,
   isCloudinaryConfigured,
 } from '../utils/documentStorage.js';
+import { serializePublicProvider } from '../utils/publicProviderSerializer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,13 +54,13 @@ export const getProviders = async (req, res, next) => {
     }
 
     const providers = await Provider.find(filter)
-      .select('-adminNotes -rejectionReason')
+      .select('-adminNotes -rejectionReason -email -phone -idProofUrl -idProofPublicId -idProofResourceType -certificateUrl -certificatePublicId -certificateResourceType')
       .sort({ ratingAvg: -1, jobsDone: -1 });
 
     res.status(200).json({
       success: true,
       count: providers.length,
-      providers,
+      providers: providers.map((p) => serializePublicProvider(p, { includeUserId: true })),
     });
   } catch (err) {
     next(err);
@@ -78,7 +79,7 @@ export const getProviderById = async (req, res, next) => {
         ...(isObjectId ? [{ userId: id }] : []),
       ],
       status: 'approved',
-    }).select('-adminNotes -rejectionReason');
+    }).select('-adminNotes -rejectionReason -email -phone -idProofUrl -idProofPublicId -idProofResourceType -certificateUrl -certificatePublicId -certificateResourceType');
 
     if (!provider) {
       return res.status(404).json({
@@ -94,7 +95,7 @@ export const getProviderById = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      provider,
+      provider: serializePublicProvider(provider, { includeUserId: true }),
       reviews,
     });
   } catch (err) {

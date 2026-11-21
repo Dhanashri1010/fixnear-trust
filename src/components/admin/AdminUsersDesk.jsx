@@ -40,8 +40,9 @@ export default function AdminUsersDesk() {
       setLoading(true);
       setError(null);
       const res = await adminAPI.getAdmins();
-      if (res.data?.success) {
-        setAdmins(res.data.admins || []);
+      const payload = res.data || res;
+      if (payload?.success) {
+        setAdmins(payload.admins || []);
       }
     } catch (err) {
       console.error('Failed to load admins:', err);
@@ -68,7 +69,8 @@ export default function AdminUsersDesk() {
 
     try {
       const res = await adminAPI.createAdmin(formData);
-      if (res.data?.success) {
+      const payload = res.data || res;
+      if (payload?.success) {
         setSuccess(`Administrator account created for ${formData.name}. First-login password change enforced.`);
         setCreateModalOpen(false);
         setFormData({ name: '', email: '', password: '' });
@@ -92,7 +94,8 @@ export default function AdminUsersDesk() {
     setError(null);
     try {
       const res = await adminAPI.deactivateAdmin(adminId);
-      if (res.data?.success) {
+      const payload = res.data || res;
+      if (payload?.success) {
         setSuccess(`Administrative access revoked for ${adminName}.`);
         fetchAdmins();
         setTimeout(() => setSuccess(null), 5000);

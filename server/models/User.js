@@ -81,6 +81,11 @@ const userSchema = new mongoose.Schema(
       enum: ['en', 'hi', 'mr'],
       default: 'en',
     },
+    isDemo: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     passwordResetToken: String,
     passwordResetExpires: Date,
   },

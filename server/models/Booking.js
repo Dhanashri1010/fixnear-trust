@@ -188,6 +188,11 @@ const bookingSchema = new mongoose.Schema(
     },
     cancellationReason: String,
     cancelledBy: String,
+    isDemo: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,

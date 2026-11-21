@@ -47,11 +47,12 @@ export default function AdminAuditLogDesk() {
         limit: 30,
       });
 
-      if (res.data?.success) {
-        setLogs(res.data.logs || []);
-        setTotal(res.data.total || 0);
-        setPage(res.data.page || 1);
-        setPages(res.data.pages || 1);
+      const payload = res.data || res;
+      if (payload?.success) {
+        setLogs(payload.logs || []);
+        setTotal(payload.total || 0);
+        setPage(payload.page || 1);
+        setPages(payload.pages || 1);
       }
     } catch (err) {
       console.error('Failed to load audit logs:', err);

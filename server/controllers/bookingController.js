@@ -11,6 +11,7 @@ import { Payment } from '../models/Payment.js';
 import { Notification } from '../models/Notification.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { toBookingPayload } from '../utils/bookingSerializer.js';
+import { calculateInvoice } from '../utils/invoiceCalculator.js';
 import { io } from '../server.js';
 import {
   sendBookingPlacedEmail,
@@ -736,8 +737,16 @@ export const approveQuotation = async (req, res, next) => {
     booking.quotation.status = 'APPROVED';
     booking.quotation.updatedAt = new Date();
     booking.approvedQuotationsCount = (booking.approvedQuotationsCount || 0) + 1;
-    booking.invoice.extraAmount = (booking.invoice.extraAmount || 0) + booking.quotation.total;
-    booking.invoice.totalAmount = booking.basePrice + (booking.invoice.extraAmount || 0);
+    // Use centralized invoice calculator — always include platformFeeSnapshot
+    const extraAmount = (booking.invoice.extraAmount || 0) + booking.quotation.total;
+    const invoiceCalc = calculateInvoice({
+      baseAmount: booking.basePrice,
+      extraAmount,
+      platformFee: booking.platformFeeSnapshot,
+      commissionRate: booking.commissionRateSnapshot,
+    });
+    booking.invoice.extraAmount = extraAmount;
+    booking.invoice.totalAmount = invoiceCalc.totalAmount;
     await booking.save();
 
     if (io) {

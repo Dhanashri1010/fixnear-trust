@@ -61,8 +61,10 @@ export default function AdminQuestionsDesk() {
         adminAPI.getQuestionCounts(),
       ]);
 
-      if (qRes.success) setQuestions(qRes.questions || []);
-      if (countsRes.success) setCounts(countsRes.counts || []);
+      const qPayload = qRes.data || qRes;
+      const cPayload = countsRes.data || countsRes;
+      if (qPayload?.success) setQuestions(qPayload.questions || []);
+      if (cPayload?.success) setCounts(cPayload.counts || []);
     } catch (err) {
       showToast('Failed to load question bank: ' + err.message, 'error');
     } finally {
@@ -459,7 +461,7 @@ export default function AdminQuestionsDesk() {
             </div>
 
             <form onSubmit={handleSubmitQuestion} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="modal-2col-grid">
                 <div>
                   <label className="form-label" style={{ fontSize: '12.5px', fontWeight: 700 }}>{t('admin.category')}</label>
                   <select

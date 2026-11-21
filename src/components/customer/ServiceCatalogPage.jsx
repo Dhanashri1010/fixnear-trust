@@ -231,12 +231,7 @@ export default function ServiceCatalogPage() {
 
         {/* Main 2-Column Layout */}
         {!loading && !error && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '280px minmax(0, 1fr)',
-            gap: '32px',
-            alignItems: 'start'
-          }}>
+          <div className="catalog-layout-grid">
             
             {/* Left Sidebar: Filters */}
             <aside style={{

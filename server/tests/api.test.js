@@ -1797,14 +1797,14 @@ describe('FixNear Trust API Test Suite - Phase B', () => {
     expect(approveRes.status).toBe(200);
     expect(approveRes.body.success).toBe(true);
     expect(approveRes.body.quotation.status).toBe('APPROVED');
-    // Invoice is automatically updated: 499 base + 800 extra = 1299 total
+    // Invoice is automatically updated: 499 base + 800 extra + 20 platformFee = 1319 total
     expect(approveRes.body.invoice.extraAmount).toBe(800);
-    expect(approveRes.body.invoice.totalAmount).toBe(1299);
+    expect(approveRes.body.invoice.totalAmount).toBe(1319);
 
     // Verify DB consistency
     const updatedBooking = await Booking.findById(booking._id);
     expect(updatedBooking.quotation.status).toBe('APPROVED');
-    expect(updatedBooking.invoice.totalAmount).toBe(1299);
+    expect(updatedBooking.invoice.totalAmount).toBe(1319);
   });
 
   // Quotation limits & validation tests (Small Fix 1)

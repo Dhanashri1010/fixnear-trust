@@ -113,7 +113,7 @@ export default function ProviderDashboardPage() {
         setBookings(bookingsRes.value.bookings);
 
         // Check if there is an unexpired incoming offer for this provider
-        const pendingOffer = bookingsRes.bookings.find(
+        const pendingOffer = bookingsRes.value.bookings.find(
           (b) => b.status === 'REQUESTED' && (!b.currentOfferExpiresAt || new Date(b.currentOfferExpiresAt) > new Date())
         );
 
@@ -521,15 +521,6 @@ export default function ProviderDashboardPage() {
                 {isOnline ? t('providerDashboard.onlineActive') : t('providerDashboard.offline')}
               </span>
             </div>
-
-            <Link
-              to="/change-password"
-              className="btn btn-outline btn-sm"
-              style={{ color: '#475569', borderColor: '#CBD5E1', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-            >
-              <KeyRound size={14} />
-              <span>{t('providerDashboard.password')}</span>
-            </Link>
 
             <button 
               type="button" 
@@ -1480,7 +1471,7 @@ export default function ProviderDashboardPage() {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="modal-2col-grid">
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '6px' }}>
                       {t('providerDashboard.partCostLabel')}

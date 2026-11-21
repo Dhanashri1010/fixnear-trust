@@ -191,14 +191,20 @@ export default function TechnicianProfilePage() {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', fontSize: '13px', color: 'var(--text-muted)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Star size={15} color="#F59E0B" fill="#F59E0B" />
-                  <strong style={{ color: 'var(--text-primary)' }}>{technician.ratingAvg || 4.9}</strong>
-                  <span>({technician.ratingCount || 0} {t('catalog.verifiedRatings', 'reviews')})</span>
+                  {technician.ratingAvg !== null && technician.ratingAvg !== undefined && technician.ratingCount > 0 ? (
+                    <>
+                      <Star size={15} color="#F59E0B" fill="#F59E0B" />
+                      <strong style={{ color: 'var(--text-primary)' }}>{Number(technician.ratingAvg).toFixed(1)}</strong>
+                      <span>({technician.ratingCount || 0} {t('catalog.verifiedRatings', 'reviews')})</span>
+                    </>
+                  ) : (
+                    <span style={{ fontStyle: 'italic' }}>{t('technician.noReviewsYet', 'No reviews yet')}</span>
+                  )}
                 </div>
                 <div>•</div>
-                <div><strong>{technician.experienceYears || 5}+ {t('technician.experienceYears', 'Years')}</strong> {t('technician.experience', 'Experience')}</div>
+                <div><strong>{technician.experienceYears || 0}+ {t('technician.experienceYears', 'Years')}</strong> {t('technician.experience', 'Experience')}</div>
                 <div>•</div>
-                <div><strong>{technician.jobsCompleted || 0}</strong> {t('technician.completedJobs', 'Completed Jobs')}</div>
+                <div><strong>{technician.jobsDone || 0}</strong> {t('technician.completedJobs', 'Completed Jobs')}</div>
               </div>
 
               {/* Badges Ribbon */}
@@ -281,7 +287,7 @@ export default function TechnicianProfilePage() {
 
         {/* Tab 1: Overview */}
         {activeTab === 'overview' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(0, 1.2fr)', gap: '32px' }}>
+          <div className="technician-profile-grid">
             <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-lg)' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '14px' }}>{t('technician.aboutSpecialist', 'Professional Summary')}</h3>
               <p style={{ fontSize: '14.5px', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: '24px' }}>

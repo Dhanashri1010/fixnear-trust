@@ -54,8 +54,9 @@ export default function AdminDisputesDesk() {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         search: searchQuery.trim() || undefined,
       });
-      if (res.data?.success) {
-        setDisputes(res.data.disputes || []);
+      const payload = res.data || res;
+      if (payload?.success) {
+        setDisputes(payload.disputes || []);
       }
     } catch (err) {
       console.error('Failed to fetch disputes:', err);
@@ -80,8 +81,9 @@ export default function AdminDisputesDesk() {
     setRulingError(null);
     try {
       const res = await adminAPI.getDisputeDetails(id);
-      if (res.data?.success) {
-        setDisputeDetail(res.data);
+      const payload = res.data || res;
+      if (payload?.success) {
+        setDisputeDetail(payload);
       }
     } catch (err) {
       console.error('Failed to load dispute details:', err);
@@ -137,7 +139,8 @@ export default function AdminDisputesDesk() {
         providerPayout: finalPayout,
       });
 
-      if (res.data?.success) {
+      const payload = res.data || res;
+      if (payload?.success) {
         setActionSuccess(`Ruling successfully recorded for dispute ticket.`);
         setRulingModalOpen(false);
         // Refresh details and list

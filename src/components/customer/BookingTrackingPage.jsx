@@ -581,12 +581,7 @@ export default function BookingTrackingPage() {
         )}
 
         {/* Main Grid: 5-Step Timeline + Specialist Card & Finish Code */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1.1fr)',
-          gap: '24px',
-          alignItems: 'flex-start'
-        }}>
+        <div className="tracking-layout-grid">
           
           {/* Column 1: Live 5-Step Stepper */}
           <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>

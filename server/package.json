@@ -12,6 +12,8 @@
     "approve-provider": "node scripts/approveProvider.js",
     "load-data": "node scripts/loadData.js",
     "fix-kyc-paths": "node scripts/fixKycPaths.js",
+    "seed-demo": "node scripts/seedDemoData.js",
+    "clean-demo": "node scripts/cleanDemoData.js",
     "test": "vitest run"
   },
   "dependencies": {

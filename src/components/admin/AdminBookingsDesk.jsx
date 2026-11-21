@@ -55,8 +55,9 @@ export default function AdminBookingsDesk() {
       if (cityFilter !== 'all') params.city = cityFilter;
 
       const res = await adminAPI.getBookings(params);
-      if (res.success) {
-        setBookings(res.bookings || []);
+      const payload = res.data || res;
+      if (payload?.success) {
+        setBookings(payload.bookings || []);
       }
     } catch (err) {
       showToast('Failed to load bookings: ' + err.message, 'error');
@@ -78,8 +79,9 @@ export default function AdminBookingsDesk() {
     setDetailLoading(true);
     try {
       const res = await adminAPI.getBookingDetails(id);
-      if (res.success) {
-        setSelectedBooking(res.booking);
+      const payload = res.data || res;
+      if (payload?.success) {
+        setSelectedBooking(payload.booking);
       }
     } catch (err) {
       showToast('Failed to load booking details: ' + err.message, 'error');

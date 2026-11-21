@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   ChevronRight,
   Wrench,
-  KeyRound,
   Download,
   Trash2
 } from 'lucide-react';
@@ -198,18 +197,6 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Settings size={16} color="var(--forest-700)" />
             <span>{t('admin.navSettings', 'Settings')}</span>
-          </div>
-          <ChevronRight size={14} color="var(--text-muted)" />
-        </button>
-
-        <button 
-          className="menu-item"
-          onClick={() => handleNavigate('/change-password')}
-          style={menuItemStyle}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <KeyRound size={16} color="var(--forest-700)" />
-            <span>{t('changePassword.title', 'Change Password')}</span>
           </div>
           <ChevronRight size={14} color="var(--text-muted)" />
         </button>

@@ -1,8 +1,8 @@
 import React from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { Shield, LogOut, KeyRound } from 'lucide-react';
+import { Shield, LogOut } from 'lucide-react';
 
 // Admin Sub-Components (12 Complete Real MongoDB Desks)
 import AdminNavbar from '../../components/admin/AdminNavbar';
@@ -83,13 +83,6 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
-            <Link
-              to="/change-password"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-semibold transition-colors"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-slate-500" />
-              <span>{t('admin.changePassword')}</span>
-            </Link>
             <button 
               type="button" 
               onClick={logOut} 

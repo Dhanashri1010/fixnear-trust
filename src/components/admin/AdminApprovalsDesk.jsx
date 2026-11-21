@@ -81,10 +81,11 @@ export default function AdminApprovalsDesk() {
     setError(null);
     try {
       const res = await adminAPI.getApprovals();
-      if (res.success) {
-        setCandidates(res.candidates || []);
-        if (res.candidates && res.candidates.length > 0) {
-          setSelectedCandidateId(res.candidates[0]._id);
+      const payload = res.data || res;
+      if (payload?.success) {
+        setCandidates(payload.candidates || []);
+        if (payload.candidates && payload.candidates.length > 0) {
+          setSelectedCandidateId(payload.candidates[0]._id);
         } else {
           setSelectedCandidateId(null);
           setCandidateDetail(null);
@@ -114,8 +115,9 @@ export default function AdminApprovalsDesk() {
       setDetailLoading(true);
       try {
         const res = await adminAPI.getProviderDetails(selectedCandidateId);
-        if (isMounted && res.success) {
-          setCandidateDetail(res);
+        const payload = res.data || res;
+        if (isMounted && payload?.success) {
+          setCandidateDetail(payload);
         }
       } catch (err) {
         if (isMounted) {
@@ -292,12 +294,7 @@ export default function AdminApprovalsDesk() {
           </p>
         </div>
       ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(280px, 340px) 1fr',
-          gap: '20px',
-          alignItems: 'start'
-        }}>
+        <div className="approvals-layout-grid">
 
           {/* Candidates List Column */}
           <div style={{

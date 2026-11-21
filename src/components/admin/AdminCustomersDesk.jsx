@@ -47,8 +47,9 @@ export default function AdminCustomersDesk() {
       if (statusFilter !== 'all') params.status = statusFilter;
 
       const res = await adminAPI.getCustomers(params);
-      if (res.success) {
-        setCustomers(res.customers || []);
+      const payload = res.data || res;
+      if (payload?.success) {
+        setCustomers(payload.customers || []);
       }
     } catch (err) {
       showToast('Failed to load customers: ' + err.message, 'error');

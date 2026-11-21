@@ -129,8 +129,9 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
             {technicians.map((tech) => {
               const techId = tech._id || tech.providerId;
               const skills = tech.skills || [tech.specialty || 'General Trade'];
-              const ratingValue = Number(tech.ratingAvg || tech.rating || 4.9).toFixed(1);
-              const jobsCount = tech.jobsDone || tech.completedJobs || 28;
+              const hasRating = tech.ratingAvg !== null && tech.ratingAvg !== undefined && tech.ratingCount > 0;
+              const ratingValue = hasRating ? Number(tech.ratingAvg).toFixed(1) : null;
+              const jobsCount = tech.jobsDone || tech.completedJobs || 0;
 
               return (
                 <div 
@@ -175,13 +176,21 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
                         {tech.bio ? `${tech.bio.slice(0, 50)}...` : tech.specialty || t('home.certifiedSpecialist', 'Certified Technician')}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <Star size={14} color="#F59E0B" fill="#F59E0B" />
-                          <span style={{ fontSize: '13px', fontWeight: 700 }}>{ratingValue}</span>
-                        </div>
-                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                          ({tech.ratingCount || 0} {t('catalog.verifiedRatings', 'reviews')})
-                        </span>
+                        {hasRating ? (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <Star size={14} color="#F59E0B" fill="#F59E0B" />
+                              <span style={{ fontSize: '13px', fontWeight: 700 }}>{ratingValue}</span>
+                            </div>
+                            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                              ({tech.ratingCount || 0} {t('catalog.verifiedRatings', 'reviews')})
+                            </span>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            {t('technician.noReviewsYet', 'New — no reviews yet')}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

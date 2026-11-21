@@ -49,12 +49,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
       borderBottom: '1px solid var(--border-light)'
     }}>
       <div className="container">
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 0.95fr)',
-          gap: '48px',
-          alignItems: 'center'
-        }}>
+        <div className="hero-grid">
           
           {/* Left Column: Value Proposition & Search */}
           <div>
@@ -159,14 +154,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
             </div>
 
             {/* Core Trust Indicators */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '16px',
-              marginTop: '36px',
-              paddingTop: '28px',
-              borderTop: '1px solid var(--border-light)'
-            }}>
+            <div className="hero-trust-indicators">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <CheckCircle2 size={18} color="var(--forest-700)" />
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>

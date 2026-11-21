@@ -26,8 +26,9 @@ export default function AdminNavbar() {
     let isMounted = true;
     adminAPI.getStats()
       .then((res) => {
-        if (isMounted && res.data?.success) {
-          setStats(res.data.stats);
+        const payload = res.data || res;
+        if (isMounted && payload?.success) {
+          setStats(payload.stats);
         }
       })
       .catch((err) => {
