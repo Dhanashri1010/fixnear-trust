@@ -86,7 +86,7 @@ export default function Navbar() {
 
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 900 }} className="glass-nav">
-      <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '72px', gap: '16px' }}>
+      <div style={{ maxWidth: '1440px', width: '100%', margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '72px', gap: '16px' }}>
 
         {/* Brand Logo */}
         <Link
@@ -233,9 +233,10 @@ export default function Navbar() {
             gap: '8px',
             backgroundColor: '#FFFFFF',
             border: '1px solid var(--border-light)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '6px 12px',
-            width: '240px'
+            borderRadius: 'var(--radius-full)',
+            padding: '6px 14px',
+            width: '210px',
+            flexShrink: 0
           }}
         >
           <Search size={15} color="var(--forest-700)" />
@@ -257,7 +258,7 @@ export default function Navbar() {
         </div>
 
         {/* Navigation Links */}
-        <nav className="nav-desktop-links" style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+        <nav className="nav-desktop-links" style={{ display: 'flex', alignItems: 'center', gap: '22px', flexShrink: 0 }}>
           <Link
             to="/services"
             style={{
@@ -274,24 +275,8 @@ export default function Navbar() {
             to="/bookings"
             style={{
               fontSize: '13.5px',
-              fontWeight: location.pathname.startsWith('/track') ? 700 : 600,
-              color: location.pathname.startsWith('/track') ? 'var(--forest-800)' : 'var(--text-secondary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              textDecoration: 'none'
-            }}
-          >
-            <Navigation size={13} color="var(--forest-700)" />
-            <span>{t('nav.track', 'Track')}</span>
-          </Link>
-
-          <Link
-            to="/bookings"
-            style={{
-              fontSize: '13.5px',
-              fontWeight: location.pathname === '/bookings' ? 700 : 600,
-              color: location.pathname === '/bookings' ? 'var(--forest-800)' : 'var(--text-secondary)',
+              fontWeight: (location.pathname === '/bookings' || location.pathname.startsWith('/track')) ? 700 : 600,
+              color: (location.pathname === '/bookings' || location.pathname.startsWith('/track')) ? 'var(--forest-800)' : 'var(--text-secondary)',
               textDecoration: 'none'
             }}
           >
@@ -324,7 +309,7 @@ export default function Navbar() {
         </nav>
 
         {/* Actions & Avatar / Login Trigger */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
 
           {/* Language Selector Dropdown */}
           <div style={{
