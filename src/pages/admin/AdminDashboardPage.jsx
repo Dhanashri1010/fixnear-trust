@@ -58,37 +58,85 @@ export default function AdminDashboardPage() {
   };
 
   return (
-    <div className="bg-slate-50 min-h-screen py-8 px-4 sm:px-6 lg:px-8 pb-24">
-      <div className="max-w-7xl mx-auto">
+    <div style={{ backgroundColor: '#F0F4F2', minHeight: '100vh', padding: '32px 20px 80px 20px' }}>
+      <div style={{ maxWidth: '1360px', margin: '0 auto' }}>
         
         {/* Top Header Card */}
-        <div className="bg-white rounded-2xl p-6 sm:p-7 shadow-sm border border-slate-200 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-sm">
-              <Shield className="w-7 h-7 text-blue-400" />
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '18px',
+          padding: '22px 28px',
+          boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)',
+          border: '1px solid #DCE4DF',
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '16px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{
+              width: '52px',
+              height: '52px',
+              borderRadius: '14px',
+              backgroundColor: 'var(--forest-900, #0E1B15)',
+              color: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+              flexShrink: 0,
+            }}>
+              <Shield size={26} color="#60A5FA" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-slate-900">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--forest-900, #0E1B15)', margin: 0 }}>
                   {user?.name || t('admin.deskTitle')}
                 </h1>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase tracking-wide">
+                <span style={{
+                  padding: '3px 10px',
+                  borderRadius: '9999px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  backgroundColor: '#FEF3C7',
+                  color: '#92400E',
+                  border: '1px solid #FDE68A',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}>
                   {t('admin.centralOps')}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-1">
+              <p style={{ fontSize: '13px', color: 'var(--text-muted, #73827A)', marginTop: '4px', margin: 0 }}>
                 {t('admin.governanceTitle')}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <button 
               type="button" 
               onClick={logOut} 
-              className="inline-flex items-center gap-1.5 px-4 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold transition-colors"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 16px',
+                borderRadius: '10px',
+                fontSize: '13px',
+                fontWeight: 600,
+                border: '1px solid #FECDD3',
+                color: '#E11D48',
+                backgroundColor: '#FFF1F2',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#FFE4E6'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#FFF1F2'; }}
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut size={15} />
               <span>{t('admin.signOut')}</span>
             </button>
           </div>
@@ -98,7 +146,7 @@ export default function AdminDashboardPage() {
         <AdminNavbar />
 
         {/* Dynamic Desk Workspace */}
-        <div className="mt-6">
+        <div style={{ marginTop: '20px' }}>
           {renderActiveDesk()}
         </div>
 

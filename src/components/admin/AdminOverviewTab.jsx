@@ -106,78 +106,78 @@ export default function AdminOverviewTab() {
       {/* 8 Core Live System Metrics */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        gap: '14px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+        gap: '16px'
       }}>
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.kpiTotalBookings')}</div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '4px' }}>{totalBookings}</div>
-          <div style={{ fontSize: '11px', color: '#16A34A', fontWeight: 600, marginTop: '2px' }}>{t('admin.liveDbSync')}</div>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '20px 18px', border: '1px solid #DCE4DF', boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)' }}>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('admin.kpiTotalBookings')}</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '6px' }}>{totalBookings}</div>
+          <div style={{ fontSize: '11.5px', color: '#16A34A', fontWeight: 600, marginTop: '4px' }}>{t('admin.liveDbSync')}</div>
         </div>
 
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.kpiActiveJobs')}</div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#D97706', marginTop: '4px' }}>{activeJobs}</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>{t('admin.inProgressRightNow')}</div>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '20px 18px', border: '1px solid #DCE4DF', boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)' }}>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('admin.kpiActiveJobs')}</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#D97706', marginTop: '6px' }}>{activeJobs}</div>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>{t('admin.inProgressRightNow')}</div>
         </div>
 
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.prosOnline')}</div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#16A34A', marginTop: '4px' }}>{providersOnline}</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>{t('admin.ofRegistered')} {totalProviders}</div>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '20px 18px', border: '1px solid #DCE4DF', boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)' }}>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('admin.prosOnline')}</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#16A34A', marginTop: '6px' }}>{providersOnline}</div>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>{t('admin.ofRegistered')} {totalProviders}</div>
         </div>
 
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.waitingApprovals')}</div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: providersWaiting > 0 ? '#2563EB' : 'var(--forest-900)', marginTop: '4px' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '20px 18px', border: '1px solid #DCE4DF', boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)' }}>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('admin.waitingApprovals')}</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: providersWaiting > 0 ? '#2563EB' : 'var(--forest-900)', marginTop: '6px' }}>
             {providersWaiting}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>{t('admin.kycReviewReady')}</div>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>{t('admin.kycReviewReady')}</div>
         </div>
 
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.openDisputes')}</div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: openComplaints > 0 ? '#DC2626' : '#16A34A', marginTop: '4px' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '20px 18px', border: '1px solid #DCE4DF', boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)' }}>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('admin.openDisputes')}</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: openComplaints > 0 ? '#DC2626' : '#16A34A', marginTop: '6px' }}>
             {openComplaints}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>
             {openComplaints > 0 ? t('admin.requiresMediation') : t('admin.zeroDisputes')}
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.grossVolume')}</div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '4px' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '20px 18px', border: '1px solid #DCE4DF', boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)' }}>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('admin.grossVolume')}</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--forest-900)', marginTop: '6px' }}>
             ₹{grossRevenue.toLocaleString('en-IN')}
           </div>
-          <div style={{ fontSize: '11px', color: '#16A34A', fontWeight: 600, marginTop: '2px' }}>{t('admin.escrowProtected')}</div>
+          <div style={{ fontSize: '11.5px', color: '#16A34A', fontWeight: 600, marginTop: '4px' }}>{t('admin.escrowProtected')}</div>
         </div>
 
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.platformFees')}</div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--forest-800)', marginTop: '4px' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '20px 18px', border: '1px solid #DCE4DF', boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)' }}>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('admin.platformFees')}</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--forest-800)', marginTop: '6px' }}>
             ₹{totalPlatformFees.toLocaleString('en-IN')}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>{t('admin.fixnearCommission')}</div>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>{t('admin.fixnearCommission')}</div>
         </div>
 
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '16px', border: '1px solid var(--border-light)' }}>
-          <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>{t('admin.averageRating')}</div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#B45309', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', padding: '20px 18px', border: '1px solid #DCE4DF', boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)' }}>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t('admin.averageRating')}</div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#B45309', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Star size={22} fill="#F59E0B" color="#F59E0B" />
             <span>{averageRating}</span>
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>{t('admin.acrossApprovedPros')}</div>
+          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>{t('admin.acrossApprovedPros')}</div>
         </div>
       </div>
 
       {/* Needs Your Action Desk Box */}
       <div style={{
         backgroundColor: '#FFFFFF',
-        borderRadius: 'var(--radius-lg)',
+        borderRadius: '16px',
         padding: '24px',
-        border: hasUrgentActions ? '2px solid #FCA5A5' : '1.5px solid var(--border-light)',
-        boxShadow: 'var(--shadow-sm)'
+        border: hasUrgentActions ? '2px solid #FCA5A5' : '1px solid #DCE4DF',
+        boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -324,10 +324,10 @@ export default function AdminOverviewTab() {
         {/* 7-Day Bookings Trend Chart */}
         <div style={{
           backgroundColor: '#FFFFFF',
-          borderRadius: 'var(--radius-lg)',
+          borderRadius: '16px',
           padding: '24px',
-          border: '1.5px solid var(--border-light)',
-          boxShadow: 'var(--shadow-sm)'
+          border: '1px solid #DCE4DF',
+          boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div>
@@ -400,10 +400,10 @@ export default function AdminOverviewTab() {
         {/* Top 5 Providers by Rating */}
         <div style={{
           backgroundColor: '#FFFFFF',
-          borderRadius: 'var(--radius-lg)',
+          borderRadius: '16px',
           padding: '24px',
-          border: '1.5px solid var(--border-light)',
-          boxShadow: 'var(--shadow-sm)'
+          border: '1px solid #DCE4DF',
+          boxShadow: '0 1px 4px rgba(22, 44, 35, 0.05)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div>

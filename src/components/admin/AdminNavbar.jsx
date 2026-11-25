@@ -137,7 +137,18 @@ export default function AdminNavbar() {
   return (
     <nav 
       aria-label="Admin console navigation"
-      className="bg-white rounded-2xl border border-slate-200 p-1.5 mb-6 flex gap-1.5 overflow-x-auto shadow-sm no-scrollbar"
+      style={{
+        backgroundColor: '#FFFFFF',
+        borderRadius: '16px',
+        border: '1px solid #DCE4DF',
+        padding: '10px 12px',
+        marginBottom: '24px',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '8px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+      }}
     >
       {navItems.map((item) => {
         const Icon = item.icon;
@@ -149,19 +160,40 @@ export default function AdminNavbar() {
           <Link
             key={item.id}
             to={item.path}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-              isActive
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 14px',
+              borderRadius: '10px',
+              fontSize: '13px',
+              fontWeight: 600,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
+              backgroundColor: isActive ? 'var(--forest-800, #162C23)' : '#F8FAFC',
+              color: isActive ? '#FFFFFF' : '#475569',
+              border: isActive ? '1px solid var(--forest-900, #0E1B15)' : '1px solid #E2E8F0',
+              boxShadow: isActive ? '0 2px 6px rgba(22, 44, 35, 0.2)' : 'none',
+            }}
           >
-            <Icon className="w-4 h-4 flex-shrink-0" />
+            <Icon size={16} style={{ flexShrink: 0 }} />
             <span>{item.label}</span>
 
             {item.badge && (
               <span 
-                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white leading-none"
-                style={{ backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : item.badgeColor }}
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '2px 7px',
+                  borderRadius: '9999px',
+                  color: '#FFFFFF',
+                  backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : (item.badgeColor || '#DC2626'),
+                  lineHeight: '1',
+                  marginLeft: '2px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
               >
                 {item.badge}
               </span>
