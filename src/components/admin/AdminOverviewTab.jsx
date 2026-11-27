@@ -4,7 +4,7 @@
 // ===================================================================
 
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Users, 
   Wrench, 
@@ -26,6 +26,7 @@ import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function AdminOverviewTab() {
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const { t, formatCurrency, formatNumber } = useLanguage();
   const [stats, setStats] = useState(null);
@@ -56,6 +57,12 @@ export default function AdminOverviewTab() {
       }
     } catch (err) {
       console.error('Failed to load admin stats:', err);
+      const isAuthErr = err.status === 401 || err.status === 403 || err.message?.includes('Forbidden') || err.message?.includes('restricted to admin');
+      if (isAuthErr) {
+        showToast(t('admin.adminAccessOnly', 'Access to Central Operations is strictly restricted to administrator accounts.'), 'error');
+        navigate('/admin/login');
+        return;
+      }
       setError(err.message || 'Unable to load real-time metrics.');
       showToast('Failed to load dashboard metrics: ' + err.message, 'error');
     } finally {

@@ -241,7 +241,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption = () =>
           <>
             <button 
               className="menu-item"
-              onClick={() => handleNavigate('/provider/dashboard')}
+              onClick={() => handleNavigate('/provider/dashboard?tab=active-jobs')}
               style={{
                 ...menuItemStyle,
                 backgroundColor: 'var(--forest-50)',
@@ -258,19 +258,19 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption = () =>
 
             <button 
               className="menu-item"
-              onClick={() => handleNavigate('/provider/dashboard?tab=active')}
+              onClick={() => handleNavigate('/provider/dashboard?tab=active-jobs')}
               style={menuItemStyle}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Briefcase size={16} color="var(--forest-700)" />
-                <span>{t('providerDashboard.tabActiveJobs', 'My Jobs')}</span>
+                <span>{t('providerDashboard.tabActiveJobs', 'Active Jobs')}</span>
               </div>
               <ChevronRight size={14} color="var(--text-muted)" />
             </button>
 
             <button 
               className="menu-item"
-              onClick={() => { onSelectOption('Notifications'); onClose(); }}
+              onClick={() => handleNavigate('/provider/dashboard?tab=notifications')}
               style={menuItemStyle}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -282,19 +282,19 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption = () =>
 
             <button 
               className="menu-item"
-              onClick={() => { onSelectOption('Profile'); onClose(); }}
+              onClick={() => handleNavigate('/provider/dashboard?tab=profile')}
               style={menuItemStyle}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <User size={16} color="var(--forest-700)" />
-                <span>{t('accountMenu.profile', 'Profile')}</span>
+                <span>{t('accountMenu.profile', 'Profile & Settings')}</span>
               </div>
               <ChevronRight size={14} color="var(--text-muted)" />
             </button>
 
             <button 
               className="menu-item"
-              onClick={() => { onSelectOption('Settings'); onClose(); }}
+              onClick={() => handleNavigate('/provider/dashboard?tab=settings')}
               style={menuItemStyle}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -306,12 +306,12 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption = () =>
 
             <button 
               className="menu-item"
-              onClick={() => { onSelectOption('DownloadData'); onClose(); }}
+              onClick={() => handleNavigate('/provider/dashboard?tab=settings')}
               style={menuItemStyle}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Download size={16} color="var(--forest-700)" />
-                <span>{t('userActions.downloadTitle', 'Download My Data')}</span>
+                <span>{t('userActions.downloadTitle', 'Download My Data (GDPR / DPDP)')}</span>
               </div>
               <ChevronRight size={14} color="var(--text-muted)" />
             </button>

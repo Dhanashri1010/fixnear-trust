@@ -99,8 +99,17 @@ export default function UserActionModal({ activeAction, onClose }) {
     }
   };
 
+  const actionNormalized = (currentModalAction || '').toLowerCase();
+  const isProfile = actionNormalized.includes('profile');
+  const isNotif = actionNormalized.includes('notif');
+  const isSettings = actionNormalized.includes('setting') && !isProfile;
+  const isDownload = actionNormalized.includes('download') || actionNormalized.includes('data');
+  const isDelete = actionNormalized.includes('delete');
+  const isSignOut = actionNormalized.includes('sign');
+  const isDefault = !isProfile && !isNotif && !isSettings && !isDownload && !isDelete && !isSignOut;
+
   useEffect(() => {
-    if (currentModalAction === 'Notifications' && currentUser) {
+    if (isNotif && currentUser) {
       setLoadingNotifs(true);
       notificationsAPI.getNotifications()
         .then((res) => {
@@ -120,7 +129,7 @@ export default function UserActionModal({ activeAction, onClose }) {
         socket.off('notification', handleNewNotif);
       };
     }
-  }, [activeAction, currentUser]);
+  }, [activeAction, currentUser, isNotif]);
 
   const handleSignOutConfirm = async () => {
     await logOut();
@@ -134,12 +143,12 @@ export default function UserActionModal({ activeAction, onClose }) {
   const displayCity = userProfile?.city || currentUser?.city || 'Mumbai';
 
   const getActionHeading = () => {
-    if (currentModalAction === 'DownloadData') return t('userActions.downloadTitle', 'Download My Data');
-    if (currentModalAction === 'DeleteAccount') return t('userActions.deleteTitle', 'Delete My Account');
-    if (currentModalAction === 'Notifications') return t('notifications.title', 'Notifications');
-    if (currentModalAction === 'Profile') return t('accountMenu.profile', 'Profile');
-    if (currentModalAction === 'Settings') return t('admin.navSettings', 'Settings');
-    if (currentModalAction === 'Sign out') return t('accountMenu.signOut', 'Sign Out');
+    if (isDownload) return t('userActions.downloadTitle', 'Download My Data');
+    if (isDelete) return t('userActions.deleteTitle', 'Delete My Account');
+    if (isNotif) return t('notifications.title', 'Notifications');
+    if (isSettings) return t('admin.navSettings', 'Settings');
+    if (isProfile || isDefault) return t('accountMenu.profile', 'Profile');
+    if (isSignOut) return t('accountMenu.signOut', 'Sign Out');
     return currentModalAction;
   };
 
@@ -217,7 +226,7 @@ export default function UserActionModal({ activeAction, onClose }) {
         {/* Content based on selected menu item */}
         <div style={{ padding: '24px' }}>
           
-          {currentModalAction === 'Profile' && (
+          {(isProfile || isDefault) && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
                 <InitialsAvatar
@@ -265,7 +274,7 @@ export default function UserActionModal({ activeAction, onClose }) {
             </div>
           )}
 
-          {currentModalAction === 'Notifications' && (
+          {isNotif && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {loadingNotifs && (
                 <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
@@ -304,7 +313,7 @@ export default function UserActionModal({ activeAction, onClose }) {
             </div>
           )}
 
-          {currentModalAction === 'Settings' && (
+          {isSettings && (
             <div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 {/* Language Preference */}
@@ -428,7 +437,7 @@ export default function UserActionModal({ activeAction, onClose }) {
             </div>
           )}
 
-          {currentModalAction === 'DownloadData' && (
+          {isDownload && (
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
               <div style={{
                 width: '54px',
@@ -461,7 +470,7 @@ export default function UserActionModal({ activeAction, onClose }) {
             </div>
           )}
 
-          {currentModalAction === 'DeleteAccount' && (
+          {isDelete && (
             <div style={{ padding: '8px 0' }}>
               <div style={{
                 width: '54px',
@@ -578,7 +587,7 @@ export default function UserActionModal({ activeAction, onClose }) {
             </div>
           )}
 
-          {currentModalAction === 'Sign out' && (
+          {isSignOut && (
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
               <div style={{
                 width: '54px',
@@ -615,7 +624,7 @@ export default function UserActionModal({ activeAction, onClose }) {
             </div>
           )}
 
-          {currentModalAction !== 'Sign out' && (
+          {!isSignOut && (
             <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-light)', textAlign: 'right' }}>
               <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
                 {t('common.close', 'Close')}

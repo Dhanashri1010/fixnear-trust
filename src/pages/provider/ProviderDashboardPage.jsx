@@ -6,7 +6,7 @@
 // ===================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { 
   Wrench, 
   ShieldCheck, 
@@ -34,18 +34,25 @@ import {
   CreditCard,
   RefreshCw,
   ExternalLink,
-  FileCheck
+  FileCheck,
+  Bell,
+  Settings as SettingsIcon,
+  Download,
+  Trash2,
+  Lock,
+  Globe
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { providersAPI, bookingsAPI, paymentsAPI, servicesAPI, getSocket } from '../../services/api';
+import { providersAPI, bookingsAPI, paymentsAPI, servicesAPI, notificationsAPI, authAPI, getSocket } from '../../services/api';
 
 export default function ProviderDashboardPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser, userProfile, logOut } = useAuth();
   const { showToast } = useToast();
-  const { t, formatCurrency, formatDate } = useLanguage();
+  const { t, formatCurrency, formatDate, formatTime } = useLanguage();
 
   const [provider, setProvider] = useState(null);
   const [earnings, setEarnings] = useState({ today: 0, week: 0, month: 0, lifetime: 0, totalJobs: 0 });
@@ -54,9 +61,44 @@ export default function ProviderDashboardPage() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState('active-jobs'); // 'active-jobs' | 'history' | 'earnings' | 'profile'
+  // Tab synchronization with URL query parameter
+  const tabFromQuery = searchParams.get('tab');
+  const getValidTab = (tab) => {
+    if (!tab) return 'active-jobs';
+    if (tab === 'active' || tab === 'active-jobs' || tab === 'jobs') return 'active-jobs';
+    if (tab === 'history') return 'history';
+    if (tab === 'earnings' || tab === 'payouts') return 'earnings';
+    if (tab === 'profile' || tab === 'skills' || tab === 'credentials') return 'profile';
+    if (tab === 'reviews' || tab === 'ratings') return 'reviews';
+    if (tab === 'notifications') return 'notifications';
+    if (tab === 'settings') return 'settings';
+    return 'active-jobs';
+  };
+
+  const [activeTab, setActiveTab] = useState(() => getValidTab(tabFromQuery));
+
+  useEffect(() => {
+    if (tabFromQuery) {
+      setActiveTab(getValidTab(tabFromQuery));
+    }
+  }, [tabFromQuery]);
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    setSearchParams({ tab: newTab });
+  };
+
   const [isOnline, setIsOnline] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+
+  // Notifications & Account Governance State
+  const [notifications, setNotifications] = useState([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [downloadingData, setDownloadingData] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
 
   // Incoming Job Countdown (60 seconds)
   const [incomingOffer, setIncomingOffer] = useState(null);
@@ -144,6 +186,70 @@ export default function ProviderDashboardPage() {
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      setLoadingNotifs(true);
+      const res = await notificationsAPI.getNotifications();
+      if (res?.success && Array.isArray(res.notifications)) {
+        setNotifications(res.notifications);
+      }
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    } finally {
+      setLoadingNotifs(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'notifications') {
+      fetchNotifications();
+    }
+  }, [activeTab, fetchNotifications]);
+
+  const handleDownloadMyData = async () => {
+    try {
+      setDownloadingData(true);
+      const res = await authAPI.downloadMyData();
+      const dataStr = typeof res === 'string' ? res : JSON.stringify(res, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fixnear-provider-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showToast(t('userActions.downloadSuccess', 'Data export downloaded successfully!'), 'success');
+    } catch (err) {
+      showToast(err.message || t('common.errorGeneral', 'Failed to download data.'), 'error');
+    } finally {
+      setDownloadingData(false);
+    }
+  };
+
+  const handleDeleteMyAccount = async () => {
+    if (!deletePassword) {
+      setDeleteError(t('userActions.enterPasswordToDelete', 'Please enter your password to confirm deletion.'));
+      return;
+    }
+    try {
+      setDeletingAccount(true);
+      setDeleteError('');
+      await authAPI.deleteMyAccount(deletePassword);
+      setDeleteSuccess(true);
+      showToast(t('common.successGeneral', 'Account successfully deleted.'), 'success');
+      setTimeout(async () => {
+        await logOut();
+        navigate('/login');
+      }, 1500);
+    } catch (err) {
+      setDeleteError(err.message || t('common.errorGeneral', 'Failed to delete account.'));
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
 
   // Socket.io Real-Time Dispatch and Booking Status Listeners
   useEffect(() => {
@@ -766,7 +872,7 @@ export default function ProviderDashboardPage() {
         }}>
           <button
             type="button"
-            onClick={() => setActiveTab('active-jobs')}
+            onClick={() => handleTabChange('active-jobs')}
             style={{
               padding: '12px 20px',
               fontSize: '14px',
@@ -786,7 +892,7 @@ export default function ProviderDashboardPage() {
 
           <button
             type="button"
-            onClick={() => setActiveTab('history')}
+            onClick={() => handleTabChange('history')}
             style={{
               padding: '12px 20px',
               fontSize: '14px',
@@ -806,7 +912,7 @@ export default function ProviderDashboardPage() {
 
           <button
             type="button"
-            onClick={() => setActiveTab('earnings')}
+            onClick={() => handleTabChange('earnings')}
             style={{
               padding: '12px 20px',
               fontSize: '14px',
@@ -826,7 +932,7 @@ export default function ProviderDashboardPage() {
 
           <button
             type="button"
-            onClick={() => setActiveTab('profile')}
+            onClick={() => handleTabChange('profile')}
             style={{
               padding: '12px 20px',
               fontSize: '14px',
@@ -846,7 +952,7 @@ export default function ProviderDashboardPage() {
 
           <button
             type="button"
-            onClick={() => setActiveTab('reviews')}
+            onClick={() => handleTabChange('reviews')}
             style={{
               padding: '12px 20px',
               fontSize: '14px',
@@ -862,6 +968,46 @@ export default function ProviderDashboardPage() {
           >
             <Star size={16} />
             <span>{t('providerDashboard.tabReviews', 'Ratings & Reviews')} ({reviews.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange('notifications')}
+            style={{
+              padding: '12px 20px',
+              fontSize: '14px',
+              fontWeight: 700,
+              color: activeTab === 'notifications' ? 'var(--forest-800)' : 'var(--text-muted)',
+              borderBottom: activeTab === 'notifications' ? '3px solid var(--forest-700)' : '3px solid transparent',
+              backgroundColor: 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            <Bell size={16} />
+            <span>{t('notifications.title', 'Notifications')}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange('settings')}
+            style={{
+              padding: '12px 20px',
+              fontSize: '14px',
+              fontWeight: 700,
+              color: activeTab === 'settings' ? 'var(--forest-800)' : 'var(--text-muted)',
+              borderBottom: activeTab === 'settings' ? '3px solid var(--forest-700)' : '3px solid transparent',
+              backgroundColor: 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            <SettingsIcon size={16} />
+            <span>{t('admin.navSettings', 'Settings')}</span>
           </button>
         </div>
 
@@ -1598,6 +1744,318 @@ export default function ProviderDashboardPage() {
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 6: NOTIFICATIONS DESK */}
+        {activeTab === 'notifications' && (
+          <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--border-light)' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)' }}>
+                  {t('notifications.title', 'Notifications')}
+                </h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  {t('providerDashboard.notificationsSubtitle', 'Real-time booking dispatch alerts, customer confirmations, and settlement notices.')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchNotifications}
+                className="btn btn-outline btn-sm"
+                disabled={loadingNotifs}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px' }}
+              >
+                <RefreshCw size={13} className={loadingNotifs ? 'animate-spin' : ''} />
+                <span>{t('common.refresh', 'Refresh')}</span>
+              </button>
+            </div>
+
+            {loadingNotifs ? (
+              <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-muted)' }}>
+                <div className="skeleton" style={{ width: '40px', height: '40px', borderRadius: '50%', margin: '0 auto 12px auto' }} />
+                <div>{t('common.loading', 'Loading notifications...')}</div>
+              </div>
+            ) : notifications.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '56px 20px', color: 'var(--text-muted)' }}>
+                <Bell size={42} style={{ margin: '0 auto 12px auto', opacity: 0.4 }} />
+                <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)', marginBottom: '4px' }}>
+                  {t('notifications.emptyNotifications', 'No new notifications right now.')}
+                </h4>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {t('providerDashboard.emptyNotifHelp', 'You will be notified immediately when a customer books a job in your service zone.')}
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {notifications.map((notif) => (
+                  <div
+                    key={notif._id}
+                    style={{
+                      padding: '16px 18px',
+                      backgroundColor: notif.isRead ? 'var(--bg-warm)' : 'var(--forest-50)',
+                      borderRadius: 'var(--radius-md)',
+                      border: notif.isRead ? '1px solid var(--border-light)' : '1px solid var(--forest-100)',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: '16px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        backgroundColor: notif.isRead ? '#E5E7EB' : 'var(--forest-100)',
+                        color: notif.isRead ? '#6B7280' : 'var(--forest-800)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Bell size={18} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--forest-900)' }}>
+                          {notif.code ? t(`notifications.type${notif.type ? notif.type.charAt(0).toUpperCase() + notif.type.slice(1) : 'System'}`, notif.title) : notif.title}
+                        </div>
+                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: 1.5 }}>
+                          {notif.message}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                          {formatTime(notif.createdAt)} · {formatDate(notif.createdAt)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 7: SETTINGS & ACCOUNT GOVERNANCE */}
+        {activeTab === 'settings' && (
+          <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)' }}>
+            <div style={{ marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--border-light)' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)' }}>
+                {t('admin.navSettings', 'Settings')} & {t('providerDashboard.tabAccountGovernance', 'Account Governance')}
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                {t('providerDashboard.settingsSubtitle', 'Manage portal preferences, security credentials, data exports, and technician account settings.')}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+              {/* Language Preferences */}
+              <div style={{ paddingBottom: '20px', borderBottom: '1px solid var(--border-light)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <Globe size={18} color="var(--forest-700)" />
+                  <label style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)' }}>
+                    {t('common.language', 'Platform Language')}
+                  </label>
+                </div>
+                <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                  {t('userActions.langDesc', 'Select your preferred language across bookings, invoices, and alerts.')}
+                </p>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  {[
+                    { code: 'en', label: 'English' },
+                    { code: 'hi', label: 'हिंदी (Hindi)' },
+                    { code: 'mr', label: 'मराठी (Marathi)' }
+                  ].map((l) => (
+                    <button
+                      key={l.code}
+                      type="button"
+                      onClick={() => {
+                        authAPI.updatePreferredLanguage(l.code).catch(() => {});
+                        window.location.reload();
+                      }}
+                      className={`btn btn-sm ${currentUser?.preferredLanguage === l.code ? 'btn-primary' : 'btn-outline'}`}
+                      style={{ fontSize: '12.5px', padding: '8px 16px' }}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Security & Password */}
+              <div style={{ paddingBottom: '20px', borderBottom: '1px solid var(--border-light)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <Lock size={18} color="var(--forest-700)" />
+                  <label style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)' }}>
+                    {t('auth.changePassword', 'Account Security')}
+                  </label>
+                </div>
+                <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                  {t('userActions.securityDesc', 'Manage login credentials, update passwords, and maintain active session security.')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/change-password')}
+                  className="btn btn-outline btn-sm"
+                  style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}
+                >
+                  <Lock size={15} />
+                  <span>{t('auth.changePassword', 'Change Password')}</span>
+                </button>
+              </div>
+
+              {/* Data & Privacy Export (GDPR / DPDP) */}
+              <div style={{ paddingBottom: '20px', borderBottom: '1px solid var(--border-light)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <Download size={18} color="var(--forest-700)" />
+                  <label style={{ fontSize: '14px', fontWeight: 700, color: 'var(--forest-900)' }}>
+                    {t('userActions.downloadTitle', 'Data & Privacy Export (GDPR / DPDP)')}
+                  </label>
+                </div>
+                <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                  {t('userActions.downloadDesc', 'Request a complete JSON archive of your personal profile, booking history, submitted reviews, and support tickets.')}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleDownloadMyData}
+                  disabled={downloadingData}
+                  style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}
+                >
+                  <Download size={15} />
+                  <span>{downloadingData ? t('common.loading', 'Generating Export...') : t('userActions.downloadBtn', 'Download JSON Data Export')}</span>
+                </button>
+              </div>
+
+              {/* Sign Out Section with Confirmation */}
+              <div style={{
+                padding: '16px 20px',
+                backgroundColor: '#FEF2F2',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid #FCA5A5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '14px', color: '#991B1B', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <LogOut size={16} />
+                    <span>{t('accountMenu.signOut', 'Sign Out of Account')}</span>
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: '#7F1D1D', marginTop: '2px' }}>
+                    {t('userActions.signOutDesc', 'End current session on this device securely.')}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (window.confirm(t('auth.loginSubtitle', 'Are you sure you want to sign out?'))) {
+                      await logOut();
+                      navigate('/login');
+                    }
+                  }}
+                  style={{
+                    backgroundColor: '#DC2626',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '8px 18px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <LogOut size={14} />
+                  <span>{t('accountMenu.signOut', 'Sign Out')}</span>
+                </button>
+              </div>
+
+              {/* Danger Zone: Delete Account */}
+              <div style={{
+                padding: '20px',
+                backgroundColor: '#FFF1F2',
+                borderRadius: 'var(--radius-md)',
+                border: '1.5px solid #FECDD3'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <Trash2 size={18} color="#BE123C" />
+                  <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#9F1239' }}>
+                    {t('userActions.deleteTitle', 'Delete My Account')}
+                  </h4>
+                </div>
+                <p style={{ fontSize: '12.5px', color: '#881337', marginBottom: '14px', lineHeight: 1.5 }}>
+                  {t('userActions.deleteWarning', 'Account deletion is irreversible. Your personal contact details and KYC documents will be permanently anonymized. Accounting records are retained for compliance.')}
+                </p>
+
+                {deleteError && (
+                  <div style={{
+                    padding: '10px 14px',
+                    backgroundColor: '#FEE2E2',
+                    border: '1px solid #EF4444',
+                    borderRadius: 'var(--radius-sm)',
+                    color: '#B91C1C',
+                    fontSize: '12.5px',
+                    marginBottom: '14px'
+                  }}>
+                    {deleteError}
+                  </div>
+                )}
+
+                {deleteSuccess ? (
+                  <div style={{
+                    padding: '14px',
+                    backgroundColor: '#ECFDF5',
+                    border: '1px solid #10B981',
+                    borderRadius: 'var(--radius-sm)',
+                    color: '#065F46',
+                    fontSize: '13px',
+                    fontWeight: 600
+                  }}>
+                    {t('common.successGeneral', 'Account successfully deleted.')}
+                  </div>
+                ) : (
+                  <div style={{ maxWidth: '400px' }}>
+                    <label style={{ fontSize: '12.5px', fontWeight: 600, color: '#4C0519', display: 'block', marginBottom: '6px' }}>
+                      {t('userActions.enterPasswordToDelete', 'Enter your password to confirm deletion:')}
+                    </label>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <input
+                        type="password"
+                        className="input"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        placeholder="••••••••"
+                        style={{ flex: 1, padding: '8px 12px', fontSize: '13px' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleDeleteMyAccount}
+                        disabled={deletingAccount || !deletePassword}
+                        style={{
+                          backgroundColor: '#BE123C',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          cursor: deletingAccount || !deletePassword ? 'not-allowed' : 'pointer',
+                          opacity: deletingAccount || !deletePassword ? 0.6 : 1,
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {deletingAccount ? t('common.loading', 'Deleting...') : t('userActions.deleteBtn', 'Delete Account')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

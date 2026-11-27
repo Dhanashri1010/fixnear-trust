@@ -22,8 +22,14 @@ import AdminAuditLogDesk from '../../components/admin/AdminAuditLogDesk';
 export default function AdminDashboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logOut } = useAuth();
+  const { currentUser, role, logOut } = useAuth();
   const { t } = useLanguage();
+
+  useEffect(() => {
+    if (role && role !== 'admin') {
+      navigate('/admin/login');
+    }
+  }, [role, navigate]);
 
   const pathname = location.pathname.replace(/\/$/, '');
 
