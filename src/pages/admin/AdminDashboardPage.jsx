@@ -100,7 +100,7 @@ export default function AdminDashboardPage() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--forest-900, #0E1B15)', margin: 0 }}>
-                  {user?.name || t('admin.deskTitle')}
+                  {currentUser?.name || t('admin.deskTitle')}
                 </h1>
                 <span style={{
                   padding: '3px 10px',
