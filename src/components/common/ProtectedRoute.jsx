@@ -30,13 +30,15 @@ export default function ProtectedRoute({ allowedRoles, children }) {
     );
   }
 
-  // If not logged in at all, redirect to login page with return url
+  // If not logged in at all, redirect to appropriate login page with return url
   if (!currentUser) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    const loginTarget = allowedRoles?.includes('admin') ? '/admin/login' : '/login';
+    return <Navigate to={loginTarget} state={{ from: location }} replace />;
   }
 
   // Check role authorization
   if (allowedRoles && !allowedRoles.includes(role)) {
+    const isAdminRoute = allowedRoles.includes('admin');
     return (
       <div className="container" style={{ padding: '60px 20px', maxWidth: '600px', textAlign: 'center' }}>
         <div style={{
@@ -64,17 +66,26 @@ export default function ProtectedRoute({ allowedRoles, children }) {
             {t('common.accessRestricted', 'Access Restricted')}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '15px', marginBottom: '24px', lineHeight: 1.5 }}>
-            {t('common.portalReservedFor', 'This portal is reserved for authorized accounts.')}
+            {isAdminRoute 
+              ? t('admin.adminAccessOnly', 'Access to Central Operations is strictly restricted to administrator accounts.')
+              : t('common.portalReservedFor', 'This portal is reserved for authorized accounts.')}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {isAdminRoute ? (
+              <Link to="/admin/login" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+                <LogIn size={16} />
+                <span>{t('admin.staffSignIn', 'Sign in as Administrator')}</span>
+              </Link>
+            ) : (
+              <Link to="/login" className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }}>
+                <LogIn size={16} />
+                <span>{t('common.signInAuthorized', 'Sign in with Authorized Account')}</span>
+              </Link>
+            )}
             <Link to="/" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
               <ArrowLeft size={16} />
               <span>{t('common.backToHome', 'Return to Home')}</span>
-            </Link>
-            <Link to="/login" className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }}>
-              <LogIn size={16} />
-              <span>{t('common.signInAuthorized', 'Sign in with Authorized Account')}</span>
             </Link>
           </div>
         </div>

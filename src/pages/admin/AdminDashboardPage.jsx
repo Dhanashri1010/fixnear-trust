@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { Shield, LogOut } from 'lucide-react';
@@ -21,6 +21,7 @@ import AdminAuditLogDesk from '../../components/admin/AdminAuditLogDesk';
 
 export default function AdminDashboardPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logOut } = useAuth();
   const { t } = useLanguage();
 
@@ -118,7 +119,10 @@ export default function AdminDashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <button 
               type="button" 
-              onClick={logOut} 
+              onClick={async () => {
+                await logOut();
+                navigate('/admin/login');
+              }} 
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

@@ -145,6 +145,14 @@ function AppLayout() {
             {/* Admin Portal Routes (Guarded for Admin) */}
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboardPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/admin/*" 
               element={
                 <ProtectedRoute allowedRoles={['admin']}>

@@ -18,7 +18,8 @@ import {
   AlertCircle,
   RefreshCw,
   UserCheck,
-  ShieldAlert
+  ShieldAlert,
+  LogIn
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
@@ -64,14 +65,23 @@ export default function AdminOverviewTab() {
   }
 
   if (error || !stats) {
+    const isAuthError = typeof error === 'string' && (error.toLowerCase().includes('forbidden') || error.toLowerCase().includes('restricted') || error.toLowerCase().includes('sign in'));
     return (
       <div style={{ padding: '40px 24px', backgroundColor: '#FEF2F2', border: '1.5px solid #FCA5A5', borderRadius: '16px', textAlign: 'center' }}>
         <AlertCircle size={32} color="#DC2626" style={{ margin: '0 auto 12px auto' }} />
         <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#991B1B' }}>{t('admin.failedToLoadOps')}</h3>
         <p style={{ fontSize: '13.5px', color: '#B91C1C', margin: '4px 0 16px 0' }}>{error || 'Unable to retrieve statistics from server.'}</p>
-        <button type="button" onClick={fetchStats} className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-          <RefreshCw size={14} /> {t('admin.retryOpsSync')}
-        </button>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {isAuthError && (
+            <Link to="/admin/login" className="btn btn-primary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+              <LogIn size={14} />
+              <span>{t('admin.staffSignIn', 'Sign in as Administrator')}</span>
+            </Link>
+          )}
+          <button type="button" onClick={fetchStats} className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <RefreshCw size={14} /> {t('admin.retryOpsSync')}
+          </button>
+        </div>
       </div>
     );
   }
