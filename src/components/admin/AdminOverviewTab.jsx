@@ -21,7 +21,7 @@ import {
   ShieldAlert,
   LogIn
 } from 'lucide-react';
-import { adminAPI } from '../../services/api';
+import { adminAPI, aiAPI } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -29,6 +29,7 @@ export default function AdminOverviewTab() {
   const { showToast } = useToast();
   const { t, formatCurrency, formatNumber } = useLanguage();
   const [stats, setStats] = useState(null);
+  const [aiReport, setAiReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -36,10 +37,22 @@ export default function AdminOverviewTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await adminAPI.getStats();
-      const payload = res.data || res;
-      if (payload?.success && payload?.stats) {
-        setStats(payload.stats);
+      const [statsRes, aiRes] = await Promise.allSettled([
+        adminAPI.getStats(),
+        aiAPI.getAnomalies()
+      ]);
+
+      if (statsRes.status === 'fulfilled') {
+        const payload = statsRes.value?.data || statsRes.value;
+        if (payload?.success && payload?.stats) {
+          setStats(payload.stats);
+        }
+      } else {
+        throw statsRes.reason;
+      }
+
+      if (aiRes.status === 'fulfilled' && aiRes.value?.report) {
+        setAiReport(aiRes.value.report);
       }
     } catch (err) {
       console.error('Failed to load admin stats:', err);
@@ -180,6 +193,98 @@ export default function AdminOverviewTab() {
           <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 600, marginTop: '4px' }}>{t('admin.acrossApprovedPros')}</div>
         </div>
       </div>
+
+      {/* AI Operational Health & Risk Detection Card */}
+      {aiReport && (
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '16px',
+          padding: '22px 24px',
+          border: '1.5px solid var(--forest-100)',
+          boxShadow: '0 2px 6px rgba(22, 44, 35, 0.04)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                backgroundColor: 'var(--forest-100)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--forest-800)'
+              }}>
+                <ShieldCheck size={18} color="var(--forest-700)" />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--forest-900)', margin: 0 }}>
+                  {t('admin.aiAnomalyMonitor', 'FixNear AI Governance & Anomaly Monitor')}
+                </h3>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                  {t('admin.aiAnomalySub', 'Real-time pattern analysis across cancellations, disputes, and technician ratings')}
+                </div>
+              </div>
+            </div>
+
+            <span
+              className="badge"
+              style={{
+                backgroundColor: aiReport.anomaliesCount === 0 ? '#ECFDF5' : '#FEF3C7',
+                color: aiReport.anomaliesCount === 0 ? '#065F46' : '#92400E',
+                border: `1px solid ${aiReport.anomaliesCount === 0 ? '#A7F3D0' : '#FDE68A'}`,
+                fontWeight: 700,
+                fontSize: '12px'
+              }}
+            >
+              {aiReport.anomaliesCount === 0 ? t('admin.systemHealthy', '✓ System Operations Healthy') : `⚠️ ${aiReport.anomaliesCount} ${t('admin.anomalyDetected', 'Anomaly Detected')}`}
+            </span>
+          </div>
+
+          {aiReport.anomalies && aiReport.anomalies.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {aiReport.anomalies.map((anom) => (
+                <div
+                  key={anom.id}
+                  style={{
+                    padding: '12px 16px',
+                    backgroundColor: anom.type === 'danger' ? '#FEF2F2' : '#FFFBEB',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1px solid ${anom.type === 'danger' ? '#FCA5A5' : '#FDE68A'}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '13.5px', color: anom.type === 'danger' ? '#991B1B' : '#92400E' }}>
+                      {anom.title}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                      {anom.metric} · {anom.recommendation}
+                    </div>
+                  </div>
+
+                  <Link
+                    to={anom.id.includes('DISPUTE') ? '/admin/disputes' : '/admin/bookings'}
+                    className="btn btn-sm btn-outline"
+                    style={{ fontSize: '12px', padding: '4px 10px', textDecoration: 'none' }}
+                  >
+                    {t('admin.investigate', 'Investigate')}
+                  </Link>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: '13px', color: 'var(--forest-700)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <CheckCircle2 size={16} color="var(--forest-700)" />
+              <span>{t('admin.aiHealthyNotice', 'All booking completion metrics, escrow payments, and cancellation tolerances are within baseline standards.')}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Needs Your Action Desk Box */}
       <div style={{

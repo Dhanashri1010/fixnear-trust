@@ -14,10 +14,12 @@ import { providersAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import InitialsAvatar from '../common/InitialsAvatar';
+import AiServiceAssistantModal from './AiServiceAssistantModal';
 
 export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingModal }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [topProvider, setTopProvider] = useState(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const { selectedCity } = useAuth();
   const { t } = useLanguage();
 
@@ -121,13 +123,33 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                   color: 'var(--text-primary)'
                 }}
               />
-              <button 
-                className="btn btn-primary btn-md"
-                onClick={() => onSearch(searchTerm)}
-                style={{ borderRadius: 'var(--radius-sm)' }}
-              >
-                {t('home.searchBtn', 'Find Specialist')}
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  className="btn btn-primary btn-md"
+                  onClick={() => onSearch(searchTerm)}
+                  style={{ borderRadius: 'var(--radius-sm)' }}
+                >
+                  {t('home.searchBtn', 'Find Specialist')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-md"
+                  onClick={() => setIsAiModalOpen(true)}
+                  style={{
+                    borderRadius: 'var(--radius-sm)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    borderColor: 'var(--forest-600)',
+                    color: 'var(--forest-800)',
+                    fontWeight: 700
+                  }}
+                  title={t('home.askAiAssistant', 'Ask AI Assistant to diagnose issue')}
+                >
+                  <Sparkles size={16} color="var(--forest-700)" />
+                  <span>{t('home.aiAssistant', 'AI Assistant')}</span>
+                </button>
+              </div>
             </div>
 
             {/* Quick Search Shortcut Tags */}
@@ -311,6 +333,12 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
 
         </div>
       </div>
+
+      {/* FixNear AI Diagnostic Assistant Modal */}
+      <AiServiceAssistantModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+      />
     </section>
   );
 }

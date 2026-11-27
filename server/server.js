@@ -22,6 +22,7 @@ import settingRoutes from './routes/settingRoutes.js';
 import skillTestRoutes from './routes/skillTestRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 import { authenticate, authorize } from './middleware/auth.js';
 import { apiRateLimiter } from './middleware/rateLimiter.js';
 import { User } from './models/User.js';
@@ -284,6 +285,7 @@ app.use('/api', uploadRoutes);
 app.use('/api', skillTestRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', authenticate, authorize('admin'), adminRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Root route
 app.get('/', (req, res) => {

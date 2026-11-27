@@ -20,6 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import AvatarDropdown from './AvatarDropdown';
 import InitialsAvatar from './InitialsAvatar';
+import UserActionModal from './UserActionModal';
 
 const MAJOR_CITIES = [
   'Mumbai',
@@ -40,6 +41,7 @@ export default function Navbar() {
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
   const [customCityInput, setCustomCityInput] = useState('');
   const [navSearch, setNavSearch] = useState('');
+  const [activeActionModal, setActiveActionModal] = useState(null);
   const { lang: currentLang, changeLanguage, t } = useLanguage();
 
   const cityDropdownRef = useRef(null);
@@ -132,13 +134,13 @@ export default function Navbar() {
         </Link>
 
         {/* Real Dynamic Location Selector Pill */}
-        <div style={{ position: 'relative' }} ref={cityDropdownRef}>
+        <div style={{ position: 'relative' }} ref={cityDropdownRef} className="nav-desktop-links nav-city-pill">
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '7px 12px',
+              padding: '6px 12px',
               borderRadius: 'var(--radius-sm)',
               backgroundColor: 'var(--bg-card)',
               border: '1px solid var(--border-light)',
@@ -148,14 +150,13 @@ export default function Navbar() {
               transition: 'border-color 150ms ease'
             }}
             title="Click to select city"
-            className="nav-desktop-links"
             onClick={() => setIsCityDropdownOpen(!isCityDropdownOpen)}
           >
-            <MapPin size={16} color="var(--forest-700)" />
-            <span style={{ color: 'var(--text-primary)', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <MapPin size={15} color="var(--forest-700)" />
+            <span style={{ color: 'var(--text-primary)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {selectedCity || 'Mumbai'}
             </span>
-            <ChevronDown size={14} color="var(--text-muted)" />
+            <ChevronDown size={13} color="var(--text-muted)" />
           </div>
 
           {/* City Picker Dropdown */}
@@ -226,7 +227,7 @@ export default function Navbar() {
 
         {/* Search Bar in Navbar */}
         <div
-          className="nav-desktop-links"
+          className="nav-desktop-links nav-search-pill"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -235,7 +236,7 @@ export default function Navbar() {
             border: '1px solid var(--border-light)',
             borderRadius: 'var(--radius-full)',
             padding: '6px 14px',
-            width: '210px',
+            width: '190px',
             flexShrink: 0
           }}
         >
@@ -257,55 +258,152 @@ export default function Navbar() {
           />
         </div>
 
-        {/* Navigation Links */}
-        <nav className="nav-desktop-links" style={{ display: 'flex', alignItems: 'center', gap: '22px', flexShrink: 0 }}>
-          <Link
-            to="/services"
-            style={{
-              fontSize: '13.5px',
-              fontWeight: location.pathname.startsWith('/services') ? 700 : 600,
-              color: location.pathname.startsWith('/services') ? 'var(--forest-800)' : 'var(--text-secondary)',
-              textDecoration: 'none'
-            }}
-          >
-            {t('nav.catalog', 'Catalog')}
-          </Link>
+        {/* Navigation Links — Strictly Isolated by Role */}
+        <nav className="nav-desktop-links" style={{ display: 'flex', alignItems: 'center', gap: '20px', flexShrink: 0 }}>
+          {/* ===================== ADMIN ROLE LINKS ===================== */}
+          {role === 'admin' ? (
+            <>
+              <Link
+                to="/admin"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: location.pathname === '/admin' ? 700 : 600,
+                  color: location.pathname === '/admin' ? '#DC2626' : 'var(--text-secondary)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('admin.deskTitle', 'Central Ops')}
+              </Link>
 
-          <Link
-            to="/bookings"
-            style={{
-              fontSize: '13.5px',
-              fontWeight: (location.pathname === '/bookings' || location.pathname.startsWith('/track')) ? 700 : 600,
-              color: (location.pathname === '/bookings' || location.pathname.startsWith('/track')) ? 'var(--forest-800)' : 'var(--text-secondary)',
-              textDecoration: 'none'
-            }}
-          >
-            {t('nav.myBookings', 'My Bookings')}
-          </Link>
+              <Link
+                to="/admin/bookings"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: location.pathname.startsWith('/admin/bookings') ? 700 : 600,
+                  color: location.pathname.startsWith('/admin/bookings') ? '#DC2626' : 'var(--text-secondary)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('admin.navBookings', 'Bookings Ops')}
+              </Link>
 
-          <Link
-            to={currentUser?.role === 'provider' ? '/provider/dashboard' : '/signup?role=provider'}
-            style={{
-              fontSize: '13.5px',
-              fontWeight: location.pathname.startsWith('/provider') ? 700 : 600,
-              color: 'var(--forest-700)',
-              textDecoration: 'none'
-            }}
-          >
-            {t('nav.joinPartner', 'Join as Partner')}
-          </Link>
+              <Link
+                to="/admin/disputes"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: location.pathname.startsWith('/admin/disputes') ? 700 : 600,
+                  color: location.pathname.startsWith('/admin/disputes') ? '#DC2626' : 'var(--text-secondary)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('admin.navDisputes', 'Disputes')}
+              </Link>
 
-          <Link
-            to="/support"
-            style={{
-              fontSize: '13.5px',
-              fontWeight: location.pathname === '/support' ? 700 : 600,
-              color: location.pathname === '/support' ? 'var(--forest-800)' : 'var(--text-secondary)',
-              textDecoration: 'none'
-            }}
-          >
-            {t('nav.help', 'Help')}
-          </Link>
+              <Link
+                to="/support"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: location.pathname === '/support' ? 700 : 600,
+                  color: location.pathname === '/support' ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('nav.help', 'Help')}
+              </Link>
+            </>
+          ) : role === 'provider' ? (
+            /* ===================== PROVIDER ROLE LINKS ===================== */
+            <>
+              <Link
+                to="/provider/dashboard"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: (location.pathname === '/provider/dashboard' && !location.search.includes('active')) ? 700 : 600,
+                  color: (location.pathname === '/provider/dashboard' && !location.search.includes('active')) ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('providerDashboard.title', 'Dashboard')}
+              </Link>
+
+              <Link
+                to="/provider/dashboard?tab=active"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: location.search.includes('active') ? 700 : 600,
+                  color: location.search.includes('active') ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('providerDashboard.tabActiveJobs', 'Active Jobs')}
+              </Link>
+
+              <Link
+                to="/support"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: location.pathname === '/support' ? 700 : 600,
+                  color: location.pathname === '/support' ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('nav.help', 'Help')}
+              </Link>
+            </>
+          ) : (
+            /* ===================== CUSTOMER / VISITOR LINKS ===================== */
+            <>
+              <Link
+                to="/services"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: location.pathname.startsWith('/services') ? 700 : 600,
+                  color: location.pathname.startsWith('/services') ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('nav.catalog', 'Catalog')}
+              </Link>
+
+              <Link
+                to="/bookings"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: (location.pathname === '/bookings' || location.pathname.startsWith('/track')) ? 700 : 600,
+                  color: (location.pathname === '/bookings' || location.pathname.startsWith('/track')) ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('nav.myBookings', 'My Bookings')}
+              </Link>
+
+              {!currentUser && (
+                <Link
+                  to="/signup?role=provider"
+                  style={{
+                    fontSize: '13.5px',
+                    fontWeight: location.pathname.startsWith('/provider') ? 700 : 600,
+                    color: 'var(--forest-700)',
+                    textDecoration: 'none'
+                  }}
+                >
+                  {t('nav.joinPartner', 'Join as Partner')}
+                </Link>
+              )}
+
+              <Link
+                to="/support"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: location.pathname === '/support' ? 700 : 600,
+                  color: location.pathname === '/support' ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('nav.help', 'Help')}
+              </Link>
+            </>
+          )}
         </nav>
 
         {/* Actions & Avatar / Login Trigger */}
@@ -344,14 +442,56 @@ export default function Navbar() {
             </select>
           </div>
 
-          <Link
-            to="/book"
-            className="btn btn-primary btn-sm"
-            style={{ textDecoration: 'none' }}
-          >
-            <Wrench size={14} />
-            <span>{t('common.bookNow', 'Book')}</span>
-          </Link>
+          {/* Role-Specific Action Button */}
+          {role === 'admin' ? (
+            <Link
+              to="/admin"
+              className="badge"
+              style={{
+                backgroundColor: '#DC2626',
+                color: '#FFFFFF',
+                fontWeight: 700,
+                fontSize: '12px',
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-sm)',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <span>{t('admin.opsConsole', 'Ops Console')}</span>
+            </Link>
+          ) : role === 'provider' ? (
+            <Link
+              to="/provider/dashboard"
+              className="badge"
+              style={{
+                backgroundColor: 'var(--forest-100)',
+                color: 'var(--forest-900)',
+                fontWeight: 700,
+                fontSize: '12px',
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-sm)',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Wrench size={13} />
+              <span>{t('providerDashboard.partnerDesk', 'Partner Desk')}</span>
+            </Link>
+          ) : (
+            <Link
+              to="/book"
+              className="btn btn-primary btn-sm"
+              style={{ textDecoration: 'none', padding: '6px 14px' }}
+            >
+              <Wrench size={14} />
+              <span>{t('common.bookNow', 'Book')}</span>
+            </Link>
+          )}
 
           {/* User Account Avatar or Log In Button */}
           {currentUser ? (
@@ -385,7 +525,7 @@ export default function Navbar() {
                     right: '0',
                     width: '10px',
                     height: '10px',
-                    backgroundColor: '#10B981',
+                    backgroundColor: role === 'admin' ? '#DC2626' : '#10B981',
                     borderRadius: '50%',
                     border: '2px solid #FFFFFF'
                   }} />
@@ -396,6 +536,10 @@ export default function Navbar() {
               <AvatarDropdown
                 isOpen={isDropdownOpen}
                 onClose={() => setIsDropdownOpen(false)}
+                onSelectOption={(option) => {
+                  setIsDropdownOpen(false);
+                  setActiveActionModal(option);
+                }}
               />
             </div>
           ) : (
@@ -412,6 +556,12 @@ export default function Navbar() {
         </div>
 
       </div>
+
+      {/* Connected User Action Modal */}
+      <UserActionModal
+        activeAction={activeActionModal}
+        onClose={() => setActiveActionModal(null)}
+      />
     </header>
   );
 }

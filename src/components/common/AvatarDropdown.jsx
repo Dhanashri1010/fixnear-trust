@@ -1,6 +1,7 @@
 // ===================================================================
-// FixNear Trust - Avatar Dropdown Menu
-// Connected to AuthContext with dynamic user details and sign out
+// FixNear Trust - Avatar Dropdown Menu (Phase 4 Redesign)
+// Role-isolated: Customer, Provider, and Admin menus
+// Note: Sign Out moved into Settings panel with confirmation
 // ===================================================================
 
 import React, { useEffect, useRef } from 'react';
@@ -10,21 +11,22 @@ import {
   CalendarDays, 
   Bell, 
   Settings, 
-  LogOut, 
   ShieldCheck,
   ChevronRight,
   Wrench,
   Download,
-  Trash2
+  Trash2,
+  Briefcase,
+  LayoutDashboard
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import InitialsAvatar from './InitialsAvatar';
 
-export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
+export default function AvatarDropdown({ isOpen, onClose, onSelectOption = () => {} }) {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
-  const { currentUser, userProfile, role, logOut } = useAuth();
+  const { currentUser, userProfile, role } = useAuth();
   const { t } = useLanguage();
 
   const displayName = userProfile?.name || currentUser?.name || "FixNear User";
@@ -47,21 +49,54 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
 
   if (!isOpen) return null;
 
-  const handleSignOut = async () => {
-    await logOut();
-    onClose();
-    navigate('/login');
-  };
-
   const handleNavigate = (path) => {
     onClose();
     navigate(path);
   };
 
-  const getRoleLabel = () => {
-    if (role === 'admin') return `🛡️ ${t('roles.admin', 'Administrator')}`;
-    if (role === 'provider') return `🔧 ${t('roles.provider', 'Service Partner')}`;
-    return `👤 ${t('roles.customer', 'Customer Account')}`;
+  const getRoleBadge = () => {
+    if (role === 'admin') {
+      return (
+        <span style={{
+          fontSize: '11px',
+          fontWeight: 700,
+          backgroundColor: '#DC2626',
+          color: '#FFFFFF',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          letterSpacing: '0.04em'
+        }}>
+          {`🛡️ ${t('roles.admin', 'ADMINISTRATOR')}`}
+        </span>
+      );
+    }
+    if (role === 'provider') {
+      return (
+        <span style={{
+          fontSize: '11px',
+          fontWeight: 700,
+          backgroundColor: 'var(--forest-100)',
+          color: 'var(--forest-800)',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          letterSpacing: '0.04em'
+        }}>
+          {`🔧 ${t('roles.provider', 'SERVICE PARTNER')}`}
+        </span>
+      );
+    }
+    return (
+      <span style={{
+        fontSize: '11px',
+        fontWeight: 600,
+        backgroundColor: '#F0F3F0',
+        color: 'var(--text-secondary)',
+        padding: '2px 8px',
+        borderRadius: '4px'
+      }}>
+        {`👤 ${t('roles.customer', 'CUSTOMER ACCOUNT')}`}
+      </span>
+    );
   };
 
   return (
@@ -71,11 +106,11 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         position: 'absolute',
         top: 'calc(100% + 12px)',
         right: 0,
-        width: '280px',
+        width: '290px',
         backgroundColor: '#FFFFFF',
         borderRadius: 'var(--radius-md)',
-        boxShadow: 'var(--shadow-lg)',
-        border: '1px solid var(--border-light)',
+        boxShadow: '0 8px 30px rgba(32, 43, 36, 0.12)',
+        border: '1.5px solid var(--border-light)',
         padding: '8px 0',
         zIndex: 1000,
         animation: 'fadeInSlide 180ms ease'
@@ -94,7 +129,7 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
               <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--forest-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {displayName}
               </span>
-              <ShieldCheck size={14} color="#1E3A2F" style={{ flexShrink: 0 }} />
+              <ShieldCheck size={14} color="var(--forest-700)" style={{ flexShrink: 0 }} />
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
               {displayEmail}
@@ -103,150 +138,252 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption }) {
         </div>
 
         <div style={{ marginTop: '8px' }}>
-          <span className="badge badge-sage" style={{ fontSize: '11px', padding: '2px 8px' }}>
-            {getRoleLabel()}
-          </span>
+          {getRoleBadge()}
         </div>
       </div>
 
-      {role === 'provider' && (
-        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border-light)' }}>
-          <button
-            type="button"
-            onClick={() => handleNavigate('/provider/dashboard')}
-            style={{
-              ...menuItemStyle,
-              backgroundColor: 'var(--forest-50)',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 700,
-              color: 'var(--forest-900)'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Wrench size={16} color="var(--forest-700)" />
-              <span>{t('nav.dashboard', 'Provider Console')}</span>
-            </div>
-            <ChevronRight size={14} />
-          </button>
-        </div>
-      )}
-
-      {role === 'customer' && (
-        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border-light)' }}>
-          <button
-            type="button"
-            onClick={() => handleNavigate('/signup?role=provider')}
-            style={{
-              ...menuItemStyle,
-              backgroundColor: 'var(--yellow-50)',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 700,
-              color: 'var(--yellow-900)'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Wrench size={16} color="var(--yellow-800)" />
-              <span>{t('nav.joinPartner', 'Join as Service Partner')}</span>
-            </div>
-            <ChevronRight size={14} />
-          </button>
-        </div>
-      )}
-
-      {/* Primary User Navigation Menu */}
+      {/* Role-Specific Menu Items */}
       <div style={{ padding: '6px 0' }}>
-        <button 
-          className="menu-item"
-          onClick={() => handleNavigate('/bookings')}
-          style={menuItemStyle}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <CalendarDays size={16} color="var(--forest-700)" />
-            <span>{t('nav.myBookings', 'My Bookings')}</span>
-          </div>
-        </button>
+        
+        {/* ===================== CUSTOMER ROLE MENU ===================== */}
+        {role === 'customer' && (
+          <>
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('Profile'); onClose(); }}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <User size={16} color="var(--forest-700)" />
+                <span>{t('accountMenu.profile', 'Profile')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
 
-        <button 
-          className="menu-item"
-          onClick={() => { onSelectOption('Profile'); onClose(); }}
-          style={menuItemStyle}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <User size={16} color="var(--forest-700)" />
-            <span>{t('accountMenu.profile', 'Profile Details')}</span>
-          </div>
-          <ChevronRight size={14} color="var(--text-muted)" />
-        </button>
+            <button 
+              className="menu-item"
+              onClick={() => handleNavigate('/bookings')}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <CalendarDays size={16} color="var(--forest-700)" />
+                <span>{t('nav.myBookings', 'My Bookings')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
 
-        <button 
-          className="menu-item"
-          onClick={() => { onSelectOption('Notifications'); onClose(); }}
-          style={menuItemStyle}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Bell size={16} color="var(--forest-700)" />
-            <span>{t('notifications.title', 'Notifications')}</span>
-          </div>
-        </button>
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('Notifications'); onClose(); }}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Bell size={16} color="var(--forest-700)" />
+                <span>{t('notifications.title', 'Notifications')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
 
-        <button 
-          className="menu-item"
-          onClick={() => { onSelectOption('Settings'); onClose(); }}
-          style={menuItemStyle}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Settings size={16} color="var(--forest-700)" />
-            <span>{t('admin.navSettings', 'Settings')}</span>
-          </div>
-          <ChevronRight size={14} color="var(--text-muted)" />
-        </button>
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('Settings'); onClose(); }}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Settings size={16} color="var(--forest-700)" />
+                <span>{t('admin.navSettings', 'Settings')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
 
-        <button 
-          className="menu-item"
-          onClick={() => { onSelectOption('DownloadData'); onClose(); }}
-          style={menuItemStyle}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Download size={16} color="var(--forest-700)" />
-            <span>{t('userActions.downloadTitle', 'Download My Data')}</span>
-          </div>
-          <ChevronRight size={14} color="var(--text-muted)" />
-        </button>
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('DownloadData'); onClose(); }}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Download size={16} color="var(--forest-700)" />
+                <span>{t('userActions.downloadTitle', 'Download My Data')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
 
-        <button 
-          className="menu-item"
-          onClick={() => { onSelectOption('DeleteAccount'); onClose(); }}
-          style={{
-            ...menuItemStyle,
-            color: '#B91C1C'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Trash2 size={16} color="#B91C1C" />
-            <span>{t('userActions.deleteTitle', 'Delete My Account')}</span>
-          </div>
-          <ChevronRight size={14} color="#B91C1C" />
-        </button>
-      </div>
+            <div style={{ height: '1px', backgroundColor: 'var(--border-light)', margin: '6px 0' }} />
 
-      {/* Mandatory Divider */}
-      <div style={{ height: '1px', backgroundColor: 'var(--border-light)', margin: '4px 0' }} />
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('DeleteAccount'); onClose(); }}
+              style={{
+                ...menuItemStyle,
+                color: '#DC2626'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Trash2 size={16} color="#DC2626" />
+                <span style={{ fontWeight: 600 }}>{t('userActions.deleteTitle', 'Delete My Account')}</span>
+              </div>
+              <ChevronRight size={14} color="#DC2626" />
+            </button>
+          </>
+        )}
 
-      {/* Sign Out */}
-      <div style={{ padding: '4px 0' }}>
-        <button 
-          className="menu-item menu-item-danger"
-          onClick={handleSignOut}
-          style={{
-            ...menuItemStyle,
-            color: '#B91C1C'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <LogOut size={16} color="#B91C1C" />
-            <span style={{ fontWeight: 600 }}>{t('nav.logout', 'Sign out')}</span>
-          </div>
-        </button>
+        {/* ===================== PROVIDER ROLE MENU ===================== */}
+        {role === 'provider' && (
+          <>
+            <button 
+              className="menu-item"
+              onClick={() => handleNavigate('/provider/dashboard')}
+              style={{
+                ...menuItemStyle,
+                backgroundColor: 'var(--forest-50)',
+                color: 'var(--forest-900)',
+                fontWeight: 600
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <LayoutDashboard size={16} color="var(--forest-700)" />
+                <span>{t('providerDashboard.title', 'Provider Dashboard')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--forest-700)" />
+            </button>
+
+            <button 
+              className="menu-item"
+              onClick={() => handleNavigate('/provider/dashboard?tab=active')}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Briefcase size={16} color="var(--forest-700)" />
+                <span>{t('providerDashboard.tabActiveJobs', 'My Jobs')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
+
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('Notifications'); onClose(); }}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Bell size={16} color="var(--forest-700)" />
+                <span>{t('notifications.title', 'Notifications')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
+
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('Profile'); onClose(); }}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <User size={16} color="var(--forest-700)" />
+                <span>{t('accountMenu.profile', 'Profile')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
+
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('Settings'); onClose(); }}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Settings size={16} color="var(--forest-700)" />
+                <span>{t('admin.navSettings', 'Settings')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
+
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('DownloadData'); onClose(); }}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Download size={16} color="var(--forest-700)" />
+                <span>{t('userActions.downloadTitle', 'Download My Data')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
+
+            <div style={{ height: '1px', backgroundColor: 'var(--border-light)', margin: '6px 0' }} />
+
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('DeleteAccount'); onClose(); }}
+              style={{
+                ...menuItemStyle,
+                color: '#DC2626'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Trash2 size={16} color="#DC2626" />
+                <span style={{ fontWeight: 600 }}>{t('userActions.deleteTitle', 'Delete My Account')}</span>
+              </div>
+              <ChevronRight size={14} color="#DC2626" />
+            </button>
+          </>
+        )}
+
+        {/* ===================== ADMIN ROLE MENU ===================== */}
+        {role === 'admin' && (
+          <>
+            <button 
+              className="menu-item"
+              onClick={() => handleNavigate('/admin')}
+              style={{
+                ...menuItemStyle,
+                backgroundColor: '#FEF2F2',
+                color: '#991B1B',
+                fontWeight: 700
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <ShieldCheck size={16} color="#DC2626" />
+                <span>{t('admin.deskTitle', 'Central Operations Desk')}</span>
+              </div>
+              <ChevronRight size={14} color="#DC2626" />
+            </button>
+
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('Notifications'); onClose(); }}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Bell size={16} color="var(--forest-700)" />
+                <span>{t('notifications.title', 'Notifications')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
+
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('Profile'); onClose(); }}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <User size={16} color="var(--forest-700)" />
+                <span>{t('accountMenu.profile', 'Profile')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
+
+            <button 
+              className="menu-item"
+              onClick={() => { onSelectOption('Settings'); onClose(); }}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Settings size={16} color="var(--forest-700)" />
+                <span>{t('admin.navSettings', 'Platform Settings')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
+          </>
+        )}
+
       </div>
     </div>
   );
@@ -257,7 +394,7 @@ const menuItemStyle = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  padding: '10px 16px',
+  padding: '9px 16px',
   fontSize: '13.5px',
   color: 'var(--text-primary)',
   textAlign: 'left',

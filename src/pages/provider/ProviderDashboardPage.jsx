@@ -843,6 +843,26 @@ export default function ProviderDashboardPage() {
             <Award size={16} />
             <span>{t('providerDashboard.tabCredentials')}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('reviews')}
+            style={{
+              padding: '12px 20px',
+              fontSize: '14px',
+              fontWeight: 700,
+              color: activeTab === 'reviews' ? 'var(--forest-800)' : 'var(--text-muted)',
+              borderBottom: activeTab === 'reviews' ? '3px solid var(--forest-700)' : '3px solid transparent',
+              backgroundColor: 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            <Star size={16} />
+            <span>{t('providerDashboard.tabReviews', 'Ratings & Reviews')} ({reviews.length})</span>
+          </button>
         </div>
 
         {/* TAB 1: ACTIVE JOBS PIPELINE */}
@@ -1417,6 +1437,167 @@ export default function ProviderDashboardPage() {
                 <span>{t('providerDashboard.updateKycDetails')}</span>
               </Link>
             </div>
+          </div>
+        )}
+
+        {/* TAB 5: RATINGS & CUSTOMER REVIEWS */}
+        {activeTab === 'reviews' && (
+          <div>
+            {/* Reviews Summary Card */}
+            <div className="card" style={{ padding: '28px', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-light)', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                  <div style={{
+                    width: '72px',
+                    height: '72px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'var(--forest-50)',
+                    border: '1.5px solid var(--forest-100)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--forest-900)'
+                  }}>
+                    <span style={{ fontSize: '24px', fontWeight: 800, lineHeight: 1 }}>
+                      {provider?.rating ? provider.rating.toFixed(1) : '5.0'}
+                    </span>
+                    <div style={{ display: 'flex', gap: '2px', marginTop: '4px' }}>
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={10} color="#F59E0B" fill="#F59E0B" />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)', margin: '0 0 4px 0' }}>
+                      {t('providerDashboard.overallScore', 'Overall Performance Score')}
+                    </h3>
+                    <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', margin: 0 }}>
+                      {t('providerDashboard.basedOn', 'Based on')} {reviews.length} {t('providerDashboard.authenticReviewsSub', 'authentic homeowner reviews after verified job completion.')}
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <span className="badge badge-sage" style={{ fontSize: '12px', padding: '6px 12px' }}>
+                    <ShieldCheck size={14} style={{ marginRight: '4px' }} />
+                    {provider?.jobsCompleted || 0} {t('providerDashboard.jobsCompleted', 'Jobs Completed')}
+                  </span>
+                  <span className="badge badge-forest" style={{ fontSize: '12px', padding: '6px 12px' }}>
+                    <CheckCircle2 size={14} style={{ marginRight: '4px' }} />
+                    {t('providerDashboard.otpVerifiedPayouts', 'OTP Verified Payouts')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Reviews List */}
+            {reviews.length === 0 ? (
+              <div className="card" style={{ padding: '48px 24px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-xl)', border: '1px solid var(--border-light)' }}>
+                <Star size={40} color="var(--text-muted)" style={{ margin: '0 auto 12px auto' }} />
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--forest-900)' }}>
+                  {t('providerDashboard.noReviewsYet', 'No Customer Reviews Yet')}
+                </h3>
+                <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', maxWidth: '440px', margin: '6px auto 16px auto' }}>
+                  {t('providerDashboard.noReviewsSub', 'When you accept and complete service bookings with customer completion OTPs, verified customer feedback and star ratings will appear here.')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('active-jobs')}
+                  className="btn btn-primary btn-sm"
+                >
+                  {t('providerDashboard.viewActiveJobs', 'View Active Jobs')}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                {reviews.map((rev, idx) => {
+                  const rating = rev.rating || 5;
+                  const isPositive = rating >= 4;
+                  return (
+                    <div
+                      key={rev._id || idx}
+                      className="card"
+                      style={{
+                        padding: '20px',
+                        backgroundColor: '#FFFFFF',
+                        borderRadius: 'var(--radius-lg)',
+                        border: '1px solid var(--border-light)',
+                        boxShadow: 'var(--shadow-sm)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div>
+                        {/* Rating Stars + Sentiment Tag */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                          <div style={{ display: 'flex', gap: '2px' }}>
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                size={14}
+                                color={i < rating ? '#F59E0B' : '#E5E7EB'}
+                                fill={i < rating ? '#F59E0B' : 'transparent'}
+                              />
+                            ))}
+                          </div>
+                          <span
+                            className="badge"
+                            style={{
+                              fontSize: '11px',
+                              backgroundColor: isPositive ? '#ECFDF5' : '#FEF3C7',
+                              color: isPositive ? '#065F46' : '#92400E',
+                              border: `1px solid ${isPositive ? '#A7F3D0' : '#FDE68A'}`
+                            }}
+                          >
+                            {isPositive ? t('providerDashboard.recommended', '✨ Highly Recommended') : t('providerDashboard.satisfactory', '👍 Satisfactory Work')}
+                          </span>
+                        </div>
+
+                        {/* Comment Text with line-clamp */}
+                        <p style={{
+                          fontSize: '13.5px',
+                          color: 'var(--text-secondary)',
+                          lineHeight: 1.55,
+                          fontStyle: 'italic',
+                          marginBottom: '14px',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden'
+                        }}>
+                          "{rev.comment || t('providerDashboard.defaultReviewText', 'Specialist arrived on time and performed reliable maintenance work.')}"
+                        </p>
+                      </div>
+
+                      {/* Customer info */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        paddingTop: '12px',
+                        borderTop: '1px solid var(--border-light)'
+                      }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--forest-900)' }}>
+                            {rev.customerName || rev.authorName || t('home.homeownerDefault', 'Homeowner')}
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {rev.createdAt ? formatDate(rev.createdAt) : t('common.verifiedBooking', 'Verified Booking')}
+                          </div>
+                        </div>
+
+                        <span style={{ fontSize: '11px', color: 'var(--forest-700)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <ShieldCheck size={13} /> {t('common.verified', 'Verified')}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

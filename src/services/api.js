@@ -220,3 +220,12 @@ export const adminAPI = {
   // 12. Audit Logs Desk
   getAuditLogs: (params) => api.get('/admin/audit-logs', { params }),
 };
+
+// AI & ML Services API (Phase 7)
+export const aiAPI = {
+  search: (query) => api.post('/ai/search', { query }),
+  recommendTechnicians: (data) => api.post('/ai/recommend-technicians', data),
+  analyzeSentiment: (comment, rating) => api.post('/ai/analyze-sentiment', { comment, rating }),
+  getAnomalies: () => api.get('/ai/anomalies'),
+  diagnose: (problemText) => api.post('/ai/diagnose', { problemText }),
+};

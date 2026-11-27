@@ -21,7 +21,21 @@ import { notificationsAPI, authAPI, getSocket } from '../../services/api';
 import InitialsAvatar from './InitialsAvatar';
 
 export default function UserActionModal({ activeAction, onClose }) {
-  if (!activeAction) return null;
+  const [currentModalAction, setCurrentModalAction] = useState(activeAction);
+
+  useEffect(() => {
+    setCurrentModalAction(activeAction);
+  }, [activeAction]);
+
+  useEffect(() => {
+    const handleCustomOpen = (e) => {
+      if (e.detail) setCurrentModalAction(e.detail);
+    };
+    window.addEventListener('open-user-modal', handleCustomOpen);
+    return () => window.removeEventListener('open-user-modal', handleCustomOpen);
+  }, []);
+
+  if (!currentModalAction) return null;
 
   const navigate = useNavigate();
   const { currentUser, userProfile, logOut } = useAuth();
@@ -79,7 +93,7 @@ export default function UserActionModal({ activeAction, onClose }) {
   };
 
   useEffect(() => {
-    if (activeAction === 'Notifications' && currentUser) {
+    if (currentModalAction === 'Notifications' && currentUser) {
       setLoadingNotifs(true);
       notificationsAPI.getNotifications()
         .then((res) => {
@@ -113,13 +127,13 @@ export default function UserActionModal({ activeAction, onClose }) {
   const displayCity = userProfile?.city || currentUser?.city || 'Mumbai';
 
   const getActionHeading = () => {
-    if (activeAction === 'DownloadData') return t('userActions.downloadTitle', 'Download My Data');
-    if (activeAction === 'DeleteAccount') return t('userActions.deleteTitle', 'Delete My Account');
-    if (activeAction === 'Notifications') return t('notifications.title', 'Notifications');
-    if (activeAction === 'Profile') return t('accountMenu.profile', 'Profile');
-    if (activeAction === 'Settings') return t('admin.navSettings', 'Settings');
-    if (activeAction === 'Sign out') return t('accountMenu.signOut', 'Sign Out');
-    return activeAction;
+    if (currentModalAction === 'DownloadData') return t('userActions.downloadTitle', 'Download My Data');
+    if (currentModalAction === 'DeleteAccount') return t('userActions.deleteTitle', 'Delete My Account');
+    if (currentModalAction === 'Notifications') return t('notifications.title', 'Notifications');
+    if (currentModalAction === 'Profile') return t('accountMenu.profile', 'Profile');
+    if (currentModalAction === 'Settings') return t('admin.navSettings', 'Settings');
+    if (currentModalAction === 'Sign out') return t('accountMenu.signOut', 'Sign Out');
+    return currentModalAction;
   };
 
   return (
@@ -191,7 +205,7 @@ export default function UserActionModal({ activeAction, onClose }) {
         {/* Content based on selected menu item */}
         <div style={{ padding: '24px' }}>
           
-          {activeAction === 'Profile' && (
+          {currentModalAction === 'Profile' && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
                 <InitialsAvatar
@@ -239,7 +253,7 @@ export default function UserActionModal({ activeAction, onClose }) {
             </div>
           )}
 
-          {activeAction === 'Notifications' && (
+          {currentModalAction === 'Notifications' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {loadingNotifs && (
                 <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
@@ -278,52 +292,131 @@ export default function UserActionModal({ activeAction, onClose }) {
             </div>
           )}
 
-          {activeAction === 'Settings' && (
+          {currentModalAction === 'Settings' && (
             <div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                    {t('tracking.title', 'Live Job Tracking')}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {/* Language Preference */}
+                <div style={{ paddingBottom: '14px', borderBottom: '1px solid var(--border-light)' }}>
+                  <label style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--forest-900)', display: 'block', marginBottom: '4px' }}>
+                    {t('common.language', 'Platform Language')}
                   </label>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    {t('tracking.subtitle', 'Monitor technician dispatch, status updates, and verify completion securely')}
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                    {t('userActions.langDesc', 'Select your preferred language across bookings, invoices, and alerts.')}
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {[
+                      { code: 'en', label: 'English' },
+                      { code: 'hi', label: 'हिंदी (Hindi)' },
+                      { code: 'mr', label: 'मराठी (Marathi)' }
+                    ].map((l) => (
+                      <button
+                        key={l.code}
+                        type="button"
+                        onClick={() => {
+                          authAPI.updatePreferredLanguage(l.code).catch(() => {});
+                          window.location.reload();
+                        }}
+                        className={`btn btn-sm ${currentUser?.preferredLanguage === l.code ? 'btn-primary' : 'btn-outline'}`}
+                        style={{ fontSize: '12px', padding: '6px 12px' }}
+                      >
+                        {l.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                <div style={{ paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                    {t('tracking.finishCodeTitle', 'Private Job Finish Code')}
+                {/* Account Security & Password */}
+                <div style={{ paddingBottom: '14px', borderBottom: '1px solid var(--border-light)' }}>
+                  <label style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--forest-900)', display: 'block', marginBottom: '4px' }}>
+                    {t('auth.changePassword', 'Account Security')}
                   </label>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                    {t('tracking.finishCodeDesc', 'Give this 4-digit code to the specialist ONLY when you have inspected and accepted the completed work.')}
-                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                    {t('userActions.securityDesc', 'Manage login credentials, update passwords, and maintain active session security.')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      navigate('/change-password');
+                    }}
+                    className="btn btn-outline btn-sm"
+                    style={{ fontSize: '12.5px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Lock size={14} />
+                    <span>{t('auth.changePassword', 'Change Password')}</span>
+                  </button>
                 </div>
 
-                <div style={{ paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                    {t('legal.privacyTitle', 'Privacy & Data Protection Policy')}
+                {/* Privacy & Data */}
+                <div style={{ paddingBottom: '14px', borderBottom: '1px solid var(--border-light)' }}>
+                  <label style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--forest-900)', display: 'block', marginBottom: '4px' }}>
+                    {t('userActions.downloadTitle', 'Data & Privacy Export')}
                   </label>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
                     {t('userActions.downloadDesc', 'Request a complete JSON archive of your personal profile, booking history, submitted reviews, and support tickets.')}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleDownloadData}
+                    disabled={downloading}
+                    style={{ fontSize: '12.5px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Download size={14} />
+                    <span>{downloading ? t('common.loading', 'Loading...') : t('userActions.downloadBtn', 'Download JSON Data Export')}</span>
+                  </button>
+                </div>
+
+                {/* Sign Out Section with Confirmation */}
+                <div style={{
+                  padding: '14px',
+                  backgroundColor: '#FEF2F2',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid #FCA5A5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#991B1B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <LogOut size={16} />
+                      <span>{t('accountMenu.signOut', 'Sign Out of Account')}</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#7F1D1D', marginTop: '2px' }}>
+                      {t('userActions.signOutDesc', 'End current session on this device securely.')}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={handleDownloadData}
-                      disabled={downloading}
-                      style={{ fontSize: '12.5px', padding: '6px 12px' }}
-                    >
-                      <Download size={14} style={{ marginRight: '6px' }} />
-                      {downloading ? t('common.loading', 'Loading...') : t('userActions.downloadBtn', 'Download JSON Data Export')}
-                    </button>
-                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentModalAction('Sign out');
+                    }}
+                    style={{
+                      backgroundColor: '#DC2626',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: 'var(--radius-xs)',
+                      padding: '6px 14px',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <LogOut size={14} />
+                    <span>{t('accountMenu.signOut', 'Sign Out')}</span>
+                  </button>
                 </div>
               </div>
             </div>
           )}
 
-          {activeAction === 'DownloadData' && (
+          {currentModalAction === 'DownloadData' && (
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
               <div style={{
                 width: '54px',
@@ -356,7 +449,7 @@ export default function UserActionModal({ activeAction, onClose }) {
             </div>
           )}
 
-          {activeAction === 'DeleteAccount' && (
+          {currentModalAction === 'DeleteAccount' && (
             <div style={{ padding: '8px 0' }}>
               <div style={{
                 width: '54px',
@@ -473,7 +566,7 @@ export default function UserActionModal({ activeAction, onClose }) {
             </div>
           )}
 
-          {activeAction === 'Sign out' && (
+          {currentModalAction === 'Sign out' && (
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
               <div style={{
                 width: '54px',
@@ -510,7 +603,7 @@ export default function UserActionModal({ activeAction, onClose }) {
             </div>
           )}
 
-          {activeAction !== 'Sign out' && (
+          {currentModalAction !== 'Sign out' && (
             <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-light)', textAlign: 'right' }}>
               <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
                 {t('common.close', 'Close')}
