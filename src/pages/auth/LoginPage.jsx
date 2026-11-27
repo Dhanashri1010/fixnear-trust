@@ -134,7 +134,7 @@ export default function LoginPage() {
         </div>
 
         {/* Brand Header */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
           <div style={{
             width: '52px',
             height: '52px',
@@ -150,11 +150,52 @@ export default function LoginPage() {
             <ShieldCheck size={30} />
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--forest-900)', letterSpacing: '-0.02em' }}>
-            {t('auth.loginTitle', 'Welcome to FixNear')}
+            {t('auth.customerLoginTitle', 'Customer Sign In')}
           </h1>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            {t('brand.subtitle', 'Verified Home Services Marketplace')}
+          <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+            {t('auth.customerLoginSubtitle', 'Sign in to book home repairs and track orders')}
           </p>
+        </div>
+
+        {/* Demo Customer Quick Credentials Pill */}
+        <div style={{
+          backgroundColor: 'var(--forest-50)',
+          border: '1px dashed var(--forest-300)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '10px 14px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px'
+        }}>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--forest-800)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              {t('auth.demoCustomerTitle', 'Demo Customer Account')}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace', marginTop: '2px' }}>
+              {t('auth.demoCustomerCreds', 'customer@fixnear.com · Password@123')}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setEmail('customer@fixnear.com');
+              setPassword('Password@123');
+            }}
+            style={{
+              fontSize: '11.5px',
+              fontWeight: 700,
+              color: 'var(--forest-700)',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid var(--forest-200)',
+              padding: '3px 10px',
+              borderRadius: 'var(--radius-full)',
+              cursor: 'pointer'
+            }}
+          >
+            {t('providerAuth.fillDemo', 'Auto Fill')}
+          </button>
         </div>
 
         {/* Error message alert */}
@@ -277,10 +318,53 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        {/* Provider Sign-up link */}
-        <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px', color: 'var(--text-muted)' }}>
-          <Link to="/signup?role=provider" style={{ color: 'var(--forest-700)', fontWeight: 600 }}>
-            {t('nav.joinPartner', 'Join as Service Partner')}
+        {/* Dedicated Portal Gateways */}
+        <div style={{
+          marginTop: '24px',
+          paddingTop: '18px',
+          borderTop: '1px solid var(--border-light)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px'
+        }}>
+          <Link
+            to="/provider/login"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--forest-50)',
+              color: 'var(--forest-900)',
+              textDecoration: 'none',
+              fontSize: '13px',
+              fontWeight: 600,
+              border: '1px solid var(--forest-100)'
+            }}
+          >
+            <span>{t('auth.servicePartnerPortalLink', 'Service Specialist? Partner Desk Sign In')}</span>
+            <ArrowRight size={14} color="var(--forest-700)" />
+          </Link>
+
+          <Link
+            to="/admin/login"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: '#FEF2F2',
+              color: '#991B1B',
+              textDecoration: 'none',
+              fontSize: '13px',
+              fontWeight: 600,
+              border: '1px solid #FECACA'
+            }}
+          >
+            <span>{t('auth.adminPortalLink', 'Platform Staff? Administrator Console')}</span>
+            <ArrowRight size={14} color="#DC2626" />
           </Link>
         </div>
 

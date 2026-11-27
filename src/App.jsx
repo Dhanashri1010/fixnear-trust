@@ -55,6 +55,7 @@ const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
 const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage'));
 
 // Provider Portal Pages (Lazy loaded)
+const ProviderLoginPage = lazy(() => import('./pages/provider/ProviderLoginPage'));
 const ProviderDashboardPage = lazy(() => import('./pages/provider/ProviderDashboardPage'));
 const ProviderRegisterPage = lazy(() => import('./pages/provider/ProviderRegisterPage'));
 const ProviderSkillTestPage = lazy(() => import('./pages/provider/ProviderSkillTestPage'));
@@ -122,6 +123,7 @@ function AppLayout() {
             />
 
             {/* Service Provider Portal Routes */}
+            <Route path="/provider/login" element={<ProviderLoginPage />} />
             <Route path="/provider/register" element={<ProviderRegisterPage />} />
             <Route path="/provider/test" element={<ProviderSkillTestPage />} />
             <Route path="/provider/test/:categoryId" element={<ProviderSkillTestPage />} />

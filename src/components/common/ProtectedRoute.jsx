@@ -32,13 +32,20 @@ export default function ProtectedRoute({ allowedRoles, children }) {
 
   // If not logged in at all, redirect to appropriate login page with return url
   if (!currentUser) {
-    const loginTarget = allowedRoles?.includes('admin') ? '/admin/login' : '/login';
+    let loginTarget = '/login';
+    if (allowedRoles?.includes('admin')) {
+      loginTarget = '/admin/login';
+    } else if (allowedRoles?.includes('provider')) {
+      loginTarget = '/provider/login';
+    }
     return <Navigate to={loginTarget} state={{ from: location }} replace />;
   }
 
   // Check role authorization
   if (allowedRoles && !allowedRoles.includes(role)) {
     const isAdminRoute = allowedRoles.includes('admin');
+    const isProviderRoute = allowedRoles.includes('provider');
+
     return (
       <div className="container" style={{ padding: '60px 20px', maxWidth: '600px', textAlign: 'center' }}>
         <div style={{
@@ -68,6 +75,8 @@ export default function ProtectedRoute({ allowedRoles, children }) {
           <p style={{ color: 'var(--text-secondary)', fontSize: '15px', marginBottom: '24px', lineHeight: 1.5 }}>
             {isAdminRoute 
               ? t('admin.adminAccessOnly', 'Access to Central Operations is strictly restricted to administrator accounts.')
+              : isProviderRoute
+              ? t('providerAuth.accessRestrictedMsg', 'This portal is reserved for verified Service Providers.')
               : t('common.portalReservedFor', 'This portal is reserved for authorized accounts.')}
           </p>
 
@@ -77,16 +86,29 @@ export default function ProtectedRoute({ allowedRoles, children }) {
                 <LogIn size={16} />
                 <span>{t('admin.staffSignIn', 'Sign in as Administrator')}</span>
               </Link>
+            ) : isProviderRoute ? (
+              <Link to="/provider/login" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+                <LogIn size={16} />
+                <span>{t('providerAuth.signInPartner', 'Sign in to Partner Desk')}</span>
+              </Link>
             ) : (
               <Link to="/login" className="btn btn-outline" style={{ width: '100%', justifyContent: 'center' }}>
                 <LogIn size={16} />
                 <span>{t('common.signInAuthorized', 'Sign in with Authorized Account')}</span>
               </Link>
             )}
-            <Link to="/" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
-              <ArrowLeft size={16} />
-              <span>{t('common.backToHome', 'Return to Home')}</span>
-            </Link>
+
+            {role === 'provider' ? (
+              <Link to="/provider/dashboard" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
+                <ArrowLeft size={16} />
+                <span>{t('providerDashboard.backToDashboard', 'Return to Partner Desk')}</span>
+              </Link>
+            ) : (
+              <Link to="/" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }}>
+                <ArrowLeft size={16} />
+                <span>{t('common.backToHome', 'Return to Home')}</span>
+              </Link>
+            )}
           </div>
         </div>
       </div>

@@ -259,10 +259,10 @@ export default function Navbar() {
           />
         </div>
 
-        {/* Navigation Links — Strictly Isolated by Role */}
+        {/* Navigation Links — Strictly Isolated by Role and Current Portal Desk */}
         <nav className="nav-desktop-links" style={{ display: 'flex', alignItems: 'center', gap: '20px', flexShrink: 0 }}>
-          {/* ===================== ADMIN ROLE LINKS ===================== */}
-          {role === 'admin' ? (
+          {/* ===================== ADMIN DESK PORTAL ===================== */}
+          {location.pathname.startsWith('/admin') && location.pathname !== '/admin/login' ? (
             <>
               <Link
                 to="/admin"
@@ -274,18 +274,6 @@ export default function Navbar() {
                 }}
               >
                 {t('admin.deskTitle', 'Central Ops')}
-              </Link>
-
-              <Link
-                to="/services"
-                style={{
-                  fontSize: '13.5px',
-                  fontWeight: location.pathname.startsWith('/services') ? 700 : 600,
-                  color: location.pathname.startsWith('/services') ? 'var(--forest-800)' : 'var(--text-secondary)',
-                  textDecoration: 'none'
-                }}
-              >
-                {t('nav.catalog', 'Browse Services')}
               </Link>
 
               <Link
@@ -313,26 +301,38 @@ export default function Navbar() {
               </Link>
 
               <Link
-                to="/support"
+                to="/services"
                 style={{
                   fontSize: '13.5px',
-                  fontWeight: location.pathname === '/support' ? 700 : 600,
-                  color: location.pathname === '/support' ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  fontWeight: 600,
+                  color: 'var(--forest-800)',
                   textDecoration: 'none'
                 }}
               >
-                {t('nav.help', 'Help')}
+                {t('nav.catalog', 'Browse Services')}
+              </Link>
+
+              <Link
+                to="/"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: 600,
+                  color: 'var(--forest-800)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('common.storefront', 'Customer Storefront')}
               </Link>
             </>
-          ) : role === 'provider' ? (
-            /* ===================== PROVIDER ROLE LINKS ===================== */
+          ) : location.pathname.startsWith('/provider') && location.pathname !== '/provider/login' && location.pathname !== '/provider/register' ? (
+            /* ===================== PROVIDER DESK PORTAL ===================== */
             <>
               <Link
                 to="/provider/dashboard"
                 style={{
                   fontSize: '13.5px',
-                  fontWeight: (location.pathname === '/provider/dashboard' && !location.search.includes('active')) ? 700 : 600,
-                  color: (location.pathname === '/provider/dashboard' && !location.search.includes('active')) ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  fontWeight: (location.pathname === '/provider/dashboard' && !location.search.includes('active') && !location.search.includes('reviews')) ? 700 : 600,
+                  color: (location.pathname === '/provider/dashboard' && !location.search.includes('active') && !location.search.includes('reviews')) ? 'var(--forest-800)' : 'var(--text-secondary)',
                   textDecoration: 'none'
                 }}
               >
@@ -352,19 +352,43 @@ export default function Navbar() {
               </Link>
 
               <Link
-                to="/support"
+                to="/provider/dashboard?tab=reviews"
                 style={{
                   fontSize: '13.5px',
-                  fontWeight: location.pathname === '/support' ? 700 : 600,
-                  color: location.pathname === '/support' ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  fontWeight: location.search.includes('reviews') ? 700 : 600,
+                  color: location.search.includes('reviews') ? 'var(--forest-800)' : 'var(--text-secondary)',
                   textDecoration: 'none'
                 }}
               >
-                {t('nav.help', 'Help')}
+                {t('providerDashboard.tabReviews', 'Ratings & Reviews')}
+              </Link>
+
+              <Link
+                to="/services"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: 600,
+                  color: 'var(--forest-800)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('nav.catalog', 'Browse Services')}
+              </Link>
+
+              <Link
+                to="/"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: 600,
+                  color: 'var(--forest-800)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('common.storefront', 'Customer Storefront')}
               </Link>
             </>
           ) : (
-            /* ===================== CUSTOMER / VISITOR LINKS ===================== */
+            /* ===================== CUSTOMER STOREFRONT (MARKETPLACE) ===================== */
             <>
               <Link
                 to="/services"
@@ -375,32 +399,32 @@ export default function Navbar() {
                   textDecoration: 'none'
                 }}
               >
-                {t('nav.catalog', 'Catalog')}
+                {t('nav.catalog', 'Services')}
               </Link>
 
               <Link
-                to="/bookings"
+                to="/track"
                 style={{
                   fontSize: '13.5px',
-                  fontWeight: (location.pathname === '/bookings' || location.pathname.startsWith('/track')) ? 700 : 600,
-                  color: (location.pathname === '/bookings' || location.pathname.startsWith('/track')) ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  fontWeight: location.pathname.startsWith('/track') ? 700 : 600,
+                  color: location.pathname.startsWith('/track') ? 'var(--forest-800)' : 'var(--text-secondary)',
                   textDecoration: 'none'
                 }}
               >
-                {t('nav.myBookings', 'My Bookings')}
+                {t('nav.trackJob', 'Track Job')}
               </Link>
 
-              {!currentUser && (
+              {role === 'customer' && currentUser && (
                 <Link
-                  to="/signup?role=provider"
+                  to="/bookings"
                   style={{
                     fontSize: '13.5px',
-                    fontWeight: location.pathname.startsWith('/provider') ? 700 : 600,
-                    color: 'var(--forest-700)',
+                    fontWeight: location.pathname === '/bookings' ? 700 : 600,
+                    color: location.pathname === '/bookings' ? 'var(--forest-800)' : 'var(--text-secondary)',
                     textDecoration: 'none'
                   }}
                 >
-                  {t('nav.joinPartner', 'Join as Partner')}
+                  {t('nav.myBookings', 'My Bookings')}
                 </Link>
               )}
 
@@ -413,8 +437,22 @@ export default function Navbar() {
                   textDecoration: 'none'
                 }}
               >
-                {t('nav.help', 'Help')}
+                {t('nav.help', 'Help & Support')}
               </Link>
+
+              {!currentUser && (
+                <Link
+                  to="/provider/login"
+                  style={{
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    color: 'var(--forest-700)',
+                    textDecoration: 'none'
+                  }}
+                >
+                  {t('nav.joinPartner', 'Join as Partner')}
+                </Link>
+              )}
             </>
           )}
         </nav>
@@ -455,7 +493,7 @@ export default function Navbar() {
             </select>
           </div>
 
-          {/* Role-Specific Action Button */}
+          {/* Role-Specific Action or Fast Switch Pill */}
           {role === 'admin' ? (
             <Link
               to="/admin"
@@ -489,7 +527,8 @@ export default function Navbar() {
                 textDecoration: 'none',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '6px',
+                border: '1px solid var(--forest-200)'
               }}
             >
               <Wrench size={13} />
@@ -502,7 +541,7 @@ export default function Navbar() {
               style={{ textDecoration: 'none', padding: '6px 14px' }}
             >
               <Wrench size={14} />
-              <span>{t('common.bookNow', 'Book')}</span>
+              <span>{t('common.bookNow', 'Book Now')}</span>
             </Link>
           )}
 
