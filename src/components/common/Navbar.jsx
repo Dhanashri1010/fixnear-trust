@@ -134,13 +134,13 @@ export default function Navbar() {
         </Link>
 
         {/* Real Dynamic Location Selector Pill */}
-        <div style={{ position: 'relative' }} ref={cityDropdownRef} className="nav-desktop-links nav-city-pill">
+        <div style={{ position: 'relative' }} ref={cityDropdownRef}>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '6px 12px',
+              padding: '7px 12px',
               borderRadius: 'var(--radius-sm)',
               backgroundColor: 'var(--bg-card)',
               border: '1px solid var(--border-light)',
@@ -150,13 +150,14 @@ export default function Navbar() {
               transition: 'border-color 150ms ease'
             }}
             title="Click to select city"
+            className="nav-desktop-links"
             onClick={() => setIsCityDropdownOpen(!isCityDropdownOpen)}
           >
-            <MapPin size={15} color="var(--forest-700)" />
-            <span style={{ color: 'var(--text-primary)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <MapPin size={16} color="var(--forest-700)" />
+            <span style={{ color: 'var(--text-primary)', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {selectedCity || 'Mumbai'}
             </span>
-            <ChevronDown size={13} color="var(--text-muted)" />
+            <ChevronDown size={14} color="var(--text-muted)" />
           </div>
 
           {/* City Picker Dropdown */}
@@ -227,7 +228,7 @@ export default function Navbar() {
 
         {/* Search Bar in Navbar */}
         <div
-          className="nav-desktop-links nav-search-pill"
+          className="nav-desktop-links"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -236,7 +237,7 @@ export default function Navbar() {
             border: '1px solid var(--border-light)',
             borderRadius: 'var(--radius-full)',
             padding: '6px 14px',
-            width: '190px',
+            width: '210px',
             flexShrink: 0
           }}
         >
@@ -273,6 +274,18 @@ export default function Navbar() {
                 }}
               >
                 {t('admin.deskTitle', 'Central Ops')}
+              </Link>
+
+              <Link
+                to="/services"
+                style={{
+                  fontSize: '13.5px',
+                  fontWeight: location.pathname.startsWith('/services') ? 700 : 600,
+                  color: location.pathname.startsWith('/services') ? 'var(--forest-800)' : 'var(--text-secondary)',
+                  textDecoration: 'none'
+                }}
+              >
+                {t('nav.catalog', 'Browse Services')}
               </Link>
 
               <Link

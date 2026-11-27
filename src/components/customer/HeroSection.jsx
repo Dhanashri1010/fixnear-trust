@@ -238,7 +238,7 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                   marginBottom: '20px'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <InitialsAvatar name={topProvider.name} size={56} />
+                    <InitialsAvatar name={topProvider.name} avatarUrl={topProvider.profilePhoto || topProvider.avatar} size={56} />
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ fontWeight: 700, fontSize: '16px' }}>{topProvider.name}</span>
@@ -260,20 +260,34 @@ export default function HeroSection({ onSearch, onSelectCategory, onOpenBookingM
                 </div>
               ) : (
                 <div style={{
-                  backgroundColor: 'var(--forest-50)',
+                  position: 'relative',
+                  height: '130px',
                   borderRadius: 'var(--radius-md)',
-                  padding: '20px',
-                  border: '1px solid var(--forest-100)',
+                  overflow: 'hidden',
                   marginBottom: '20px',
-                  textAlign: 'center'
+                  backgroundColor: 'var(--forest-50)'
                 }}>
-                  <ShieldCheck size={36} color="var(--forest-700)" style={{ margin: '0 auto 8px auto' }} />
-                  <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--forest-900)' }}>
-                    {t('home.tradeSpecialists', 'Certified Trade Specialists')}
-                  </h4>
-                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                    {t('home.tradeCategoriesSub', 'Air Conditioning, Plumbing, Electrical & Home Care')}
-                  </p>
+                  <img 
+                    src="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=600&q=80" 
+                    alt="Certified Trade Specialists"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'linear-gradient(to top, rgba(19, 39, 31, 0.85) 0%, rgba(19, 39, 31, 0.2) 100%)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'flex-end',
+                    padding: '12px 14px'
+                  }}>
+                    <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
+                      {t('home.tradeSpecialists', 'Certified Trade Specialists')}
+                    </h4>
+                    <p style={{ fontSize: '12px', color: '#E8F0EA', margin: '2px 0 0 0' }}>
+                      {t('home.tradeCategoriesSub', 'Air Conditioning, Plumbing, Electrical & Home Care')}
+                    </p>
+                  </div>
                 </div>
               )}
 

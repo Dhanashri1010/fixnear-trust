@@ -13,7 +13,8 @@ export const SEED_CATEGORIES = [
     count: "12 Services",
     startingPrice: 499,
     accentBg: "var(--blue-50)",
-    accentText: "var(--blue-700)"
+    accentText: "var(--blue-700)",
+    image: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=600&q=80"
   },
   {
     id: "plumbing",
@@ -24,7 +25,8 @@ export const SEED_CATEGORIES = [
     count: "18 Services",
     startingPrice: 299,
     accentBg: "var(--sage-50)",
-    accentText: "var(--sage-700)"
+    accentText: "var(--sage-700)",
+    image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=600&q=80"
   },
   {
     id: "electrical",
@@ -35,7 +37,8 @@ export const SEED_CATEGORIES = [
     count: "15 Services",
     startingPrice: 349,
     accentBg: "var(--yellow-50)",
-    accentText: "var(--yellow-800)"
+    accentText: "var(--yellow-800)",
+    image: "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=600&q=80"
   },
   {
     id: "appliances",
@@ -46,7 +49,8 @@ export const SEED_CATEGORIES = [
     count: "22 Services",
     startingPrice: 399,
     accentBg: "var(--forest-50)",
-    accentText: "var(--forest-700)"
+    accentText: "var(--forest-700)",
+    image: "https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?auto=format&fit=crop&w=600&q=80"
   },
   {
     id: "carpentry",
@@ -57,7 +61,8 @@ export const SEED_CATEGORIES = [
     count: "14 Services",
     startingPrice: 299,
     accentBg: "var(--bg-warm-secondary)",
-    accentText: "var(--text-secondary)"
+    accentText: "var(--text-secondary)",
+    image: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=600&q=80"
   },
   {
     id: "deep-cleaning",
@@ -68,7 +73,8 @@ export const SEED_CATEGORIES = [
     count: "9 Services",
     startingPrice: 799,
     accentBg: "var(--blue-50)",
-    accentText: "var(--blue-700)"
+    accentText: "var(--blue-700)",
+    image: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=600&q=80"
   }
 ];
 
@@ -84,7 +90,7 @@ export const SEED_SERVICES = [
     originalPrice: 899,
     discountBadge: "33% Off",
     duration: "45 - 60 mins",
-    image: "",
+    image: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=800&q=80",
     features: [
       "High-pressure foam jet cleaning",
       "Indoor cooling coil & filter flush",
@@ -107,7 +113,7 @@ export const SEED_SERVICES = [
     originalPrice: 1800,
     discountBadge: "Fixed Gram Scale",
     duration: "60 mins",
-    image: "",
+    image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=800&q=80",
     features: [
       "Precision electronic manifold gauge leak test",
       "Vacuum pump moisture purge",
@@ -130,7 +136,7 @@ export const SEED_SERVICES = [
     originalPrice: 449,
     discountBadge: "Flat Inspection",
     duration: "30 - 45 mins",
-    image: "",
+    image: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=800&q=80",
     features: [
       "Non-invasive moisture meter inspection",
       "Spindle, cartridge & washer replacements",
@@ -153,7 +159,7 @@ export const SEED_SERVICES = [
     originalPrice: 650,
     discountBadge: "Fast Clearance",
     duration: "45 mins",
-    image: "",
+    image: "https://images.unsplash.com/photo-1505798577917-a65157d3320a?auto=format&fit=crop&w=800&q=80",
     features: [
       "Heavy-duty rotational drain-snake cable",
       "Fat, grease & mineral build-up extraction",
@@ -176,7 +182,7 @@ export const SEED_SERVICES = [
     originalPrice: 599,
     discountBadge: "Safety First",
     duration: "45 mins",
-    image: "",
+    image: "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&w=800&q=80",
     features: [
       "Thermal load test on distribution box",
       "Earthing resistance measurement",
@@ -199,7 +205,7 @@ export const SEED_SERVICES = [
     originalPrice: 350,
     discountBadge: "Quick Install",
     duration: "30 mins",
-    image: "",
+    image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=800&q=80",
     features: [
       "Anchor bolt & downrod torque fastening",
       "Remote controller pairing & speed calibration",
@@ -222,7 +228,7 @@ export const SEED_SERVICES = [
     originalPrice: 700,
     discountBadge: "OEM Diagnostics",
     duration: "45 mins",
-    image: "",
+    image: "https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?auto=format&fit=crop&w=800&q=80",
     features: [
       "Drain pump filter & impeller inspection",
       "Drive belt tension & motor capacitor check",
@@ -245,7 +251,7 @@ export const SEED_SERVICES = [
     originalPrice: 650,
     discountBadge: "Pure Water",
     duration: "40 - 50 mins",
-    image: "",
+    image: "https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=800&q=80",
     features: [
       "Sediment & pre-carbon candle replacement check",
       "TDS calibration (Pre & Post service)",
@@ -268,7 +274,7 @@ export const SEED_SERVICES = [
     originalPrice: 750,
     discountBadge: "Precision Fit",
     duration: "60 mins",
-    image: "",
+    image: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80",
     features: [
       "Precision mortise chiseling & strike plate alignment",
       "Deadbolt latch smooth operation check",
@@ -291,7 +297,7 @@ export const SEED_SERVICES = [
     originalPrice: 999,
     discountBadge: "Eco Steam",
     duration: "75 mins",
-    image: "",
+    image: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80",
     features: [
       "Hard water stain & scale removal from fixtures",
       "Tile grout motorized scrub & whitening",

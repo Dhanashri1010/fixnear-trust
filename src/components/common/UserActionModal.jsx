@@ -31,9 +31,16 @@ export default function UserActionModal({ activeAction, onClose }) {
     const handleCustomOpen = (e) => {
       if (e.detail) setCurrentModalAction(e.detail);
     };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
     window.addEventListener('open-user-modal', handleCustomOpen);
-    return () => window.removeEventListener('open-user-modal', handleCustomOpen);
-  }, []);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('open-user-modal', handleCustomOpen);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   if (!currentModalAction) return null;
 
@@ -137,20 +144,25 @@ export default function UserActionModal({ activeAction, onClose }) {
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(14, 27, 21, 0.65)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '20px'
-    }}>
+    <div 
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(15, 23, 42, 0.45)',
+        backdropFilter: 'blur(3px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px'
+      }}
+    >
       <div 
         className="card"
         style={{

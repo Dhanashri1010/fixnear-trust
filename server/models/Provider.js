@@ -91,6 +91,10 @@ const providerSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    profilePhoto: {
+      type: String,
+      default: '',
+    },
     adminNotes: {
       type: String,
       default: '',

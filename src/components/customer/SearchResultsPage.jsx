@@ -264,7 +264,7 @@ export default function SearchResultsPage() {
                     return (
                       <div key={techId} className="card card-hover" style={{ backgroundColor: '#FFFFFF', borderRadius: 'var(--radius-lg)', padding: '20px', border: '1px solid var(--border-light)' }}>
                         <div style={{ display: 'flex', gap: '14px', alignItems: 'center', marginBottom: '14px' }}>
-                          <InitialsAvatar name={tech.name} size={52} />
+                          <InitialsAvatar name={tech.name} avatarUrl={tech.profilePhoto || tech.avatar} size={52} />
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <h3 style={{ fontSize: '16px', fontWeight: 700 }}>{tech.name}</h3>

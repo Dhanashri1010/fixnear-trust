@@ -10,11 +10,7 @@ export default function InitialsAvatar({ name = 'FixNear User', avatarUrl = '', 
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
-  const isStockOrUnsplash = (url) => {
-    return !url || url.includes('placeholder') || url.includes('stock');
-  };
-
-  if (avatarUrl && !imgError && !isStockOrUnsplash(avatarUrl)) {
+  if (avatarUrl && !imgError) {
     return (
       <img
         src={avatarUrl}

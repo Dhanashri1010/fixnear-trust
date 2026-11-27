@@ -91,38 +91,87 @@ export default function ServiceCategories({ selectedCategoryId, onSelectCategory
             return (
               <div 
                 key={cat.categoryId || cat._id}
-                className="card"
+                className="card card-hover"
                 onClick={() => onSelectCategory(cat.categoryId)}
                 style={{
-                  padding: '24px',
+                  padding: '20px',
                   borderRadius: 'var(--radius-lg)',
                   cursor: 'pointer',
                   border: isSelected ? '2px solid var(--forest-700)' : '1px solid var(--border-light)',
                   backgroundColor: '#FFFFFF',
                   position: 'relative',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                {cat.image ? (
                   <div style={{
-                    width: '48px',
-                    height: '48px',
+                    height: '140px',
+                    width: '100%',
+                    marginBottom: '16px',
                     borderRadius: '12px',
-                    backgroundColor: cat.accentBg || 'var(--forest-50)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: cat.accentText || 'var(--forest-800)'
+                    overflow: 'hidden',
+                    position: 'relative',
+                    backgroundColor: 'var(--forest-50)'
                   }}>
-                    <IconComponent size={24} />
+                    <img 
+                      src={cat.image} 
+                      alt={cat.name} 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                    />
+                    <div style={{
+                      position: 'absolute',
+                      top: '10px',
+                      left: '10px',
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                      backdropFilter: 'blur(4px)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--forest-800)',
+                      boxShadow: 'var(--shadow-sm)'
+                    }}>
+                      <IconComponent size={20} />
+                    </div>
+                    {cat.badge && (
+                      <span className="badge badge-forest" style={{
+                        position: 'absolute',
+                        top: '10px',
+                        right: '10px',
+                        fontSize: '11px',
+                        boxShadow: 'var(--shadow-sm)'
+                      }}>
+                        {cat.badge}
+                      </span>
+                    )}
                   </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      backgroundColor: cat.accentBg || 'var(--forest-50)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: cat.accentText || 'var(--forest-800)'
+                    }}>
+                      <IconComponent size={24} />
+                    </div>
 
-                  {cat.badge && (
-                    <span className="badge badge-forest" style={{ fontSize: '11px' }}>
-                      {cat.badge}
-                    </span>
-                  )}
-                </div>
+                    {cat.badge && (
+                      <span className="badge badge-forest" style={{ fontSize: '11px' }}>
+                        {cat.badge}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--forest-900)' }}>

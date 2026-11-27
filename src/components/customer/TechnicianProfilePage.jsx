@@ -159,7 +159,7 @@ export default function TechnicianProfilePage() {
         }}>
           <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative' }}>
-              <InitialsAvatar name={technician.name} avatarUrl={technician.avatar} size={84} />
+              <InitialsAvatar name={technician.name} avatarUrl={technician.profilePhoto || technician.avatar} size={84} />
               <span style={{
                 position: 'absolute',
                 bottom: '0',

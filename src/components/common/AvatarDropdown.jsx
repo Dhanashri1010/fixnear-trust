@@ -17,7 +17,10 @@ import {
   Download,
   Trash2,
   Briefcase,
-  LayoutDashboard
+  LayoutDashboard,
+  LogOut,
+  Globe,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -26,8 +29,14 @@ import InitialsAvatar from './InitialsAvatar';
 export default function AvatarDropdown({ isOpen, onClose, onSelectOption = () => {} }) {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
-  const { currentUser, userProfile, role } = useAuth();
+  const { currentUser, userProfile, role, logOut } = useAuth();
   const { t } = useLanguage();
+
+  const handleAdminSignOut = async () => {
+    onClose();
+    await logOut();
+    navigate('/admin/login');
+  };
 
   const displayName = userProfile?.name || currentUser?.name || "FixNear User";
   const displayEmail = userProfile?.email || currentUser?.email || "user@example.com";
@@ -348,6 +357,42 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption = () =>
 
             <button 
               className="menu-item"
+              onClick={() => handleNavigate('/services')}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Globe size={16} color="var(--forest-700)" />
+                <span>{t('nav.catalog', 'Browse Marketplace & Services')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
+
+            <button 
+              className="menu-item"
+              onClick={() => handleNavigate('/admin/settings')}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Settings size={16} color="var(--forest-700)" />
+                <span>{t('admin.navSettings', 'Platform Settings Desk')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
+
+            <button 
+              className="menu-item"
+              onClick={() => handleNavigate('/admin/audit-logs')}
+              style={menuItemStyle}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FileText size={16} color="var(--forest-700)" />
+                <span>{t('admin.navAudit', 'Audit Trail & Logs')}</span>
+              </div>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </button>
+
+            <button 
+              className="menu-item"
               onClick={() => { onSelectOption('Notifications'); onClose(); }}
               style={menuItemStyle}
             >
@@ -365,21 +410,27 @@ export default function AvatarDropdown({ isOpen, onClose, onSelectOption = () =>
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <User size={16} color="var(--forest-700)" />
-                <span>{t('accountMenu.profile', 'Profile')}</span>
+                <span>{t('accountMenu.profile', 'Administrator Profile')}</span>
               </div>
               <ChevronRight size={14} color="var(--text-muted)" />
             </button>
 
+            <div style={{ height: '1px', backgroundColor: 'var(--border-light)', margin: '6px 0' }} />
+
             <button 
               className="menu-item"
-              onClick={() => { onSelectOption('Settings'); onClose(); }}
-              style={menuItemStyle}
+              onClick={handleAdminSignOut}
+              style={{
+                ...menuItemStyle,
+                color: '#DC2626',
+                fontWeight: 600
+              }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Settings size={16} color="var(--forest-700)" />
-                <span>{t('admin.navSettings', 'Platform Settings')}</span>
+                <LogOut size={16} color="#DC2626" />
+                <span>{t('accountMenu.signOut', 'Sign Out')}</span>
               </div>
-              <ChevronRight size={14} color="var(--text-muted)" />
+              <ChevronRight size={14} color="#DC2626" />
             </button>
           </>
         )}

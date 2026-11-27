@@ -54,15 +54,33 @@ export const seedDemoData = async () => {
 
   // Step 3: Seed 20 Providers (User + Provider profile)
   console.log(`[Seed Demo Data] Seeding ${DEMO_PROVIDERS.length} demo providers...`);
+  const PROVIDER_PHOTOS = [
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=300&q=80',
+    'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80',
+    'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=300&q=80',
+    'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=300&q=80',
+    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80',
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+    'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=300&q=80',
+    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=300&q=80',
+    'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=300&q=80'
+  ];
   const createdProviders = [];
-  for (const provData of DEMO_PROVIDERS) {
-    const userDoc = await User.create(provData.user);
+  for (let pIdx = 0; pIdx < DEMO_PROVIDERS.length; pIdx++) {
+    const provData = DEMO_PROVIDERS[pIdx];
+    const photo = PROVIDER_PHOTOS[pIdx % PROVIDER_PHOTOS.length];
+    const userDoc = await User.create({
+      ...provData.user,
+      avatar: photo
+    });
     const profileDoc = await Provider.create({
       userId: userDoc._id,
       name: userDoc.name,
       email: userDoc.email,
       phone: userDoc.phone,
       city: userDoc.city,
+      profilePhoto: photo,
       ...provData.profile,
     });
     createdProviders.push(profileDoc);

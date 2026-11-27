@@ -92,6 +92,7 @@ export const runDataLoader = async () => {
           badge: cat.badge,
           accentBg: cat.accentBg,
           accentText: cat.accentText,
+          image: cat.image || '',
           isActive: true,
         },
       },

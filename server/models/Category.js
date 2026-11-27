@@ -37,6 +37,10 @@ const categorySchema = new mongoose.Schema(
       type: String,
       default: 'var(--forest-800)',
     },
+    image: {
+      type: String,
+      default: '',
+    },
     isActive: {
       type: Boolean,
       default: true,

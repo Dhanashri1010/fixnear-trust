@@ -150,7 +150,7 @@ export default function TechnicianSpotlight({ onSelectTechnician }) {
                   {/* Top: Avatar, Name, Rating */}
                   <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', marginBottom: '16px' }}>
                     <div style={{ position: 'relative' }}>
-                      <InitialsAvatar name={tech.name} avatarUrl={tech.avatar} size={56} />
+                      <InitialsAvatar name={tech.name} avatarUrl={tech.profilePhoto || tech.avatar} size={56} />
                       <span style={{
                         position: 'absolute',
                         bottom: '-2px',
